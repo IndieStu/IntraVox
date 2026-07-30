@@ -842,6 +842,7 @@ OC.L10N.register(
     "Send report now" : "Saada aruanne kohe",
     "Simple" : "Lihtne",
     "Advanced" : "Täiendavad seadistused",
+    "Search users …" : "Otsi kasutajaid…",
     "No users found" : "Kasutajaid ei leidu",
     "No users selected" : "Ühtegi kasutajat pole valitud",
     "Configure settings" : "Seadista",
