@@ -230,6 +230,7 @@ OC.L10N.register(
     "Admin" : "Administratorius",
     "Organization" : "Organizacija",
     "News" : "Naujienos",
+    "Announcement" : "Skelbimas",
     "Forum" : "Forumas",
     "Design" : "Dizainas",
     "Code" : "Kodas",

@@ -190,6 +190,7 @@ OC.L10N.register(
     "Admin" : "管理員",
     "Organization" : "組織",
     "News" : "新聞",
+    "Announcement" : "公告",
     "Forum" : "論壇",
     "Design" : "設計",
     "Code" : "代碼",
