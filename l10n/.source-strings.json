@@ -1,6 +1,6 @@
 {
-    "count": 1236,
-    "sha256": "76dd3a1e627ddb6186a4683cf3689f768b317058099bf6423d28132e13eab0b8",
+    "count": 1238,
+    "sha256": "a1109a79eb06e8b37a5e9de853e9568b9cbd3834dff55ab37155aa9459e76a5a",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -853,6 +853,8 @@
         "Pick which fields appear next to the filename. The filename + file-type icon are always shown.",
         "Playback options:",
         "Please contact your administrator if you need access to this video service.",
+        "Please drop a video file (MP4, WebM or Ogg).",
+        "Please drop an image file (JPEG, PNG, GIF, WebP or SVG).",
         "Please enter a subscription key",
         "Please enter a valid domain name (e.g., video.example.org)",
         "Please enter a valid HTTPS URL",
