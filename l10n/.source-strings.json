@@ -1,6 +1,6 @@
 {
-    "count": 1253,
-    "sha256": "a8e9ec95d3ca9e27bca351d08b0442d19999b9f12e25bd3f304a50f7fff87df8",
+    "count": 1254,
+    "sha256": "ad095107844ea3fdc6eba322bdf6a45cf513cc315ab69a87196a9be512bdff15",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -793,6 +793,7 @@
         "Open work packages",
         "Operator",
         "optional",
+        "Optional cap on the total number of documents paged through. Leave blank for all.",
         "or",
         "Order",
         "Organization",

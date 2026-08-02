@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.8.5\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-01 11:36+0000\n"
+"POT-Creation-Date: 2026-08-02 07:34+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2335,6 +2335,9 @@ msgid "Operator"
 msgstr ""
 
 msgid "optional"
+msgstr ""
+
+msgid "Optional cap on the total number of documents paged through. Leave blank for all."
 msgstr ""
 
 msgid "or"
