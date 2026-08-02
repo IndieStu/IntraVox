@@ -90,7 +90,9 @@ Wanneer je sorteert op een MetaVox-veld toont de editor de hint *"Sorteren op ee
 
 | Instelling | Config-key | Beschrijving |
 |------------|------------|--------------|
-| **Maximum foto's** | `limit` | Limiteer het totale aantal foto's (1–500). Laat leeg om alles via infinite scroll te laden. |
+| **Lange lijsten** | `paginationMode` (default `infinite`) | Hoe een lange lijst foto's doorbladerd wordt: *Infinite scroll* laadt meer bij het scrollen; *Pagina-knoppen* toont een vast aantal per pagina met Vorige / Volgende, waardoor de widget een voorspelbare hoogte houdt. Pagina-knoppen gelden alleen voor de enkel-map **Tijdlijn**- en **Raster**-layouts; andere layouts gebruiken altijd infinite scroll. |
+| **Foto's per pagina** | `pageSize` (default `30`) | Alleen bij pagina-knoppen: hoeveel foto's per pagina worden getoond. |
+| **Maximum foto's** | `limit` | Optionele limiet op het *totale* aantal foto's (1–500), in **beide** modi. Laat leeg voor alles. |
 | **Toon captions** | `showCaptions` (default `true`) | Toon locatie- of bestandsnaam-caption bij hover over een tegel |
 | **Toon overzichtskaart** | `showMap` (default `false`) | Toon een Leaflet-kaart van alle foto's bovenaan de widget. Uitgeschakeld wanneer de map geen GPS heeft of wanneer de beheerder kaarten globaal heeft uitgezet. |
 | **Toon dagelijkse mini-kaart** | `showDayMaps` (default `true`) | Toon een per-dag mini-kaart boven elke timeline-dag-header. Alleen van toepassing op Timeline. |

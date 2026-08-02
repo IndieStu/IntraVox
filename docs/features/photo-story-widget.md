@@ -90,7 +90,9 @@ When you sort on a MetaVox field, the editor shows the hint *"Sorting on a MetaV
 
 | Setting | Config key | Description |
 |---------|-----------|-------------|
-| **Maximum photos** | `limit` | Cap the total number of photos (1–500). Leave blank to load everything via infinite scroll. |
+| **Long lists** | `paginationMode` (default `infinite`) | How a long list of photos is browsed: *Infinite scroll* loads more as you scroll; *Page buttons* shows a fixed number per page with Previous / Next, keeping the widget at a predictable height. Page buttons apply to the single-folder **Timeline** and **Grid** layouts only; other layouts always use infinite scroll. |
+| **Photos per page** | `pageSize` (default `30`) | Page-buttons mode only: how many photos to show per page. |
+| **Maximum photos** | `limit` | Optional cap on the *total* number of photos (1–500), applied in **both** modes. Leave blank for all. |
 | **Show captions** | `showCaptions` (default `true`) | Show location or filename caption on tile hover |
 | **Show overview map** | `showMap` (default `false`) | Show a Leaflet map of all photos at the top of the widget. Disabled when the folder has no GPS or when the administrator has turned maps off globally. |
 | **Show daily mini-map** | `showDayMaps` (default `true`) | Show a per-day mini-map above each timeline day-header. Only applies to Timeline. |

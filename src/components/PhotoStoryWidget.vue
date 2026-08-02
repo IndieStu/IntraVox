@@ -250,15 +250,40 @@
       </button>
     </aside>
 
-    <!-- Infinite-scroll sentinel + load-more indicator (folder-mode timeline/grid only) -->
+    <!-- Infinite-scroll sentinel (folder-mode timeline/grid, infinite mode only) -->
     <div
-      v-if="isPagedMode() && pagination.hasMore"
+      v-if="effectivePaginationMode === 'infinite' && isPagedMode() && pagination.hasMore"
       ref="scrollSentinel"
       class="ps-scroll-sentinel"
       aria-hidden="true"
     >
       <span v-if="loadingMore" class="ps-loading-more">{{ t('intravox', 'Loading more photos …') }}</span>
     </div>
+
+    <!-- Page buttons (pages mode, more than one page) -->
+    <nav
+      v-if="effectivePaginationMode === 'pages' && photos.length && totalPages > 1"
+      class="ps-pagination"
+      :aria-label="t('intravox', 'Photo pages')"
+    >
+      <NcButton
+        type="secondary"
+        :disabled="currentPage <= 1 || loadingMore"
+        @click="goToPage(currentPage - 1)"
+      >
+        {{ t('intravox', 'Previous') }}
+      </NcButton>
+      <span class="ps-pagination-status">
+        {{ t('intravox', 'Page {current} of {total}', { current: String(currentPage), total: String(totalPages) }) }}
+      </span>
+      <NcButton
+        type="secondary"
+        :disabled="currentPage >= totalPages || loadingMore"
+        @click="goToPage(currentPage + 1)"
+      >
+        {{ t('intravox', 'Next') }}
+      </NcButton>
+    </nav>
 
     <!-- Truncation notice when server hit its hard cap -->
     <div v-if="pagination.truncated" class="ps-truncated">
@@ -438,6 +463,8 @@ export default {
         truncated: false,
       },
       loadingMore: false,
+      // Current 1-based page in 'pages' mode (unused in infinite mode).
+      currentPage: 1,
       _scrollObserver: null,
       _abortController: null,
     };
@@ -482,6 +509,23 @@ export default {
       const m = this.config.mode || 'timeline';
       const allowed = ['timeline', 'highlights', 'grid', 'on-this-day'];
       return allowed.includes(m) ? m : 'timeline';
+    },
+    // Page buttons only apply where the widget already paginates (single-folder
+    // timeline/grid). Highlights/on-this-day and cross-folder stay as-is.
+    effectivePaginationMode() {
+      return (this.config.paginationMode === 'pages' && this.isPagedMode()) ? 'pages' : 'infinite';
+    },
+    // Photos per page in 'pages' mode (config.pageSize), sane default.
+    effectivePageSize() {
+      const n = parseInt(this.config.pageSize, 10);
+      return (Number.isFinite(n) && n > 0) ? n : 30;
+    },
+    totalPages() {
+      // Use the configured page size, not pagination.pageSize (the backend
+      // clamps that under the limit cap on the last page — see FileStory #78).
+      const size = this.effectivePageSize;
+      if (!size) return 1;
+      return Math.max(1, Math.ceil((this.pagination.total || 0) / size));
     },
     effectiveStyle() {
       const allowed = ['magazine', 'apple', 'travelogue'];
@@ -573,6 +617,8 @@ export default {
         f: c.folderPath || '',
         m: c.mode || 'timeline',
         l: c.limit ?? null,
+        pm: c.paginationMode || 'infinite',
+        psz: c.pageSize ?? null,
         s: c.sortOrder || 'desc',
         sb: c.sortBy || 'mtime',
         x: !!c.allMetaVoxFolders,
@@ -685,8 +731,11 @@ export default {
       this._abortController = new AbortController();
       const signal = this._abortController.signal;
 
-      // Reset pagination for first page
-      this.pagination = { offset: 0, pageSize: 200, total: 0, hasMore: false, truncated: false };
+      // Reset pagination for first page. 'pages' mode paginates by the configured
+      // page size; infinite mode keeps the internal 200-row fetch window.
+      const initialPageSize = this.effectivePaginationMode === 'pages' ? this.effectivePageSize : 200;
+      this.pagination = { offset: 0, pageSize: initialPageSize, total: 0, hasMore: false, truncated: false };
+      this.currentPage = 1;
 
       this.loading = true;
       this.error = null;
@@ -723,9 +772,14 @@ export default {
           this.mapSettings = { ...this.mapSettings, ...data.map };
         }
         if (data.pagination) {
+          // In pages mode keep the stable configured page size; the backend may
+          // clamp its own pageSize under the limit cap (see FileStory #78).
+          const respPageSize = this.effectivePaginationMode === 'pages'
+            ? this.effectivePageSize
+            : (data.pagination.pageSize || 200);
           this.pagination = {
             offset: data.pagination.offset || 0,
-            pageSize: data.pagination.pageSize || 200,
+            pageSize: respPageSize,
             total: data.pagination.total || this.photos.length,
             hasMore: !!data.pagination.hasMore,
             truncated: !!data.pagination.truncated,
@@ -774,7 +828,13 @@ export default {
       }
       if (this.isPagedMode()) {
         params.append('offset', String(offset));
-        params.append('pageSize', String(this.pagination.pageSize || 200));
+        // In pages mode use the stable configured page size; the backend may
+        // clamp its own pageSize under the limit cap, but our paging must not
+        // drift (see FileStory #78). Infinite mode keeps the 200-row window.
+        const reqPageSize = this.effectivePaginationMode === 'pages'
+          ? this.effectivePageSize
+          : (this.pagination.pageSize || 200);
+        params.append('pageSize', String(reqPageSize));
         params.append('sortOrder', this.config.sortOrder || 'desc');
         params.append('sortBy', this.config.sortBy || 'mtime');
         // Pass the total from the first page so the backend can skip the
@@ -845,12 +905,55 @@ export default {
         this.loadingMore = false;
       }
     },
+    // 'pages' mode: jump to a specific 1-based page, REPLACING the current view
+    // (unlike fetchMore which appends for infinite scroll).
+    async goToPage(page) {
+      const target = Math.min(Math.max(1, page), this.totalPages);
+      if (this.loading || this.loadingMore || target === this.currentPage) return;
+      if (this._abortController) this._abortController.abort();
+      this._abortController = new AbortController();
+      const signal = this._abortController.signal;
+
+      const pageSize = this.effectivePageSize;
+      const offset = (target - 1) * pageSize;
+      this.loadingMore = true;
+      try {
+        const params = this.buildPhotosParams(offset);
+        const url = generateUrl(`/apps/intravox/api/photo-story/photos?${params.toString()}`);
+        const res = await axios.get(url, { signal, validateStatus: s => s >= 200 && s < 300 });
+        const data = res.data || {};
+        this.photos = data.photos || [];
+        this.timeline = data.timeline || [];
+        this.highlights = data.highlights || [];
+        this.warmFederatedPreviews(this.photos);
+        this.currentPage = target;
+        if (data.pagination) {
+          this.pagination = {
+            offset: data.pagination.offset || offset,
+            // Keep our stable page size; ignore the backend's clamped value.
+            pageSize,
+            total: data.pagination.total || this.pagination.total,
+            hasMore: !!data.pagination.hasMore,
+            truncated: !!data.pagination.truncated,
+          };
+        }
+        this.$el?.scrollIntoView?.({ block: 'nearest' });
+      } catch (err) {
+        if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+          return;
+        }
+        console.error('[PhotoStoryWidget] goToPage failed:', err);
+      } finally {
+        this.loadingMore = false;
+      }
+    },
     setupScrollSentinel() {
       // Tear down previous observer (e.g. on re-fetch)
       if (this._scrollObserver) {
         this._scrollObserver.disconnect();
         this._scrollObserver = null;
       }
+      if (this.effectivePaginationMode === 'pages') return;
       if (!this.pagination.hasMore || typeof IntersectionObserver === 'undefined') return;
       const sentinel = this.$refs.scrollSentinel;
       if (!sentinel) return;
@@ -1020,6 +1123,20 @@ export default {
   border-radius: 8px;
   font-size: 13px;
   color: var(--ps-text-muted, var(--color-text-maxcontrast));
+}
+
+.ps-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 16px 0 4px;
+}
+
+.ps-pagination-status {
+  font-size: 13px;
+  color: var(--ps-text-muted, var(--color-text-maxcontrast));
+  white-space: nowrap;
 }
 
 /* Year-jump scrubber: floats top-right inside the widget, sticky to viewport */

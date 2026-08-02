@@ -215,6 +215,50 @@
     <!-- ============ SECTION: DISPLAY ============ -->
     <h4 class="ps-section-heading">{{ t('intravox', 'Display') }}</h4>
 
+    <!-- Long-list handling: infinite scroll vs. page buttons -->
+    <div class="editor-section">
+      <div class="editor-label">{{ t('intravox', 'Long lists') }}</div>
+      <div class="ps-pagination-mode">
+        <NcCheckboxRadioSwitch
+          type="radio"
+          name="ps-pagination-mode"
+          value="infinite"
+          :model-value="paginationMode"
+          @update:model-value="setPaginationMode('infinite')"
+        >
+          {{ t('intravox', 'Infinite scroll') }}
+        </NcCheckboxRadioSwitch>
+        <NcCheckboxRadioSwitch
+          type="radio"
+          name="ps-pagination-mode"
+          value="pages"
+          :model-value="paginationMode"
+          @update:model-value="setPaginationMode('pages')"
+        >
+          {{ t('intravox', 'Page buttons') }}
+        </NcCheckboxRadioSwitch>
+      </div>
+      <p v-if="paginationMode === 'pages' && !paginationSupportsPages" class="editor-hint">
+        {{ t('intravox', 'Page buttons apply to the single-folder Timeline and Grid layouts. Other layouts always use infinite scroll.') }}
+      </p>
+    </div>
+
+    <!-- Photos per page — only in page-buttons mode -->
+    <div v-if="paginationMode === 'pages' && paginationSupportsPages" class="editor-section">
+      <label class="editor-label" for="ps-page-size">{{ t('intravox', 'Photos per page') }}</label>
+      <input
+        id="ps-page-size"
+        type="number"
+        min="1"
+        max="500"
+        v-model.number="localConfig.pageSize"
+        placeholder="30"
+        class="editor-input ps-narrow"
+        @input="emitUpdate"
+      />
+      <p class="editor-hint">{{ t('intravox', 'Number of photos shown per page. Older photos stay reachable via the page buttons.') }}</p>
+    </div>
+
     <!-- Limit -->
     <div class="editor-section">
       <label class="editor-label" for="ps-limit">{{ t('intravox', 'Maximum photos') }}</label>
@@ -228,7 +272,7 @@
         class="editor-input ps-narrow"
         @input="emitUpdate"
       />
-      <p class="editor-hint">{{ t('intravox', 'Cap the total number of photos shown. Leave blank to load everything via infinite scroll.') }}</p>
+      <p class="editor-hint">{{ t('intravox', 'Optional cap on the total number of photos, applied in both modes. Leave blank for all.') }}</p>
     </div>
 
     <!-- Columns (grid mode) -->
@@ -356,6 +400,17 @@ export default {
     };
   },
   computed: {
+    paginationMode() {
+      return this.localConfig.paginationMode === 'pages' ? 'pages' : 'infinite';
+    },
+    // Page buttons only make sense where the widget paginates: single-folder
+    // Timeline or Grid. Highlights / On-this-day and cross-folder do not.
+    paginationSupportsPages() {
+      const m = this.localConfig.mode;
+      return !this.localConfig.allMetaVoxFolders
+        && !!this.localConfig.folderPath
+        && (m === 'timeline' || m === 'grid');
+    },
     modeOptions() {
       return [
         { value: 'timeline', label: this.t('intravox', 'Timeline'), icon: 'ViewList' },
@@ -503,7 +558,9 @@ export default {
         folderPath: '',
         mode: 'timeline',
         style: 'apple',
-        limit: null,
+        limit: null,                    // total cap (both modes); null = all
+        paginationMode: 'infinite',     // 'infinite' | 'pages' (timeline/grid, single folder)
+        pageSize: 30,                   // photos per page in 'pages' mode
         columns: 3,
         showCaptions: true,
         showMap: false,
@@ -542,6 +599,11 @@ export default {
     setMode(mode) {
       if (!this.isModeAvailable(mode)) return;
       this.localConfig.mode = mode;
+      this.emitUpdate();
+    },
+    setPaginationMode(value) {
+      if (value !== 'infinite' && value !== 'pages') return;
+      this.localConfig.paginationMode = value;
       this.emitUpdate();
     },
     setStyle(val) {
