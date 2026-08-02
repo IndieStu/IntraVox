@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.8.5\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-02 07:34+0000\n"
+"POT-Creation-Date: 2026-08-02 20:03+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -663,6 +663,9 @@ msgstr ""
 msgid "contains"
 msgstr ""
 
+msgid "contains all"
+msgstr ""
+
 msgid "Contains IntraVox data for {languages}"
 msgstr ""
 
@@ -958,6 +961,9 @@ msgid "Documents"
 msgstr ""
 
 msgid "Documents per page"
+msgstr ""
+
+msgid "does not contain"
 msgstr ""
 
 msgid "Domain"
@@ -1689,7 +1695,46 @@ msgstr ""
 msgid "Invalid URL format. Please enter a valid URL (e.g., https://video.example.org)"
 msgstr ""
 
+msgid "is after"
+msgstr ""
+
 msgid "is any of"
+msgstr ""
+
+msgid "is before"
+msgstr ""
+
+msgid "is empty"
+msgstr ""
+
+msgid "is false"
+msgstr ""
+
+msgid "is greater or equal"
+msgstr ""
+
+msgid "is greater than"
+msgstr ""
+
+msgid "is less or equal"
+msgstr ""
+
+msgid "is less than"
+msgstr ""
+
+msgid "is not empty"
+msgstr ""
+
+msgid "is one of"
+msgstr ""
+
+msgid "is today"
+msgstr ""
+
+msgid "is true"
+msgstr ""
+
+msgid "is within next X days"
 msgstr ""
 
 msgid "Italic (Ctrl+I)"
