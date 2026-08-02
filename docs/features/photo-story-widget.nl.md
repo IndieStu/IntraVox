@@ -7,7 +7,7 @@ Het is de foto-gerichte tegenhanger van de [File-story-widget](file-story-widget
 ## Features
 
 - **Vier layout-modes**: Timeline, Highlights, Grid, On this day
-- **Drie timeline-visual-stijlen**: Magazine (serif redactioneel), Apple (schoon grid, default), Travelogue (Polarsteps-achtige rail)
+- **Drie timeline-visual-stijlen**: Magazine (serif redactioneel), Schoon raster (even grote tegels, default), Travelogue (Polarsteps-achtige rail)
 - **EXIF-driven**: foto's kunnen gegroepeerd worden op opname-datum, niet alleen wijzigingsdatum
 - **Optionele kaarten**: een overzichtskaart voor de hele story en een mini-kaart per dag
 - **MetaVox-integratie**: filter en sorteer op elk MetaVox-veld (mensen, onderwerpen, locaties, custom fields)
@@ -30,7 +30,7 @@ Drie visuele stijlen zijn beschikbaar:
 
 | Stijl | Look | Geschikt voor |
 |-------|------|---------------|
-| **Apple** (default) | Schone vierkante tegels in een strak 5-kolom-grid | General-purpose timelines |
+| **Schoon raster** (default) | Schone vierkante tegels in een strak 5-kolom-grid | Algemene tijdlijnen |
 | **Magazine** | Redactionele serif-typografie (Georgia), grote gevarieerde tegels, 4:3-aspect, deterministische 1–3-kolom-spans per tegel | Glossy foto-stories, jaarverslagen |
 | **Travelogue** | 60 px timeline-rail met bullets per dag, 2-kolom-foto-grid | Reisdagboeken, multi-dag-evenementen |
 
@@ -81,7 +81,7 @@ Als je **Bron-map** leeg laat zonder een filter toe te voegen, toont de widget e
 |------------|------------|--------------|
 | **Layout-mode** | `mode` | Timeline, Highlights, Grid of On this day |
 | **Volgorde** | `sortBy` + `sortOrder` | Sorteer op opname-datum (`taken_at`), wijzigingsdatum (`mtime`), bestandsnaam, bestandsgrootte of elk MetaVox-veld (multiselect/tags/checkbox uitgesloten). Richting-labels passen zich aan aan het veldtype — *Nieuwste/Oudste eerst*, *A → Z* / *Z → A*, *Grootste/Kleinste eerst*. Verborgen voor Highlights. |
-| **Visuele stijl** | `style` | `magazine` / `apple` (default) / `travelogue` — alleen Timeline |
+| **Visuele stijl** | `style` | Magazine (`magazine`) / Schoon raster (`apple`, default) / Travelogue (`travelogue`) — alleen Timeline |
 | **Kolommen** | `columns` | 2 / 3 / 4 / 5 — alleen Grid |
 
 Wanneer je sorteert op een MetaVox-veld toont de editor de hint *"Sorteren op een MetaVox-veld ordent binnen elke geladen pagina (best-effort over infinite scroll)."*

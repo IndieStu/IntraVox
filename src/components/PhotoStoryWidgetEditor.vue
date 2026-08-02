@@ -429,10 +429,10 @@ export default {
         },
         {
           value: 'apple',
-          // TRANSLATORS: Name of a photo-gallery layout style — a clean, minimal photo grid (Apple-Photos-like). Not the fruit or the brand; keep or transliterate as a style name.
-          label: this.t('intravox', 'Apple'),
-          // TRANSLATORS: Hint for the "Apple" photo layout style. "Clean" is an adjective (tidy/minimal grid), not the verb "to clean". This style is the default.
-          hint: this.t('intravox', 'Clean grid (default)'),
+          // TRANSLATORS: Name of a photo-gallery layout style — a clean grid of equal-sized tiles grouped by day (the default).
+          label: this.t('intravox', 'Clean grid'),
+          // TRANSLATORS: Hint for the "Clean grid" photo layout style — every photo is the same size, grouped by day. This is the default style.
+          hint: this.t('intravox', 'Equal-sized tiles, grouped by day (default)'),
         },
         {
           value: 'travelogue',

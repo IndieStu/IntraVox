@@ -7,7 +7,7 @@ It is the photo-centric counterpart to the [File Story Widget](file-story-widget
 ## Features
 
 - **Four layout modes**: Timeline, Highlights, Grid, On this day
-- **Three timeline visual styles**: Magazine (serif editorial), Apple (clean grid, default), Travelogue (Polarsteps-like rail)
+- **Three timeline visual styles**: Magazine (serif editorial), Clean grid (equal-sized tiles, default), Travelogue (Polarsteps-like rail)
 - **EXIF-driven**: photos can be grouped by date taken, not just file modification date
 - **Optional maps**: an overview map for the whole story and a mini-map per day
 - **MetaVox integration**: filter and sort on any MetaVox field (people, subjects, locations, custom fields)
@@ -30,7 +30,7 @@ Three visual styles are available:
 
 | Style | Look | Best for |
 |-------|------|----------|
-| **Apple** (default) | Clean square tiles in a tight 5-column grid | General-purpose timelines |
+| **Clean grid** (default) | Clean square tiles in a tight 5-column grid | General-purpose timelines |
 | **Magazine** | Editorial serif typography (Georgia), large varied tiles, 4:3 aspect, deterministic 1–3 column spans per tile | Glossy photo stories, annual reports |
 | **Travelogue** | 60 px timeline rail with bullets per day, 2-column photo grid | Trip diaries, multi-day events |
 
@@ -81,7 +81,7 @@ If you leave **Source folder** empty without adding a filter, the widget shows a
 |---------|-----------|-------------|
 | **Layout mode** | `mode` | Timeline, Highlights, Grid, or On this day |
 | **Order** | `sortBy` + `sortOrder` | Sort by date taken (`taken_at`), date modified (`mtime`), filename, file size, or any MetaVox field (multiselect/tags/checkbox excluded). Direction labels adapt to the field type — *Newest/Oldest first*, *A → Z* / *Z → A*, *Largest/Smallest first*. Hidden for Highlights. |
-| **Visual style** | `style` | `magazine` / `apple` (default) / `travelogue` — Timeline only |
+| **Visual style** | `style` | Magazine (`magazine`) / Clean grid (`apple`, default) / Travelogue (`travelogue`) — Timeline only |
 | **Columns** | `columns` | 2 / 3 / 4 / 5 — Grid only |
 
 When you sort on a MetaVox field, the editor shows the hint *"Sorting on a MetaVox field reorders within each loaded page (best-effort across infinite scroll)."*
