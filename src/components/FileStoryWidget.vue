@@ -229,20 +229,28 @@
     >
       <NcButton
         type="secondary"
+        :aria-label="t('intravox', 'Previous page')"
+        :title="t('intravox', 'Previous page')"
         :disabled="currentPage <= 1 || loadingMore"
         @click="goToPage(currentPage - 1)"
       >
-        {{ t('intravox', 'Previous') }}
+        <template #icon>
+          <ChevronLeft :size="20" />
+        </template>
       </NcButton>
       <span class="fs-pagination-status">
         {{ t('intravox', 'Page {current} of {total}', { current: String(currentPage), total: String(totalPages) }) }}
       </span>
       <NcButton
         type="secondary"
+        :aria-label="t('intravox', 'Next page')"
+        :title="t('intravox', 'Next page')"
         :disabled="currentPage >= totalPages || loadingMore"
         @click="goToPage(currentPage + 1)"
       >
-        {{ t('intravox', 'Next') }}
+        <template #icon>
+          <ChevronRight :size="20" />
+        </template>
       </NcButton>
     </nav>
 
@@ -263,6 +271,8 @@ import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue';
 import CloudOutline from 'vue-material-design-icons/CloudOutline.vue';
 import LockOutline from 'vue-material-design-icons/LockOutline.vue';
+import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
+import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 
 // FileTypeIcon renders a small mime-icon. Uses NC's `OC.MimeType.getIconUrl()`
 // when available (returns a path to NC's built-in icon SVG), falls back to a
@@ -289,7 +299,7 @@ const FileTypeIcon = {
 
 export default {
   name: 'FileStoryWidget',
-  components: { AlertCircle, FileDocumentOutline, CloudOutline, LockOutline, FileTypeIcon, NcButton },
+  components: { AlertCircle, FileDocumentOutline, CloudOutline, LockOutline, ChevronLeft, ChevronRight, FileTypeIcon, NcButton },
   props: {
     widget: { type: Object, required: true },
     rowBackgroundColor: { type: String, default: '' },

@@ -268,20 +268,28 @@
     >
       <NcButton
         type="secondary"
+        :aria-label="t('intravox', 'Previous page')"
+        :title="t('intravox', 'Previous page')"
         :disabled="currentPage <= 1 || loadingMore"
         @click="goToPage(currentPage - 1)"
       >
-        {{ t('intravox', 'Previous') }}
+        <template #icon>
+          <ChevronLeft :size="20" />
+        </template>
       </NcButton>
       <span class="ps-pagination-status">
         {{ t('intravox', 'Page {current} of {total}', { current: String(currentPage), total: String(totalPages) }) }}
       </span>
       <NcButton
         type="secondary"
+        :aria-label="t('intravox', 'Next page')"
+        :title="t('intravox', 'Next page')"
         :disabled="currentPage >= totalPages || loadingMore"
         @click="goToPage(currentPage + 1)"
       >
-        {{ t('intravox', 'Next') }}
+        <template #icon>
+          <ChevronRight :size="20" />
+        </template>
       </NcButton>
     </nav>
 
@@ -311,6 +319,8 @@ import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';
 import LockOutline from 'vue-material-design-icons/LockOutline.vue';
+import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
+import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 
 import { h, ref } from 'vue';
 const PhotoTile = {
@@ -416,6 +426,8 @@ export default {
     LockOutline,
     NcButton,
     MapMarker,
+    ChevronLeft,
+    ChevronRight,
     PhotoTile,
     PhotoLightbox: defineAsyncComponent(() => import('./PhotoLightbox.vue')),
     PhotoStoryMap: defineAsyncComponent(() => import('./PhotoStoryMap.vue')),
