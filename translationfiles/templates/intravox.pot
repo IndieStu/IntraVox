@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: IntraVox 1.8.5\n"
+"Project-Id-Version: IntraVox 1.9.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-02 20:03+0000\n"
+"POT-Creation-Date: 2026-08-02 20:23+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -466,9 +466,6 @@ msgid "Cannot move a page into itself or its descendant"
 msgstr ""
 
 msgid "Cap the total number of documents. Leave blank to load everything via infinite scroll."
-msgstr ""
-
-msgid "Cap the total number of photos shown. Leave blank to load everything via infinite scroll."
 msgstr ""
 
 msgid "Cards"
@@ -2313,6 +2310,9 @@ msgstr ""
 msgid "Number of items"
 msgstr ""
 
+msgid "Number of photos shown per page. Older photos stay reachable via the page buttons."
+msgstr ""
+
 msgid "Numbered list"
 msgstr ""
 
@@ -2385,6 +2385,9 @@ msgstr ""
 msgid "Optional cap on the total number of documents paged through. Leave blank for all."
 msgstr ""
 
+msgid "Optional cap on the total number of photos, applied in both modes. Leave blank for all."
+msgstr ""
+
 msgid "or"
 msgstr ""
 
@@ -2428,6 +2431,9 @@ msgid "Page buttons"
 msgstr ""
 
 msgid "Page buttons apply to List and Tiles layouts. Timeline and Grouped layouts always use infinite scroll."
+msgstr ""
+
+msgid "Page buttons apply to the single-folder Timeline and Grid layouts. Other layouts always use infinite scroll."
 msgstr ""
 
 msgid "Page content or titles"
@@ -2568,10 +2574,16 @@ msgstr ""
 msgid "Photo {n} of {total}"
 msgstr ""
 
+msgid "Photo pages"
+msgstr ""
+
 msgid "Photo story"
 msgstr ""
 
 msgid "Photos"
+msgstr ""
+
+msgid "Photos per page"
 msgstr ""
 
 msgid "Photos taken on this same date in earlier years."
