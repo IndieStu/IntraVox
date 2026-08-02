@@ -53,20 +53,36 @@ Voorbeeld:
 
 ### 2. ACL-regels (fijn-granulaire controle)
 
-Met de GroupFolders ACL-feature ingeschakeld kunnen beheerders specifiekere permissies op submappen instellen. ACL-regels overrulen basis-permissies voor specifieke paden.
+Met de GroupFolders "Advanced Permissions" (ACL) ingeschakeld kunnen beheerders specifiekere permissies op submappen instellen.
 
-Voorbeeld:
+> **⚠️ De belangrijkste regel: ACL-regels kunnen toegang alleen _beperken_, nooit _toekennen_.**
+>
+> Een ACL-regel kan een permissie wégnemen die een gebruiker anders zou hebben, maar kan **geen permissie toevoegen die de groep van de gebruiker niet al op basis-niveau heeft**. De basis-groepspermissie is het *plafond*; ACL-regels kunnen dat alleen verlagen voor specifieke paden, nooit verhogen.
+>
+> Dit is standaard Nextcloud GroupFolders-gedrag — niet iets wat IntraVox bepaalt. IntraVox leest simpelweg de effectieve Nextcloud-permissie op elk bestand en elke folder.
 
-- `/nl/afdelingen/hr` — HR-groep volledige toegang, anderen alleen-lezen
-- `/nl/afdelingen/sales` — Sales-groep volledige toegang, anderen alleen-lezen
+**Wat dit in de praktijk betekent:**
+
+- Als de enige groep van een gebruiker **Lezen** als basis-permissie heeft, dan werkt het via een ACL-regel toekennen van "Lezen + Schrijven" op één submap **niet** — het schrijfrecht wordt weggemaskeerd door het alleen-lezen-plafond. De gebruiker blijft overal alleen-lezen.
+- Om iemand *sommige* secties wél en andere niet te laten bewerken, moet hun groep **Schrijven op basis-niveau** hebben, en gebruik je ACL-regels om schrijven te **verwijderen** op de secties die ze niet mogen bewerken.
+
+Voorbeeld (beperkend model — de juiste manier):
+
+- Basis: groep "Afdelings-editors" heeft **Lezen + Schrijven + Aanmaken** op de hele IntraVox-folder
+- ACL op `/nl/afdelingen/sales` → schrijven verwijderen voor iedereen behalve de Sales-groep
+- ACL op `/nl/afdelingen/hr` → schrijven verwijderen voor iedereen behalve de HR-groep
+- Resultaat: elke editor schrijft alleen in de eigen afdeling, leest de rest
 
 ### 3. Permissie-overerving
 
-Permissies worden van ouder- naar child-folders overgeërfd:
+Permissies worden van ouder- naar child-folders overgeërfd, altijd **naar beneden versmallend**:
 
-- Een child-folder kan niet meer permissies hebben dan zijn ouder
-- ACL-regels op ouder-folders raken alle children
-- Specifiekere regels (diepere paden) overrulen minder specifieke regels
+- De **basis-groepspermissie is het maximum** dat een gebruiker ergens in de folder kan hebben. ACL-regels kunnen dat alleen per pad verlagen.
+- Een child-folder kan nooit *meer* permissie hebben dan zijn ouder toekent.
+- ACL-regels op een ouder-folder raken alle children eronder.
+- Specifiekere regels (diepere paden) gaan vóór minder specifieke — maar altijd binnen het basis-plafond.
+
+Omdat overerving bij Team folders (GroupFolders) top-down én aftrekkend werkt, is het juiste mentale model: **begin breed, neem dan wég** — niet "begin op slot, ken dan toe".
 
 ## Permissies opzetten
 
@@ -112,6 +128,38 @@ IntraVox/
     └── (zelfde structuur)
 ```
 
+### Voorbeeld: "alles lezen, alleen mijn sectie bewerken"
+
+Een veelvoorkomend verzoek: een gebruiker moet **alle secties A, B en C lezen**, maar alleen
+**sectie B** (hun afdeling) bewerken. De voor-de-hand-liggende-maar-foute reflex is de
+gebruiker Lezen op basis-niveau geven en een "Schrijven"-ACL op sectie B toevoegen — **dat
+werkt niet**, want een ACL kan geen schrijven toekennen boven een alleen-lezen basis (zie de
+waarschuwing onder [ACL-regels](#2-acl-regels-fijn-granulaire-controle)).
+
+De juiste, beperkende setup:
+
+1. Zet de gebruiker in een groep die **Lezen + Schrijven** op basis-niveau van de
+   IntraVox-folder heeft (bv. "IntraVox Editors", of een eigen groep "Sectie B Editors").
+2. Schakel Advanced Permissions in op de folder.
+3. Voeg ACL-regels toe die **schrijven verwijderen** op de secties die ze *niet* mogen bewerken:
+   - Sectie A → schrijven verwijderen voor de groep (lezen laten staan)
+   - Sectie C → schrijven verwijderen voor de groep (lezen laten staan)
+   - Sectie B → ongewijzigd laten (basis-schrijven geldt)
+
+```
+IntraVox/
+└── nl/
+    ├── sectie-a/   → Sectie B Editors: basis-schrijven VERWIJDERD via ACL → alleen-lezen
+    ├── sectie-b/   → Sectie B Editors: basis-schrijven geldt → bewerkbaar
+    └── sectie-c/   → Sectie B Editors: basis-schrijven VERWIJDERD via ACL → alleen-lezen
+```
+
+Resultaat: de gebruiker leest A, B en C, maar kan alleen pagina's in B bewerken.
+
+> **Doe dit niet** door de groep Lezen-alleen op basis-niveau te geven en een Schrijven-ACL
+> op sectie B toe te voegen. Het schrijven wordt weggemaskeerd en de gebruiker is overal
+> alleen-lezen — dit is de meest gemaakte Team-folder-permissie-fout.
+
 ## Permissie-checks in IntraVox
 
 IntraVox checkt permissies op meerdere niveaus:
@@ -145,11 +193,36 @@ Navigatie-items worden gefilterd op basis van pagina-permissies — gebruikers z
 2. Check ACL-regels op het specifieke folder-pad
 3. Verifieer dat het pagina-bestand op de verwachte locatie bestaat
 
-### Gebruiker kan een pagina niet bewerken
+### Gebruiker kan een pagina niet bewerken (terwijl een ACL schrijven toekent)
 
-1. Verifieer dat de groep van de gebruiker Schrijfrechten heeft op de GroupFolder
-2. Check of ACL-regels Schrijven beperken op dat pad
-3. Check ouder-folder-permissies (child kan niet meer dan ouder)
+Dit is de meest voorkomende permissie-verwarring bij Team folders. Symptoom: je gaf een
+gebruiker "Lezen + Schrijven" op één sectie via een ACL-regel, maar ze kunnen daar nog
+steeds niet bewerken — de Bewerken-knop ontbreekt, of opslaan faalt.
+
+**Oorzaak:** de *basis-groepspermissie* van de gebruiker is alleen-lezen, en **een ACL-regel
+kan geen schrijven toekennen boven een alleen-lezen basis** (zie [ACL-regels](#2-acl-regels-fijn-granulaire-controle)
+hierboven). De ACL wordt gecapt door het groepsplafond, dus Nextcloud rapporteert het
+bestand als alleen-lezen en IntraVox verbergt terecht de Bewerken-knop.
+
+**Oplossing — kies er één:**
+
+1. **Zet de editors in een groep die Schrijven op basis-niveau heeft** (bv. de ingebouwde
+   "IntraVox Editors", met Lezen + Schrijven + Aanmaken), en gebruik ACL-regels om schrijven
+   te *verwijderen* op de secties die ze niet mogen bewerken. Dit is het aanbevolen model.
+2. Of verhoog de basis-permissie van de bestaande groep tot Schrijven, en beperk die met
+   ACL-regels weer op de alleen-lezen-secties.
+
+**Zo verifieer je wat de gebruiker echt heeft:** draai op de server
+`occ groupfolders:permissions <folderId> <pad> --test -u <gebruiker>` om de effectieve
+permissie voor dat pad te zien. Toont het `+write` maar faalt bewerken toch, controleer dan
+of de *groep* schrijven op basis-niveau heeft (de `--test`-output toont de ACL-regel, maar
+de effectieve node-permissie wordt nog steeds gecapt door de groepsbasis).
+
+### Gebruiker kan een pagina niet bewerken (andere oorzaken)
+
+1. Verifieer dat de groep van de gebruiker Schrijfrechten heeft op de GroupFolder **op basis-niveau**
+2. Check of ACL-regels Schrijven expliciet *verwijderen* op dat pad
+3. Check ouder-folder-permissies (een child kan nooit meer dan zijn ouder, en nooit meer dan het basis-groepsplafond)
 
 ### RSS-feed van gebruiker is leeg
 
@@ -167,26 +240,27 @@ Dit zou niet moeten gebeuren bij correct geconfigureerde permissies. Check:
 
 ## Technische implementatie
 
-De `PermissionService`-klasse handelt alle permissie-logica af:
+IntraVox berekent permissies **niet** zelf. Het leest de **effectieve Nextcloud-permissie**
+op elk pagina-bestand en elke folder via de eigen gemounte view van de gebruiker, waarin
+Nextcloud alle GroupFolder-basis-permissies en ACL-regels al heeft toegepast:
 
 ```php
-// Check of gebruiker een pad kan lezen
-$canRead = $permissionService->canRead('nl/afdelingen/hr');
-
-// Check of gebruiker naar een pad kan schrijven
-$canWrite = $permissionService->canWrite('nl/afdelingen/hr');
-
-// Haal volledig permissies-object voor API-response
-$permissions = $permissionService->getPermissionsObject('nl/afdelingen/hr');
-// Returns: { canRead: true, canWrite: false, canCreate: false, ... }
+// Schrijven per pagina wordt gegate op het JSON-bestand van de pagina zelf, via de
+// ACL-bewuste view van de gebruiker. canWrite = de UPDATE-bit staat aan ÉN de node
+// rapporteert isUpdateable() voor deze gebruiker.
+$canWrite = ($file->getPermissions() & 2) !== 0 && $file->isUpdateable();
 ```
 
-De service:
+Dit is waarom een ACL-regel die schrijven *lijkt* toe te kennen (in de ACL-editor of in
+`occ groupfolders:permissions … --test`) een pagina toch alleen-lezen kan laten: de
+ACL-regel wordt vastgelegd, maar de **effectieve node-permissie** die Nextcloud aan IntraVox
+geeft, is gecapt door de basis-permissie van de groep. IntraVox weerspiegelt getrouw wat
+Nextcloud rapporteert — de oplossing zit dus altijd in de GroupFolder-basis-permissies +
+ACL-configuratie, nooit in IntraVox zelf.
 
-1. Haalt basis-permissies op via GroupFolder-groep-lidmaatschap
-2. Bevraagt ACL-regels uit de database
-3. Past regels toe van minst-specifiek naar meest-specifiek pad
-4. Geeft de effectieve permissie-bitmask terug
+Omdat permissies per-gebruiker zijn en live uit de filesystem-view worden gelezen, worden ze
+nooit tussen gebruikers gecachet: IntraVox herberekent `canWrite` bij elke read, zodat de
+toegang van de ene gebruiker nooit naar een andere kan lekken.
 
 ## Best practices
 

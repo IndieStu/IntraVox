@@ -436,6 +436,7 @@ class PageService {
     private GroupContextService $groupContext;
     private LanguageService $languageService;
     private HomepageService $homepageService;
+    private NavigationService $navigationService;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -461,6 +462,7 @@ class PageService {
         GroupContextService $groupContext,
         LanguageService $languageService,
         HomepageService $homepageService,
+        NavigationService $navigationService,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -486,6 +488,7 @@ class PageService {
         $this->groupContext = $groupContext;
         $this->languageService = $languageService;
         $this->homepageService = $homepageService;
+        $this->navigationService = $navigationService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
@@ -4397,8 +4400,11 @@ class PageService {
 
         // Update only allowed fields
         $changed = false;
+        $oldTitle = $data['title'] ?? '';
+        $newTitle = null;
         if (isset($metadata['title']) && $metadata['title'] !== $data['title']) {
-            $data['title'] = $this->sanitizeText($metadata['title']);
+            $newTitle = $this->sanitizeText($metadata['title']);
+            $data['title'] = $newTitle;
             $changed = true;
         }
 
@@ -4407,9 +4413,58 @@ class PageService {
             // Create version before update using VersionsBackend
             $this->createVersionBeforeUpdate($file);
             $file->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+            // Keep the navigation menu label in sync when the page is renamed,
+            // but only when the label still matched the old title — a label that
+            // was deliberately set to something else is left untouched.
+            if ($newTitle !== null && !empty($data['uniqueId'])) {
+                $this->syncNavigationTitle((string)$data['uniqueId'], $oldTitle, $newTitle);
+            }
         }
 
         return $this->getPageMetadata($pageId);
+    }
+
+    /**
+     * Keep the navigation menu label in sync after a page rename (issue #84).
+     *
+     * Walks the navigation tree for the current language and, for every item
+     * that points at this page (by uniqueId) whose label still equals the old
+     * page title, updates the label to the new title. Items whose label was
+     * deliberately set to something else are left as-is. Best-effort: a failure
+     * here must never break the rename itself.
+     */
+    private function syncNavigationTitle(string $uniqueId, string $oldTitle, string $newTitle): void {
+        if ($oldTitle === $newTitle) {
+            return;
+        }
+        try {
+            $navigation = $this->navigationService->getNavigation();
+            $items = $navigation['items'] ?? [];
+            $changed = false;
+
+            $walk = function (array &$items) use (&$walk, $uniqueId, $oldTitle, $newTitle, &$changed): void {
+                foreach ($items as &$item) {
+                    $itemId = $item['uniqueId'] ?? $item['pageId'] ?? null;
+                    if ($itemId === $uniqueId && ($item['title'] ?? '') === $oldTitle) {
+                        $item['title'] = $newTitle;
+                        $changed = true;
+                    }
+                    if (isset($item['children']) && is_array($item['children'])) {
+                        $walk($item['children']);
+                    }
+                }
+                unset($item);
+            };
+            $walk($items);
+
+            if ($changed) {
+                $navigation['items'] = $items;
+                $this->navigationService->saveNavigation($navigation);
+            }
+        } catch (\Throwable $e) {
+            $this->logger->warning('[PageService] Could not sync navigation title after rename: ' . $e->getMessage());
+        }
     }
 
     /**
@@ -4945,7 +5000,41 @@ class PageService {
         if ($rootPageId !== null && $rootPageId !== '') {
             $tree = $this->pathHelper->findSubtree($tree, $rootPageId);
         }
-        return $this->markCurrentPageInTree($tree, $currentPageId);
+        // markCurrentPageInTree deep-copies the (group-shared) cached tree, so it
+        // is safe to overwrite permissions on the copy without polluting the cache.
+        $tree = $this->markCurrentPageInTree($tree, $currentPageId);
+        // The tree is cached per group-set, but GroupFolder ACLs can grant/deny
+        // per USER within the same group. Recompute each node's permissions for
+        // the current user from the live filesystem view so per-user ACLs are
+        // reflected (issue #86) — same reasoning as the per-read permission
+        // recompute in getPage() (issue #70).
+        $this->refreshTreePermissions($tree);
+        return $tree;
+    }
+
+    /**
+     * Overwrite each tree node's `permissions` with the current user's live,
+     * ACL-aware permissions, resolved from the node's path. Recurses into
+     * children. Per-path results are memoised for the request via the shared
+     * permissions cache inside getFolderPermissions/permissionsFromNode.
+     *
+     * @param array<int, array> $nodes
+     */
+    private function refreshTreePermissions(array &$nodes): void {
+        foreach ($nodes as &$node) {
+            $path = $node['path'] ?? null;
+            if (is_string($path) && $path !== '') {
+                try {
+                    $node['permissions'] = $this->getFolderPermissions($path);
+                } catch (\Throwable $e) {
+                    // Leave the cached (group-level) permissions as a safe fallback.
+                }
+            }
+            if (!empty($node['children']) && is_array($node['children'])) {
+                $this->refreshTreePermissions($node['children']);
+            }
+        }
+        unset($node);
     }
 
     /**

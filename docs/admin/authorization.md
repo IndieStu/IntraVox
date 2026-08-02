@@ -52,18 +52,35 @@ Example:
 
 ### 2. ACL Rules (Fine-grained Control)
 
-If the GroupFolders ACL feature is enabled, administrators can set more specific permissions on subfolders. ACL rules override base permissions for specific paths.
+If the GroupFolders "Advanced Permissions" (ACL) feature is enabled, administrators can set more specific permissions on subfolders.
 
-Example:
-- `/en/departments/hr` - HR group has full access, others read-only
-- `/en/departments/sales` - Sales group has full access, others read-only
+> **⚠️ The single most important rule: ACL rules can only _restrict_ access, never _grant_ it.**
+>
+> An ACL rule can take away a permission a user would otherwise have, but it **cannot add a permission the user's group does not already have at the base level**. The base group permission is the *ceiling*; ACL rules can only lower it for specific paths, never raise it.
+>
+> This is standard Nextcloud GroupFolders behaviour — not something IntraVox controls. IntraVox simply reads the effective Nextcloud permission on each file and folder.
+
+**What this means in practice:**
+
+- If a user's only group has **Read** as its base permission, granting that user "Read + Write" on a single subfolder via an ACL rule **will not work** — the write is masked away by the read-only base ceiling. The user stays read-only everywhere.
+- To let someone edit *some* sections but not others, their group must have **Write at the base level**, and you then use ACL rules to **remove** write on the sections they should not edit.
+
+Example (restrictive model — the correct way):
+- Base: "Department Editors" group has **Read + Write + Create** on the whole IntraVox folder
+- ACL on `/en/departments/sales` → remove write for everyone except the Sales group
+- ACL on `/en/departments/hr` → remove write for everyone except the HR group
+- Result: each editor can write only in their own department, read the rest
 
 ### 3. Permission Inheritance
 
-Permissions are inherited from parent to child folders:
-- A child folder cannot have more permissions than its parent
-- ACL rules on parent folders affect all children
-- More specific rules (deeper paths) override less specific rules
+Permissions are inherited from parent to child folders, always **narrowing downward**:
+
+- The **base group permission is the maximum** any user can have anywhere in the folder. ACL rules can only reduce it per path.
+- A child folder can never have *more* permission than its parent grants.
+- ACL rules on a parent folder affect all children beneath it.
+- More specific rules (deeper paths) take precedence over less specific ones — but always within the base ceiling.
+
+Because inheritance with Team folders (GroupFolders) works top-down and subtractively, the mental model to keep is: **start broad, then take away** — not "start locked, then grant".
 
 ## Setting Up Permissions
 
@@ -109,6 +126,37 @@ IntraVox/
     └── (same structure)
 ```
 
+### Example: "Read everything, edit only my section"
+
+A very common request: a user should **read all sections A, B and C**, but only **edit
+section B** (their department). The natural-but-wrong instinct is to give the user Read at
+the base and add a "Write" ACL on section B — **that does not work**, because an ACL cannot
+grant write above a read-only base (see the warning under [ACL Rules](#2-acl-rules-fine-grained-control)).
+
+The correct, restrictive setup:
+
+1. Put the user in a group that has **Read + Write** at the base level of the IntraVox
+   folder (e.g. "IntraVox Editors", or a custom "Section B Editors" group).
+2. Enable Advanced Permissions on the folder.
+3. Add ACL rules that **remove write** on the sections they should *not* edit:
+   - Section A → remove write for the group (leave read)
+   - Section C → remove write for the group (leave read)
+   - Section B → leave as-is (base write applies)
+
+```
+IntraVox/
+└── en/
+    ├── section-a/   → Section B Editors: base write REMOVED via ACL → read-only
+    ├── section-b/   → Section B Editors: base write applies → editable
+    └── section-c/   → Section B Editors: base write REMOVED via ACL → read-only
+```
+
+Result: the user reads A, B and C, but can only edit pages in B.
+
+> **Do not** try to solve this by giving the group Read-only at the base and adding a
+> Write ACL on section B. The write will be masked away and the user will be read-only
+> everywhere — this is the single most common Team-folder permissions mistake.
+
 ## Permission Checks in IntraVox
 
 IntraVox checks permissions at multiple levels:
@@ -136,10 +184,35 @@ Navigation items are filtered based on page permissions - users only see pages t
 2. Check ACL rules on the specific folder path
 3. Verify the page file exists in the expected location
 
-### User cannot edit a page
-1. Verify the user's group has Write permission on the GroupFolder
-2. Check if ACL rules restrict Write access on that path
-3. Check parent folder permissions (child cannot exceed parent)
+### User cannot edit a page (even though an ACL grants them write)
+
+This is the most common permissions confusion with Team folders. Symptom: you gave a
+user "Read + Write" on one section via an ACL rule, but they still cannot edit pages
+there — the Edit button is missing, or saving fails.
+
+**Cause:** the user's *base group* permission is Read-only, and **an ACL rule cannot grant
+write above a read-only base** (see [ACL Rules](#2-acl-rules-fine-grained-control) above).
+The ACL is capped by the group ceiling, so Nextcloud reports the file as read-only and
+IntraVox correctly hides the Edit button.
+
+**Fix — choose one:**
+
+1. **Put the editors in a group that has Write at the base level** (e.g. the built-in
+   "IntraVox Editors", which has Read + Write + Create), then use ACL rules to *remove*
+   write on the sections they should not edit. This is the recommended model.
+2. Or raise the base permission of the user's existing group to include Write, and use
+   ACL rules to restrict it back down on the read-only sections.
+
+**How to verify what the user actually has:** run, on the server,
+`occ groupfolders:permissions <folderId> <path> --test -u <user>` to see the effective
+permission for that path. If it shows `+write` but editing still fails, re-check that the
+user's *group* has write at the base (the `--test` output reflects the ACL rule, but the
+effective node permission is still capped by the group base).
+
+### User cannot edit a page (other causes)
+1. Verify the user's group has Write permission on the GroupFolder **at the base level**
+2. Check if ACL rules explicitly *remove* Write access on that path
+3. Check parent folder permissions (a child can never exceed its parent, and never exceed the base group ceiling)
 
 ### User's RSS feed is empty
 1. Check that the user's group has **Share** permission on the GroupFolder (base level)
@@ -154,25 +227,26 @@ This should not happen if permissions are configured correctly. Check:
 
 ## Technical Implementation
 
-The `PermissionService` class handles all permission logic:
+IntraVox does **not** compute permissions itself. It reads the **effective Nextcloud
+permission** on each page file and folder through the user's own mounted view, which
+already has all GroupFolder base permissions and ACL rules applied by Nextcloud:
 
 ```php
-// Check if user can read a path
-$canRead = $permissionService->canRead('en/departments/hr');
-
-// Check if user can write to a path
-$canWrite = $permissionService->canWrite('en/departments/hr');
-
-// Get full permissions object for API response
-$permissions = $permissionService->getPermissionsObject('en/departments/hr');
-// Returns: { canRead: true, canWrite: false, canCreate: false, ... }
+// Per-page write is gated on the page's own JSON file, via the user's ACL-aware view.
+// canWrite = the UPDATE bit is set AND the node reports isUpdateable() for this user.
+$canWrite = ($file->getPermissions() & 2) !== 0 && $file->isUpdateable();
 ```
 
-The service:
-1. Gets base permissions from GroupFolder group membership
-2. Queries ACL rules from the database
-3. Applies rules from least specific to most specific path
-4. Returns the effective permission bitmask
+This is why an ACL rule that *appears* to grant write (in the ACL editor or in
+`occ groupfolders:permissions … --test`) can still leave a page read-only: the ACL rule is
+recorded, but the **effective node permission** Nextcloud hands to IntraVox is capped by
+the group's base permission. IntraVox faithfully reflects whatever Nextcloud reports — so
+the fix always lives in the GroupFolder base permissions + ACL configuration, never in
+IntraVox itself.
+
+Because permissions are per-user and read live from the filesystem view, they are never
+cached across users: IntraVox recomputes `canWrite` on every read so one user's access can
+never leak to another.
 
 ## Best Practices
 
