@@ -48,7 +48,15 @@
             @change="handleFileSelect"
           />
 
-          <div v-if="!selectedFile" class="upload-prompt" @click="$refs.fileInput.click()">
+          <div
+            v-if="!selectedFile"
+            :class="['upload-prompt', { dragging: isDragging }]"
+            @click="$refs.fileInput.click()"
+            @dragover.prevent
+            @dragenter.prevent="isDragging = true"
+            @dragleave.prevent="isDragging = false"
+            @drop.prevent="handleFileDrop"
+          >
             <div class="upload-icon">📁</div>
             <p>{{ mediaType === 'image' ? t('intravox', 'Click to select an image, or drag and drop') : t('intravox', 'Click to select a video, or drag and drop') }}</p>
           </div>
@@ -257,6 +265,7 @@ export default {
     return {
       activeTab: 'upload',
       selectedFile: null,
+      isDragging: false,
       uploadTarget: 'page',
       selectedMedia: null,
       pageMediaList: [],
@@ -336,6 +345,23 @@ export default {
         this.selectedFile = file
         this.selectedMedia = null
       }
+    },
+
+    handleFileDrop(event) {
+      this.isDragging = false
+      const file = event.dataTransfer?.files?.[0]
+      if (!file) return
+      // Native drop ignores the input's accept attribute, so validate the
+      // dropped file's type against the widget's allowed types ourselves.
+      const allowed = this.acceptTypes.split(',')
+      if (file.type && !allowed.includes(file.type)) {
+        showError(this.mediaType === 'image'
+          ? this.t('intravox', 'Please drop an image file (JPEG, PNG, GIF, WebP or SVG).')
+          : this.t('intravox', 'Please drop a video file (MP4, WebM or Ogg).'))
+        return
+      }
+      this.selectedFile = file
+      this.selectedMedia = null
     },
 
     clearFile() {
@@ -619,7 +645,8 @@ export default {
   transition: all 0.2s;
 }
 
-.upload-prompt:hover {
+.upload-prompt:hover,
+.upload-prompt.dragging {
   border-color: #0082c9;
   background: #f0f9ff;
 }

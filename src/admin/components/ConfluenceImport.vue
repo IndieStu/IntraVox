@@ -36,7 +36,15 @@
           @change="handleHtmlFileSelect"
           class="file-input"
         />
-        <div v-if="!selectedHtmlFile" class="upload-prompt" @click="$refs.htmlFileInput.click()">
+        <div
+          v-if="!selectedHtmlFile"
+          :class="['upload-prompt', { dragging: isDragging }]"
+          @click="$refs.htmlFileInput.click()"
+          @dragover.prevent
+          @dragenter.prevent="isDragging = true"
+          @dragleave.prevent="isDragging = false"
+          @drop.prevent="handleHtmlFileDrop"
+        >
           <div class="upload-icon">📦</div>
           <p>Click to select Confluence HTML export ZIP file</p>
           <p class="hint">or drag and drop</p>
@@ -98,6 +106,7 @@ export default {
     return {
       // HTML Export Upload
       selectedHtmlFile: null,
+      isDragging: false,
       selectedParentPageId: null,
       htmlImportLanguage: 'nl',
       isUploading: false,
@@ -115,6 +124,23 @@ export default {
         this.selectedHtmlFile = file
         this.htmlImportResult = null
       }
+    },
+
+    handleHtmlFileDrop(event) {
+      this.isDragging = false
+      const file = event.dataTransfer?.files?.[0]
+      if (!file) return
+      // Native drop ignores the input's accept attribute, and the ZIP mime type
+      // varies per OS, so validate on the .zip filename extension.
+      if (!file.name.toLowerCase().endsWith('.zip')) {
+        this.htmlImportResult = {
+          success: false,
+          message: 'Please drop a ZIP file (Confluence HTML export).',
+        }
+        return
+      }
+      this.selectedHtmlFile = file
+      this.htmlImportResult = null
     },
 
     clearHtmlFile() {
@@ -433,7 +459,8 @@ label {
   transition: all 0.2s;
 }
 
-.upload-prompt:hover {
+.upload-prompt:hover,
+.upload-prompt.dragging {
   border-color: #0082c9;
   background: #f0f9ff;
 }
