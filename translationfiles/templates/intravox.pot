@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.9.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-02 20:34+0000\n"
+"POT-Creation-Date: 2026-08-02 20:40+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -2112,9 +2112,6 @@ msgstr ""
 msgid "News/Announcements"
 msgstr ""
 
-msgid "Next"
-msgstr ""
-
 msgid "Next 2 weeks"
 msgstr ""
 
@@ -2122,6 +2119,9 @@ msgid "Next 3 months"
 msgstr ""
 
 msgid "Next 6 months"
+msgstr ""
+
+msgid "Next page"
 msgstr ""
 
 msgid "Next photo"
@@ -2658,7 +2658,7 @@ msgstr ""
 msgid "Preview:"
 msgstr ""
 
-msgid "Previous"
+msgid "Previous page"
 msgstr ""
 
 msgid "Previous photo"
