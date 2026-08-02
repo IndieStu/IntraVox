@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.8.5\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-01 05:51+0000\n"
+"POT-Creation-Date: 2026-08-01 11:36+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -948,10 +948,16 @@ msgstr ""
 msgid "Document library"
 msgstr ""
 
+msgid "Document pages"
+msgstr ""
+
 msgid "Documentation on GitHub"
 msgstr ""
 
 msgid "Documents"
+msgstr ""
+
+msgid "Documents per page"
 msgstr ""
 
 msgid "Domain"
@@ -1072,6 +1078,9 @@ msgid "Engagement"
 msgstr ""
 
 msgid "Engagement settings saved"
+msgstr ""
+
+msgid "Enter a new title for the page"
 msgstr ""
 
 msgid "Enter a title for the new page"
@@ -1237,6 +1246,9 @@ msgid "Failed to remove language."
 msgstr ""
 
 msgid "Failed to remove subscription key"
+msgstr ""
+
+msgid "Failed to rename page: {error}"
 msgstr ""
 
 msgid "Failed to restore version: {error}"
@@ -1596,6 +1608,9 @@ msgstr ""
 msgid "Incorrect password. Please try again."
 msgstr ""
 
+msgid "Infinite scroll"
+msgstr ""
+
 msgid "Info"
 msgstr ""
 
@@ -1875,6 +1890,9 @@ msgstr ""
 msgid "Location map"
 msgstr ""
 
+msgid "Long lists"
+msgstr ""
+
 msgid "Loop video"
 msgstr ""
 
@@ -2050,6 +2068,9 @@ msgid "News posts"
 msgstr ""
 
 msgid "News/Announcements"
+msgstr ""
+
+msgid "Next"
 msgstr ""
 
 msgid "Next 2 weeks"
@@ -2238,6 +2259,9 @@ msgstr ""
 msgid "Now"
 msgstr ""
 
+msgid "Number of documents shown per page. Older documents stay reachable via the page buttons."
+msgstr ""
+
 msgid "Number of events"
 msgstr ""
 
@@ -2349,6 +2373,15 @@ msgstr ""
 msgid "Page"
 msgstr ""
 
+msgid "Page {current} of {total}"
+msgstr ""
+
+msgid "Page buttons"
+msgstr ""
+
+msgid "Page buttons apply to List and Tiles layouts. Timeline and Grouped layouts always use infinite scroll."
+msgstr ""
+
 msgid "Page content or titles"
 msgstr ""
 
@@ -2383,6 +2416,9 @@ msgid "Page not available"
 msgstr ""
 
 msgid "Page reactions"
+msgstr ""
+
+msgid "Page renamed"
 msgstr ""
 
 msgid "Page saved"
@@ -2562,6 +2598,9 @@ msgstr ""
 msgid "Preview:"
 msgstr ""
 
+msgid "Previous"
+msgstr ""
+
 msgid "Previous photo"
 msgstr ""
 
@@ -2719,6 +2758,12 @@ msgid "Remove subscription key"
 msgstr ""
 
 msgid "Removing …"
+msgstr ""
+
+msgid "Rename"
+msgstr ""
+
+msgid "Rename page"
 msgstr ""
 
 msgid "Replace (overwrite existing content)"
