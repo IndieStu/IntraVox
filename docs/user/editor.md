@@ -550,12 +550,13 @@ Switching on **Manage structure** (available where you have edit rights) turns e
 
 ![Page structure in manage mode, with per-row controls and the two guidance banners](../../screenshots/PageStructure-edit.png)
 
-*Manage mode: each page has move, reorder, set-as-homepage, copy and delete controls. The current homepage (badged "Home") cannot be moved or deleted.*
+*Manage mode: each page has rename, move, reorder, set-as-homepage, copy and delete controls. The current homepage (badged "Home") cannot be moved or deleted.*
 
 #### What you can do per page
 
 - **Reorder** — the up (↑) and down (↓) arrows move a page among its siblings. The arrows are disabled at the top and bottom of a list.
 - **Move to another page** — the folder arrow opens an inline panel where you choose a new parent, or flip **Move to the top level** to promote the page to the root. The page's sub-pages move with it. A page cannot be moved into itself or one of its own descendants, and the maximum nesting depth (5 levels) is respected.
+- **Rename** — the pencil icon opens a small dialog to change the page's title. Only the title changes: the page's address (folder) and every link to it stay exactly the same, so nothing breaks. If the page's navigation-menu label still matched the old title, it is updated to the new one automatically; a menu label you deliberately set to something different is left untouched. You can also rename the page you are viewing from **Rename page** in the page actions (⋯) menu.
 - **Set as homepage** — the house icon makes a page the landing page for the current language. Only **top-level** pages can be the homepage; to make a sub-page the homepage, move it to the top level first.
 - **Copy** — duplicates the page as a new **Draft** titled "… (copy)", with its media, so you can adapt it without touching the original.
 - **Delete** — removes the page after a confirmation prompt.
@@ -564,7 +565,13 @@ Switching on **Manage structure** (available where you have edit rights) turns e
 
 The current homepage carries a **Home** badge and cannot be moved or deleted — reassign the homepage to another page first, then the original becomes an ordinary page you can move or remove. See [Configuring the homepage](#configuring-the-homepage) below.
 
-> All of these controls respect your permissions: you only see them for pages you may edit, and the server enforces the same rules, so nothing can be reordered, moved, copied or deleted outside your rights.
+> All of these controls respect your permissions: you only see them for pages you may edit, and the server enforces the same rules, so nothing can be reordered, moved, copied or deleted outside your rights. The **Manage structure** button itself appears whenever you can manage *any* page in the tree, not only pages at the top level.
+
+#### Special characters in titles
+
+Page titles can contain any character, including apostrophes and ampersands (`Collega's`, `R&D`), quotes, and accented or non-Latin letters (`Müller`, `Café`, `naïef`). The title displays exactly as you typed it, on the page, in the breadcrumb and in the navigation. The page's folder address is derived separately and transliterates accents so the URL stays clean (`Müller` → `muller`, `Café` → `cafe`).
+
+> If you are upgrading from an older version and see a title rendered with a literal HTML entity such as `Collega&apos;s` or `Caf&eacute;`, your administrator can clean up the stored data in one step — see [Repairing entity-encoded titles](../admin/guide.md#repairing-entity-encoded-titles) in the admin guide.
 
 ### Configuring the homepage
 

@@ -4,7 +4,7 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [1.8.5] - 2026-07-31 — Rename pages, paginate File Story + fixes for the template picker and drag-and-drop upload
+## [1.9.0] - 2026-08-02 — Rename pages, File Story pagination, per-user Team-folder permissions + special-character and widget-filter fixes
 
 ### Added
 

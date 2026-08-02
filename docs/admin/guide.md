@@ -193,6 +193,27 @@ sudo -u www-data php occ files:scan --all
 sudo -u www-data php occ maintenance:repair
 ```
 
+### Repairing entity-encoded titles
+
+IntraVox 1.8.4 and earlier stored page titles HTML-encoded, so a title such as
+`Collega's` was written to disk as `Collega&apos;s` (and `R&D` as `R&amp;D`).
+From 1.9.0 titles are stored as plain text, but pages created on the older
+versions may still carry the encoded form. Decode them in one step:
+
+```bash
+# Preview what would change, without writing anything
+sudo -u www-data php occ intravox:repair-entities --dry-run
+
+# Apply the repair
+sudo -u www-data php occ intravox:repair-entities
+```
+
+The command walks every page in every language and decodes the entity-encoded
+plain-text fields — page title, widget titles, alt text and link labels. It is
+idempotent (running it again changes nothing) and reports how many pages it
+touched. By default it runs as `admin`; use `--user <username>` to run as a
+different user that can access the IntraVox Team folder.
+
 ### Backup
 
 The IntraVox GroupFolder contains all content. Backup strategies:

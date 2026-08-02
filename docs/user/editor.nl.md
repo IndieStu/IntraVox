@@ -588,12 +588,13 @@ Zet je **Structuur beheren** aan (beschikbaar waar je bewerkrechten hebt), dan w
 
 ![Paginastructuur in beheer-modus, met knoppen per rij en de twee toelichtingsbanners](../screenshots/PageStructure-edit.png)
 
-*Beheer-modus: elke pagina heeft knoppen voor verplaatsen, herordenen, als-startpagina-instellen, kopiëren en verwijderen. De huidige startpagina (badge "Home") kan niet verplaatst of verwijderd worden.*
+*Beheer-modus: elke pagina heeft knoppen voor hernoemen, verplaatsen, herordenen, als-startpagina-instellen, kopiëren en verwijderen. De huidige startpagina (badge "Home") kan niet verplaatst of verwijderd worden.*
 
 #### Wat je per pagina kunt doen
 
 - **Herordenen** — de pijltjes omhoog (↑) en omlaag (↓) verplaatsen een pagina tussen z'n broers en zussen. De pijltjes zijn uitgeschakeld boven- en onderaan een lijst.
 - **Naar andere pagina verplaatsen** — de map-pijl opent een inline-paneel waar je een nieuwe ouder kiest, of zet **Naar het hoogste niveau** aan om de pagina naar de root te promoveren. De sub-pagina's gaan mee. Een pagina kan niet in zichzelf of een eigen sub-pagina worden geplaatst, en de maximale nesting-diepte (5 niveaus) wordt gerespecteerd.
+- **Hernoemen** — het potlood-icoon opent een klein dialoog om de titel van de pagina te wijzigen. Alleen de titel verandert: het adres (de map) en elke link ernaartoe blijven exact gelijk, dus er breekt niets. Als het navigatie-menu-label nog gelijk was aan de oude titel, wordt het meebijgewerkt; een label dat je bewust anders hebt gezet, blijft staan. Je kunt de pagina die je bekijkt ook hernoemen via **Pagina hernoemen** in het pagina-acties (⋯) menu.
 - **Als startpagina instellen** — het huis-icoon maakt een pagina de landingspagina voor de huidige taal. Alleen **pagina's op het hoogste niveau** kunnen de startpagina zijn; wil je een sub-pagina als startpagina, verplaats die dan eerst naar het hoogste niveau.
 - **Kopiëren** — dupliceert de pagina als een nieuw **Concept** met de titel "… (copy)", inclusief media, zodat je die kunt aanpassen zonder het origineel te raken.
 - **Verwijderen** — verwijdert de pagina na een bevestiging.
@@ -602,7 +603,13 @@ Zet je **Structuur beheren** aan (beschikbaar waar je bewerkrechten hebt), dan w
 
 De huidige startpagina draagt een **Home**-badge en kan niet verplaatst of verwijderd worden — wijs eerst een andere pagina als startpagina aan, daarna wordt het origineel een gewone pagina die je kunt verplaatsen of verwijderen. Zie [De startpagina instellen](#de-startpagina-instellen) hieronder.
 
-> Al deze knoppen respecteren je rechten: je ziet ze alleen voor pagina's die je mag bewerken, en de server dwingt dezelfde regels af — er kan dus niets buiten je rechten worden herordend, verplaatst, gekopieerd of verwijderd.
+> Al deze knoppen respecteren je rechten: je ziet ze alleen voor pagina's die je mag bewerken, en de server dwingt dezelfde regels af — er kan dus niets buiten je rechten worden herordend, verplaatst, gekopieerd of verwijderd. De knop **Structuur beheren** verschijnt zodra je *enige* pagina in de boom mag beheren, niet alleen pagina's op het hoogste niveau.
+
+#### Speciale tekens in titels
+
+Pagina-titels mogen elk teken bevatten, inclusief apostrofs en ampersands (`Collega's`, `R&D`), aanhalingstekens en letters met accenten of niet-Latijnse tekens (`Müller`, `Café`, `naïef`). De titel wordt exact getoond zoals je 'm typt — op de pagina, in het kruimelpad en in de navigatie. Het map-adres van de pagina wordt apart afgeleid en translitereert accenten zodat de URL schoon blijft (`Müller` → `muller`, `Café` → `cafe`).
+
+> Werk je bij vanaf een oudere versie en zie je een titel met een letterlijke HTML-entiteit zoals `Collega&apos;s` of `Caf&eacute;`? Je beheerder kan de opgeslagen data in één stap opschonen — zie [Entity-gecodeerde titels repareren](../admin/guide.md#entity-gecodeerde-titels-repareren) in de beheerdersgids.
 
 ### De startpagina instellen
 

@@ -106,7 +106,9 @@ Om een File-story-widget aan je pagina toe te voegen:
 | Instelling | Config-key | Beschrijving |
 |------------|------------|--------------|
 | **Toon kolommen** | `visibleColumns` (default `['date']`) | Toggle welke extra velden verschijnen naast de bestandsnaam: Datum / Bestandsgrootte / Map-pad. De bestandsnaam en het bestandstype-icoon worden altijd getoond. |
-| **Maximum documenten** | `limit` | Limiteer het totale aantal documenten (1–500). Laat leeg om alles via infinite scroll te laden. |
+| **Lange lijsten** | `paginationMode` (default `infinite`) | Hoe een lange documentlijst doorbladerd wordt: *Infinite scroll* laadt meer documenten bij het scrollen; *Pagina-knoppen* toont een vast aantal per pagina met Vorige / Volgende, waardoor de widget een voorspelbare hoogte houdt. Pagina-knoppen gelden alleen voor de **Lijst**- en **Tegels**-layouts — de gebucketde **Tijdlijn**- en **Gegroepeerd**-layouts gebruiken altijd infinite scroll. |
+| **Documenten per pagina** | `pageSize` (default `20`) | Alleen bij pagina-knoppen: hoeveel documenten per pagina worden getoond. |
+| **Maximum documenten** | `limit` | Optionele limiet op het *totale* aantal documenten (1–500), in **beide** modi. Laat leeg voor alles. Bij pagina-knoppen stoppen de pagina's bij deze limiet; bij infinite scroll stopt het laden daar. |
 
 De File-story-editor heeft **geen** titel-input — wikkel de widget in een [Inklapbare sectie](../user/editor.md) of voeg een heading-widget erboven toe als je een label als "Handleidingen" boven de document-lijst nodig hebt.
 

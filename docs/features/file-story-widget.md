@@ -106,7 +106,9 @@ To add a File Story Widget to your page:
 | Setting | Config key | Description |
 |---------|-----------|-------------|
 | **Show columns** | `visibleColumns` (default `['date']`) | Toggle which extra fields appear next to the filename: Date / File size / Folder path. The filename and file-type icon are always shown. |
-| **Maximum documents** | `limit` | Cap the total number of documents (1–500). Leave blank to load everything via infinite scroll. |
+| **Long lists** | `paginationMode` (default `infinite`) | How a long document list is browsed: *Infinite scroll* streams more documents as you scroll; *Page buttons* shows a fixed number per page with Previous / Next controls, keeping the widget at a predictable height. Page buttons apply to the **List** and **Tiles** layouts only — the bucketed **Timeline** and **Grouped** layouts always use infinite scroll. |
+| **Documents per page** | `pageSize` (default `20`) | Page-buttons mode only: how many documents to show per page. |
+| **Maximum documents** | `limit` | Optional cap on the *total* number of documents (1–500), applied in **both** modes. Leave blank for all. In page-buttons mode the pages stop at this cap; in infinite-scroll mode loading stops there. |
 
 The File Story editor does **not** have a Title input — wrap the widget in a [Collapsible Section](../user/editor.md) or add a heading widget above it if you need a label like "Manuals" above the document list.
 

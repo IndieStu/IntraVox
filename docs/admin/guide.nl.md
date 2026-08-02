@@ -197,6 +197,29 @@ sudo -u www-data php occ files:scan --all
 sudo -u www-data php occ maintenance:repair
 ```
 
+### Entity-gecodeerde titels repareren
+
+IntraVox 1.8.4 en eerder sloeg pagina-titels HTML-gecodeerd op, dus een titel
+als `Collega's` werd als `Collega&apos;s` weggeschreven (en `R&D` als `R&amp;D`).
+Vanaf 1.9.0 worden titels als platte tekst opgeslagen, maar pagina's die op de
+oudere versies zijn gemaakt kunnen nog de gecodeerde vorm bevatten. Decodeer ze
+in één stap:
+
+```bash
+# Bekijk wat er zou wijzigen, zonder iets te schrijven
+sudo -u www-data php occ intravox:repair-entities --dry-run
+
+# Voer de reparatie uit
+sudo -u www-data php occ intravox:repair-entities
+```
+
+Het commando loopt elke pagina in elke taal langs en decodeert de
+entity-gecodeerde platte-tekst-velden — pagina-titel, widget-titels, alt-tekst en
+link-labels. Het is idempotent (nogmaals draaien verandert niets) en meldt hoeveel
+pagina's het heeft aangeraakt. Standaard draait het als `admin`; gebruik
+`--user <gebruikersnaam>` om als een andere gebruiker te draaien die toegang heeft
+tot de IntraVox Team folder.
+
 ### Back-up
 
 De IntraVox-GroupFolder bevat alle content. Back-up-strategieën:
