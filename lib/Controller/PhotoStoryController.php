@@ -193,10 +193,35 @@ class PhotoStoryController extends Controller {
 			if ($usePaged) {
 				// Highlights: pull a larger pool (max 2000) in a single page so the
 				// score+pick logic has enough candidates without loading every photo.
+				// For timeline/grid, honour the configured "Maximum photos" cap: don't
+				// over-fetch beyond it, so the total the frontend paginates over stays
+				// within the cap (mirrors FileStoryController).
 				$effectivePageSize = ($mode === 'highlights') ? 2000 : $pageSize;
-				$paged = $this->service->listPhotosPaged($effectiveFolder, $filters, $offset, $effectivePageSize, $sortOrder, $totalHint, $sortBy, 'photos', $dedupRaw);
+				if ($mode !== 'highlights' && $limit !== null) {
+					$remaining = $limit - $offset;
+					if ($remaining <= 0) {
+						$effectivePageSize = 0;
+					} else {
+						$effectivePageSize = min($effectivePageSize, $remaining);
+					}
+				}
+				$paged = $this->service->listPhotosPaged($effectiveFolder, $filters, $offset, max(1, $effectivePageSize), $sortOrder, $totalHint, $sortBy, 'photos', $dedupRaw);
 				$photos = $paged['photos'];
 				$capabilities = $this->service->getCapabilities();
+
+				// Apply the "Maximum photos" cap to the returned page and the reported
+				// total/hasMore, so page buttons and infinite scroll both stop at it.
+				$effectiveTotal = (int)$paged['total'];
+				$effectiveHasMore = (bool)$paged['hasMore'];
+				if ($mode !== 'highlights' && $limit !== null) {
+					if (count($photos) > max(0, $limit - $offset)) {
+						$photos = array_slice($photos, 0, max(0, $limit - $offset));
+					}
+					if (($offset + count($photos)) >= $limit) {
+						$effectiveHasMore = false;
+					}
+					$effectiveTotal = min($effectiveTotal, $limit);
+				}
 				$title = $this->service->suggestTitle($photos, $folderName);
 
 				$payload = [
@@ -208,8 +233,8 @@ class PhotoStoryController extends Controller {
 					'pagination' => [
 						'offset' => $paged['offset'],
 						'pageSize' => $paged['pageSize'],
-						'total' => $paged['total'],
-						'hasMore' => $paged['hasMore'],
+						'total' => $effectiveTotal,
+						'hasMore' => $effectiveHasMore,
 						'sortOrder' => $paged['sortOrder'],
 						'truncated' => $paged['truncated'],
 					],
