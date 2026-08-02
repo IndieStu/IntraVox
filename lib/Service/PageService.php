@@ -3396,6 +3396,9 @@ class PageService {
                 $allowedModes = ['timeline', 'tiles', 'list', 'grouped'];
                 $sanitizedConfig['mode'] = in_array($config['mode'] ?? 'timeline', $allowedModes, true)
                     ? $config['mode'] : 'timeline';
+                // Long-list handling: infinite scroll (default) or page buttons (#78).
+                $sanitizedConfig['paginationMode'] = (($config['paginationMode'] ?? 'infinite') === 'pages')
+                    ? 'pages' : 'infinite';
                 if (isset($config['limit']) && $config['limit'] !== '' && $config['limit'] !== null) {
                     $sanitizedConfig['limit'] = max(1, min((int)$config['limit'], 500));
                 }
