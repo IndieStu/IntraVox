@@ -190,18 +190,10 @@ export default {
       return labels[complexity] || complexity;
     },
     translatedTitle() {
-      // Try to get translated title using template_<id>_title key
-      const translationKey = `template_${this.template.id}_title`;
-      const translated = this.t(translationKey);
-      // If translation key returns the same string (not found), use original title
-      return translated !== translationKey ? translated : (this.template.title || this.template.id);
+      return this.template.title || this.template.id;
     },
     translatedDescription() {
-      // Try to get translated description using template_<id>_description key
-      const translationKey = `template_${this.template.id}_description`;
-      const translated = this.t(translationKey);
-      // If translation key returns the same string (not found), use original description
-      return translated !== translationKey ? translated : (this.template.description || '');
+      return this.template.description || '';
     }
   },
   methods: {
