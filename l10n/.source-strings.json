@@ -1,6 +1,6 @@
 {
     "count": 1273,
-    "sha256": "0fc815dd25d7e2944c4714d8c6546a22d946fc4c9dd62d5bf349d9f273ed27ff",
+    "sha256": "84b40997a2f010ea497d2e856693363c55e38a0e5c76e842a89a9d7e949f2f1d",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -109,7 +109,6 @@
         "API key (custom header)",
         "API key header name",
         "API token",
-        "Apple",
         "Application (client) ID",
         "Apply",
         "Appointment",
@@ -177,7 +176,7 @@
         "Choose which part of the image is visible when cropped",
         "Chronological — documents grouped by date with sticky headers. Granularity (day/month/year) configurable below.",
         "Chronological — photos grouped by day with sticky date headers.",
-        "Clean grid (default)",
+        "Clean grid",
         "Clean start",
         "Clean start completed",
         "Clean start failed",
@@ -381,6 +380,7 @@
         "Enter text …",
         "Enter token manually",
         "Enter your heading …",
+        "Equal-sized tiles, grouped by day (default)",
         "equals",
         "Excerpt field",
         "Expand",

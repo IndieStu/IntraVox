@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.9.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-02 20:23+0000\n"
+"POT-Creation-Date: 2026-08-02 20:34+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -306,9 +306,6 @@ msgstr ""
 msgid "API token"
 msgstr ""
 
-msgid "Apple"
-msgstr ""
-
 msgid "Application (client) ID"
 msgstr ""
 
@@ -510,7 +507,7 @@ msgstr ""
 msgid "Chronological — photos grouped by day with sticky date headers."
 msgstr ""
 
-msgid "Clean grid (default)"
+msgid "Clean grid"
 msgstr ""
 
 msgid "Clean start"
@@ -1117,6 +1114,9 @@ msgid "Enter token manually"
 msgstr ""
 
 msgid "Enter your heading …"
+msgstr ""
+
+msgid "Equal-sized tiles, grouped by day (default)"
 msgstr ""
 
 msgid "equals"
