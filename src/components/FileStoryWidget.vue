@@ -212,14 +212,39 @@
       </section>
     </div>
 
-    <!-- Infinite-scroll sentinel -->
+    <!-- Infinite-scroll sentinel (infinite mode only) -->
     <div
-      v-if="pagination.hasMore"
+      v-if="effectivePaginationMode === 'infinite' && pagination.hasMore"
       ref="scrollSentinel"
       class="fs-scroll-sentinel"
     >
       <span v-if="loadingMore" class="fs-loading-more">{{ t('intravox', 'Loading more …') }}</span>
     </div>
+
+    <!-- Page buttons (pages mode, list/tiles only, more than one page) -->
+    <nav
+      v-if="effectivePaginationMode === 'pages' && files.length && totalPages > 1"
+      class="fs-pagination"
+      :aria-label="t('intravox', 'Document pages')"
+    >
+      <NcButton
+        type="secondary"
+        :disabled="currentPage <= 1 || loadingMore"
+        @click="goToPage(currentPage - 1)"
+      >
+        {{ t('intravox', 'Previous') }}
+      </NcButton>
+      <span class="fs-pagination-status">
+        {{ t('intravox', 'Page {current} of {total}', { current: String(currentPage), total: String(totalPages) }) }}
+      </span>
+      <NcButton
+        type="secondary"
+        :disabled="currentPage >= totalPages || loadingMore"
+        @click="goToPage(currentPage + 1)"
+      >
+        {{ t('intravox', 'Next') }}
+      </NcButton>
+    </nav>
 
     <!-- Truncated notice -->
     <div v-if="pagination.truncated" class="fs-truncated">
@@ -283,6 +308,8 @@ export default {
       accessReason: null,
       pagination: { offset: 0, pageSize: 100, total: 0, hasMore: false, truncated: false },
       loadingMore: false,
+      // Current 1-based page in 'pages' mode (unused in infinite mode).
+      currentPage: 1,
       _scrollObserver: null,
       _abortController: null,
       _lastEtag: null,
@@ -333,6 +360,22 @@ export default {
       const allowed = ['timeline', 'tiles', 'list', 'grouped'];
       return allowed.includes(this.config.mode) ? this.config.mode : 'timeline';
     },
+    // Page buttons only apply to the flat layouts; timeline/grouped are
+    // bucketed and always keep infinite scroll regardless of the config.
+    effectivePaginationMode() {
+      const isFlat = this.effectiveMode === 'list' || this.effectiveMode === 'tiles';
+      return (this.config.paginationMode === 'pages' && isFlat) ? 'pages' : 'infinite';
+    },
+    // Documents per page in 'pages' mode: the reused "limit" config, sane default.
+    effectivePageSize() {
+      const n = parseInt(this.config.limit, 10);
+      return (Number.isFinite(n) && n > 0) ? n : 20;
+    },
+    totalPages() {
+      const size = this.pagination.pageSize || this.effectivePageSize;
+      if (!size) return 1;
+      return Math.max(1, Math.ceil((this.pagination.total || 0) / size));
+    },
     timelineDays() {
       return this.timeline || [];
     },
@@ -373,6 +416,7 @@ export default {
         gb: c.groupBy || '',
         gr: c.granularity || 'day',
         l: c.limit ?? null,
+        pm: c.paginationMode || 'infinite',
         s: c.sortOrder || 'desc',
         sb: c.sortBy || 'mtime',
         flt: Array.isArray(c.metaVoxFilters) ? c.metaVoxFilters : [],
@@ -447,7 +491,11 @@ export default {
       this._abortController = new AbortController();
       const signal = this._abortController.signal;
 
-      this.pagination = { offset: 0, pageSize: 100, total: 0, hasMore: false, truncated: false };
+      // 'pages' mode paginates by the configured page size; infinite mode keeps
+      // the internal 100-row fetch window and enforces the "limit" cap instead.
+      const initialPageSize = this.effectivePaginationMode === 'pages' ? this.effectivePageSize : 100;
+      this.pagination = { offset: 0, pageSize: initialPageSize, total: 0, hasMore: false, truncated: false };
+      this.currentPage = 1;
       this.loading = true;
       this.error = null;
       this.accessReason = null;
@@ -510,7 +558,13 @@ export default {
       if (this.effectiveMode === 'timeline' && c.granularity) {
         params.append('granularity', String(c.granularity));
       }
-      if (c.limit) params.append('limit', String(c.limit));
+      // In 'pages' mode the "limit" is the page size, not a hard cap — so we do
+      // NOT send `limit` (that would make the backend report a capped total and
+      // hide older files); the backend then returns the real total for the page
+      // buttons. In infinite mode `limit` keeps its hard-cap meaning.
+      if (this.effectivePaginationMode !== 'pages' && c.limit) {
+        params.append('limit', String(c.limit));
+      }
       params.append('offset', String(offset));
       params.append('pageSize', String(this.pagination.pageSize || 100));
       params.append('sortOrder', c.sortOrder || 'desc');
@@ -571,11 +625,54 @@ export default {
         this.loadingMore = false;
       }
     },
+    // 'pages' mode: jump to a specific 1-based page, REPLACING the current view
+    // (unlike fetchMore which appends for infinite scroll).
+    async goToPage(page) {
+      const target = Math.min(Math.max(1, page), this.totalPages);
+      if (this.loading || this.loadingMore || target === this.currentPage) return;
+      if (this._abortController) this._abortController.abort();
+      this._abortController = new AbortController();
+      const signal = this._abortController.signal;
+
+      const pageSize = this.pagination.pageSize || this.effectivePageSize;
+      const offset = (target - 1) * pageSize;
+      this.loadingMore = true;
+      try {
+        const params = this.buildParams(offset);
+        const url = generateUrl(`/apps/intravox/api/file-story/files?${params.toString()}`);
+        const res = await axios.get(url, { signal, validateStatus: s => s >= 200 && s < 300 });
+        const d = res.data || {};
+        this.files = d.files || [];
+        this.timeline = d.timeline || [];
+        this.groups = d.groups || [];
+        this.warmFederatedPreviews(this.files);
+        this.currentPage = target;
+        if (d.pagination) {
+          this.pagination = {
+            offset: d.pagination.offset || offset,
+            pageSize: d.pagination.pageSize || pageSize,
+            total: d.pagination.total || this.pagination.total,
+            hasMore: !!d.pagination.hasMore,
+            truncated: !!d.pagination.truncated,
+          };
+        }
+        // Scroll the widget back into view so the new page starts at the top.
+        this.$el?.scrollIntoView?.({ block: 'nearest' });
+      } catch (err) {
+        if (axios.isCancel?.(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+          return;
+        }
+        console.error('[FileStoryWidget] goToPage failed:', err);
+      } finally {
+        this.loadingMore = false;
+      }
+    },
     setupScrollSentinel() {
       if (this._scrollObserver) {
         this._scrollObserver.disconnect();
         this._scrollObserver = null;
       }
+      if (this.effectivePaginationMode === 'pages') return;
       if (!this.pagination.hasMore || typeof IntersectionObserver === 'undefined') return;
       const sentinel = this.$refs.scrollSentinel;
       if (!sentinel) return;
@@ -980,6 +1077,24 @@ export default {
   border-radius: 6px;
   font-size: 12px;
   color: var(--fs-text-muted, var(--color-text-maxcontrast));
+}
+
+.fs-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+
+.fs-pagination-status {
+  font-size: 13px;
+  color: var(--fs-text-muted, var(--color-text-maxcontrast));
+  white-space: nowrap;
+}
+
+.file-story-widget.fs--on-dark .fs-pagination-status {
+  color: var(--fs-text, #fff);
 }
 
 @media (prefers-reduced-motion: reduce) {

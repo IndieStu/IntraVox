@@ -239,19 +239,47 @@
       <p class="editor-hint">{{ t('intravox', 'Pick which fields appear next to the filename. The filename + file-type icon are always shown.') }}</p>
     </div>
 
+    <!-- Long-list handling: infinite scroll vs. page buttons -->
     <div class="editor-section">
-      <label class="editor-label" for="fse-limit">{{ t('intravox', 'Maximum documents') }}</label>
+      <div class="editor-label">{{ t('intravox', 'Long lists') }}</div>
+      <div class="fse-columns">
+        <NcCheckboxRadioSwitch
+          type="radio"
+          name="fse-pagination-mode"
+          value="infinite"
+          :model-value="paginationMode"
+          @update:model-value="setPaginationMode('infinite')"
+        >
+          {{ t('intravox', 'Infinite scroll') }}
+        </NcCheckboxRadioSwitch>
+        <NcCheckboxRadioSwitch
+          type="radio"
+          name="fse-pagination-mode"
+          value="pages"
+          :model-value="paginationMode"
+          @update:model-value="setPaginationMode('pages')"
+        >
+          {{ t('intravox', 'Page buttons') }}
+        </NcCheckboxRadioSwitch>
+      </div>
+      <p v-if="paginationMode === 'pages' && !paginationSupportsPages" class="editor-hint">
+        {{ t('intravox', 'Page buttons apply to List and Tiles layouts. Timeline and Grouped layouts always use infinite scroll.') }}
+      </p>
+    </div>
+
+    <div class="editor-section">
+      <label class="editor-label" for="fse-limit">{{ limitLabel }}</label>
       <input
         id="fse-limit"
         type="number"
         min="1"
         max="500"
         v-model.number="localConfig.limit"
-        :placeholder="t('intravox', 'All')"
+        :placeholder="paginationMode === 'pages' ? '20' : t('intravox', 'All')"
         class="editor-input fse-narrow"
         @input="emitUpdate"
       />
-      <p class="editor-hint">{{ t('intravox', 'Cap the total number of documents. Leave blank to load everything via infinite scroll.') }}</p>
+      <p class="editor-hint">{{ limitHint }}</p>
     </div>
   </div>
 </template>
@@ -321,6 +349,24 @@ export default {
         default:
           return '';
       }
+    },
+    paginationMode() {
+      return this.localConfig.paginationMode === 'pages' ? 'pages' : 'infinite';
+    },
+    // Page buttons only make sense for the flat layouts; timeline/grouped are
+    // bucketed and always fall back to infinite scroll.
+    paginationSupportsPages() {
+      return this.localConfig.mode === 'list' || this.localConfig.mode === 'tiles';
+    },
+    limitLabel() {
+      return this.paginationMode === 'pages' && this.paginationSupportsPages
+        ? this.t('intravox', 'Documents per page')
+        : this.t('intravox', 'Maximum documents');
+    },
+    limitHint() {
+      return this.paginationMode === 'pages' && this.paginationSupportsPages
+        ? this.t('intravox', 'Number of documents shown per page. Older documents stay reachable via the page buttons.')
+        : this.t('intravox', 'Cap the total number of documents. Leave blank to load everything via infinite scroll.');
     },
     granularityOptions() {
       return [
@@ -418,6 +464,7 @@ export default {
         groupBy: 'category',
         granularity: 'month',           // sensible default for documents
         limit: null,
+        paginationMode: 'infinite',     // 'infinite' | 'pages' (pages: list/tiles only)
         sortOrder: 'desc',
         sortBy: 'mtime',
         dateField: 'mtime',
@@ -473,6 +520,11 @@ export default {
     },
     setMode(value) {
       this.localConfig.mode = value;
+      this.emitUpdate();
+    },
+    setPaginationMode(value) {
+      if (value !== 'infinite' && value !== 'pages') return;
+      this.localConfig.paginationMode = value;
       this.emitUpdate();
     },
     setTileSize(value) {
