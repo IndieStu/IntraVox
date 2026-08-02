@@ -96,7 +96,7 @@
 
           <select v-model="filter.operator" class="filter-operator" :aria-label="t('intravox', 'Filter operator')" @change="emitUpdate">
             <option v-for="op in getOperatorsForField(filter.fieldName)" :key="op.value" :value="op.value">
-              {{ t(op.label) }}
+              {{ op.label }}
             </option>
           </select>
 
@@ -381,29 +381,36 @@ export default {
       groups: [],
       availableFields: [],
       filters: [],
-      operatorsByFieldType: {
-        text: [
-          { value: 'equals', label: 'equals' },
-          { value: 'contains', label: 'contains' },
-          { value: 'not_contains', label: 'does not contain' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        select: [
-          { value: 'equals', label: 'equals' },
-          { value: 'in', label: 'is one of' },
-          { value: 'not_empty', label: 'is not empty' },
-        ],
-        date: [
-          { value: 'is_today', label: 'is today' },
-          { value: 'within_next_days', label: 'is within next X days' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-      },
     };
   },
   computed: {
+    // Operator labels are translated here (and via literal t('intravox', …)
+    // calls so the l10n extractor picks them up). Previously the template
+    // called t(op.label) with a single argument, which the @nextcloud/l10n
+    // wrapper read as the app id — returning undefined and rendering blank
+    // operator options (same bug class as #79).
+    operatorsByFieldType() {
+      return {
+        text: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'contains', label: this.t('intravox', 'contains') },
+          { value: 'not_contains', label: this.t('intravox', 'does not contain') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        select: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'in', label: this.t('intravox', 'is one of') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+        ],
+        date: [
+          { value: 'is_today', label: this.t('intravox', 'is today') },
+          { value: 'within_next_days', label: this.t('intravox', 'is within next X days') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+      };
+    },
     layoutOptions() {
       return [
         { value: 'card', label: this.t('intravox', 'Cards'), icon: 'ViewModule' },

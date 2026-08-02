@@ -198,7 +198,7 @@
           </select>
           <select v-model="filter.operator" class="filter-operator" :aria-label="t('intravox', 'Filter operator')" @change="handleOperatorChange(filter)">
             <option v-for="op in getOperatorsForField(filter.fieldName)" :key="op.value" :value="op.value">
-              {{ t(op.label) }}
+              {{ op.label }}
             </option>
           </select>
 
@@ -360,59 +360,64 @@ export default {
       metavoxFields: [],
       filters: [],
       publicationFieldsConfigured: false,
-      // Operators by field type
-      operatorsByFieldType: {
-        text: [
-          { value: 'equals', label: 'equals' },
-          { value: 'contains', label: 'contains' },
-          { value: 'not_contains', label: 'does not contain' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        textarea: [
-          { value: 'equals', label: 'equals' },
-          { value: 'contains', label: 'contains' },
-          { value: 'not_contains', label: 'does not contain' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        date: [
-          { value: 'equals', label: 'equals' },
-          { value: 'before', label: 'is before' },
-          { value: 'after', label: 'is after' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        number: [
-          { value: 'equals', label: 'equals' },
-          { value: 'greater_than', label: 'is greater than' },
-          { value: 'less_than', label: 'is less than' },
-          { value: 'greater_or_equal', label: 'is greater or equal' },
-          { value: 'less_or_equal', label: 'is less or equal' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        select: [
-          { value: 'equals', label: 'equals' },
-          { value: 'in', label: 'is one of' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        multiselect: [
-          { value: 'contains', label: 'contains' },
-          { value: 'contains_all', label: 'contains all' },
-          { value: 'not_empty', label: 'is not empty' },
-          { value: 'empty', label: 'is empty' },
-        ],
-        checkbox: [
-          { value: 'is_true', label: 'is true' },
-          { value: 'is_false', label: 'is false' },
-          { value: 'not_empty', label: 'is not empty' },
-        ],
-      },
     };
   },
   computed: {
+    // Operator labels translated here (via literal t('intravox', …) calls so the
+    // l10n extractor finds them). The template previously used t(op.label) with
+    // a single argument, which @nextcloud/l10n read as the app id → undefined →
+    // blank operator options (same bug class as #79).
+    operatorsByFieldType() {
+      return {
+        text: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'contains', label: this.t('intravox', 'contains') },
+          { value: 'not_contains', label: this.t('intravox', 'does not contain') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        textarea: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'contains', label: this.t('intravox', 'contains') },
+          { value: 'not_contains', label: this.t('intravox', 'does not contain') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        date: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'before', label: this.t('intravox', 'is before') },
+          { value: 'after', label: this.t('intravox', 'is after') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        number: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'greater_than', label: this.t('intravox', 'is greater than') },
+          { value: 'less_than', label: this.t('intravox', 'is less than') },
+          { value: 'greater_or_equal', label: this.t('intravox', 'is greater or equal') },
+          { value: 'less_or_equal', label: this.t('intravox', 'is less or equal') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        select: [
+          { value: 'equals', label: this.t('intravox', 'equals') },
+          { value: 'in', label: this.t('intravox', 'is one of') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        multiselect: [
+          { value: 'contains', label: this.t('intravox', 'contains') },
+          { value: 'contains_all', label: this.t('intravox', 'contains all') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+          { value: 'empty', label: this.t('intravox', 'is empty') },
+        ],
+        checkbox: [
+          { value: 'is_true', label: this.t('intravox', 'is true') },
+          { value: 'is_false', label: this.t('intravox', 'is false') },
+          { value: 'not_empty', label: this.t('intravox', 'is not empty') },
+        ],
+      };
+    },
     layoutOptions() {
       return [
         { value: 'list', label: this.t('intravox', 'List'), icon: 'ViewList' },
