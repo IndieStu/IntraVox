@@ -366,14 +366,15 @@ export default {
       const isFlat = this.effectiveMode === 'list' || this.effectiveMode === 'tiles';
       return (this.config.paginationMode === 'pages' && isFlat) ? 'pages' : 'infinite';
     },
-    // Documents per page in 'pages' mode: the reused "limit" config, sane default.
+    // Documents per page in 'pages' mode (config.pageSize), sane default.
     effectivePageSize() {
-      const n = parseInt(this.config.limit, 10);
+      const n = parseInt(this.config.pageSize, 10);
       return (Number.isFinite(n) && n > 0) ? n : 20;
     },
     totalPages() {
       const size = this.pagination.pageSize || this.effectivePageSize;
       if (!size) return 1;
+      // pagination.total already reflects the backend "limit" cap when set.
       return Math.max(1, Math.ceil((this.pagination.total || 0) / size));
     },
     timelineDays() {
@@ -417,6 +418,7 @@ export default {
         gr: c.granularity || 'day',
         l: c.limit ?? null,
         pm: c.paginationMode || 'infinite',
+        psz: c.pageSize ?? null,
         s: c.sortOrder || 'desc',
         sb: c.sortBy || 'mtime',
         flt: Array.isArray(c.metaVoxFilters) ? c.metaVoxFilters : [],
@@ -558,11 +560,10 @@ export default {
       if (this.effectiveMode === 'timeline' && c.granularity) {
         params.append('granularity', String(c.granularity));
       }
-      // In 'pages' mode the "limit" is the page size, not a hard cap — so we do
-      // NOT send `limit` (that would make the backend report a capped total and
-      // hide older files); the backend then returns the real total for the page
-      // buttons. In infinite mode `limit` keeps its hard-cap meaning.
-      if (this.effectivePaginationMode !== 'pages' && c.limit) {
+      // `limit` is the total cap in BOTH modes (page buttons page WITHIN it).
+      // The backend clamps total/hasMore to it, and totalPages is computed from
+      // that capped total, so page buttons stop at the cap.
+      if (c.limit) {
         params.append('limit', String(c.limit));
       }
       params.append('offset', String(offset));

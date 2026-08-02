@@ -267,15 +267,31 @@
       </p>
     </div>
 
+    <!-- Documents per page — only in page-buttons mode -->
+    <div v-if="paginationMode === 'pages' && paginationSupportsPages" class="editor-section">
+      <label class="editor-label" for="fse-page-size">{{ t('intravox', 'Documents per page') }}</label>
+      <input
+        id="fse-page-size"
+        type="number"
+        min="1"
+        max="500"
+        v-model.number="localConfig.pageSize"
+        placeholder="20"
+        class="editor-input fse-narrow"
+        @input="emitUpdate"
+      />
+      <p class="editor-hint">{{ t('intravox', 'Number of documents shown per page. Older documents stay reachable via the page buttons.') }}</p>
+    </div>
+
     <div class="editor-section">
-      <label class="editor-label" for="fse-limit">{{ limitLabel }}</label>
+      <label class="editor-label" for="fse-limit">{{ t('intravox', 'Maximum documents') }}</label>
       <input
         id="fse-limit"
         type="number"
         min="1"
         max="500"
         v-model.number="localConfig.limit"
-        :placeholder="paginationMode === 'pages' ? '20' : t('intravox', 'All')"
+        :placeholder="t('intravox', 'All')"
         class="editor-input fse-narrow"
         @input="emitUpdate"
       />
@@ -358,14 +374,9 @@ export default {
     paginationSupportsPages() {
       return this.localConfig.mode === 'list' || this.localConfig.mode === 'tiles';
     },
-    limitLabel() {
-      return this.paginationMode === 'pages' && this.paginationSupportsPages
-        ? this.t('intravox', 'Documents per page')
-        : this.t('intravox', 'Maximum documents');
-    },
     limitHint() {
       return this.paginationMode === 'pages' && this.paginationSupportsPages
-        ? this.t('intravox', 'Number of documents shown per page. Older documents stay reachable via the page buttons.')
+        ? this.t('intravox', 'Optional cap on the total number of documents paged through. Leave blank for all.')
         : this.t('intravox', 'Cap the total number of documents. Leave blank to load everything via infinite scroll.');
     },
     granularityOptions() {
@@ -463,8 +474,9 @@ export default {
         mode: 'timeline',
         groupBy: 'category',
         granularity: 'month',           // sensible default for documents
-        limit: null,
+        limit: null,                    // total cap (both modes); null = all
         paginationMode: 'infinite',     // 'infinite' | 'pages' (pages: list/tiles only)
+        pageSize: 20,                   // documents per page in 'pages' mode
         sortOrder: 'desc',
         sortBy: 'mtime',
         dateField: 'mtime',

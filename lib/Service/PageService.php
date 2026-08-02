@@ -3399,6 +3399,11 @@ class PageService {
                 // Long-list handling: infinite scroll (default) or page buttons (#78).
                 $sanitizedConfig['paginationMode'] = (($config['paginationMode'] ?? 'infinite') === 'pages')
                     ? 'pages' : 'infinite';
+                // Documents per page in page-buttons mode. Separate from `limit`,
+                // which stays the total cap across the whole list (#78).
+                if (isset($config['pageSize']) && $config['pageSize'] !== '' && $config['pageSize'] !== null) {
+                    $sanitizedConfig['pageSize'] = max(1, min((int)$config['pageSize'], 500));
+                }
                 if (isset($config['limit']) && $config['limit'] !== '' && $config['limit'] !== null) {
                     $sanitizedConfig['limit'] = max(1, min((int)$config['limit'], 500));
                 }
