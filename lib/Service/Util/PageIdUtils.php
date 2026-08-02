@@ -19,11 +19,41 @@ namespace OCA\IntraVox\Service\Util;
  */
 final class PageIdUtils {
     public function sanitizeId(string $id): string {
+        // Transliterate accented/non-ASCII letters to their ASCII base BEFORE
+        // stripping, so "Müller" → "Muller" (folder name) instead of "Mller"
+        // and "Café" → "Cafe" instead of "Caf". Without this, non-ASCII letters
+        // were silently dropped, mangling folder names for many languages.
+        // page-{uuid} IDs are already pure ASCII and pass through unchanged.
+        if (preg_match('/[^\x00-\x7F]/', $id)) {
+            $transliterated = $this->transliterateToAscii($id);
+            if ($transliterated !== '') {
+                $id = $transliterated;
+            }
+        }
         $id = preg_replace('/[^a-zA-Z0-9_-]/', '', $id);
         if ($id === '') {
             throw new \InvalidArgumentException('Invalid page ID');
         }
         return $id;
+    }
+
+    /**
+     * Best-effort Latin transliteration of non-ASCII text (ü→ue via NFKD folding
+     * to u, ß→ss, é→e, …). Uses the intl Transliterator when available and falls
+     * back to iconv; returns '' if neither can help (caller keeps the original).
+     */
+    private function transliterateToAscii(string $text): string {
+        if (class_exists(\Transliterator::class)) {
+            $tr = \Transliterator::create('Any-Latin; Latin-ASCII; [:Nonspacing Mark:] Remove');
+            if ($tr !== null) {
+                $out = $tr->transliterate($text);
+                if (is_string($out)) {
+                    return $out;
+                }
+            }
+        }
+        $out = @iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $text);
+        return is_string($out) ? $out : '';
     }
 
     /**

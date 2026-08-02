@@ -1041,18 +1041,26 @@ export default {
           newPage.parentPath = this.currentPage.path;
         }
 
-        await axios.post(generateUrl('/apps/intravox/api/pages'), newPage);
+        const response = await axios.post(generateUrl('/apps/intravox/api/pages'), newPage);
         showSuccess(this.t('intravox', 'Page created'));
+
+        // Select the created page by its stable uniqueId, NOT the derived slug:
+        // on a slug collision the backend stores the page under "<slug>-2" while
+        // keeping our uniqueId, so selecting by slug would open the pre-existing
+        // page and its save would 404 ("Page not found"). Prefer the uniqueId
+        // returned by the API, then the one we sent, then fall back to the slug.
+        const createdUniqueId = response.data?.uniqueId || response.data?.page?.uniqueId || uniqueId;
+        const target = createdUniqueId || slug;
 
         // Reload pages first so the new page is in the array
         await this.loadPages();
 
         // Add to navigation if requested (after pages are loaded)
         if (addToNavigation) {
-          await this.addPageToNavigation(slug, title);
+          await this.addPageToNavigation(target, title);
         }
 
-        await this.selectPage(slug);
+        await this.selectPage(target);
         // Open the new page in edit mode (with lock)
         await this.startEditMode();
       } catch (err) {

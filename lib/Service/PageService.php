@@ -3545,7 +3545,17 @@ class PageService {
      * Sanitize text content (prevent XSS)
      */
     private function sanitizeText(string $text): string {
-        return htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        // Plain-text fields (page titles, widget titles, alt text, link labels,
+        // …) are rendered in text contexts where the frontend escapes on output,
+        // so we must NOT HTML-encode here — doing so stored apostrophes as
+        // "&apos;", ampersands as "&amp;" etc. and showed the literal entities
+        // in the UI (e.g. "Collega&apos;s"). Strip tags and control characters
+        // so no markup can survive, but keep the text human-readable. Escaping
+        // is the responsibility of each output sink (Vue escapes automatically;
+        // the RSS/XML and HTML-export emitters escape at emit time).
+        $text = strip_tags($text);
+        $text = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/', '', $text);
+        return trim($text);
     }
 
     /**
@@ -4473,6 +4483,110 @@ class PageService {
         } catch (\Throwable $e) {
             $this->logger->warning('[PageService] Could not sync navigation title after rename: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * One-off repair for data corrupted by the old sanitizeText(), which
+     * HTML-encoded plain-text fields (title "Collega's" was stored as
+     * "Collega&apos;s", "A & B" as "A &amp; B", …). Walks every page JSON in
+     * every language folder and decodes the entity-encoded plain-text fields
+     * (page title, widget content/alt/title, link titles), then rewrites the
+     * file. Idempotent — already-clean text decodes to itself.
+     *
+     * @param bool $dryRun When true, count changes but do not write.
+     * @return array{scanned:int, changed:int, files:string[]} Repair stats.
+     */
+    public function repairEntities(bool $dryRun = false): array {
+        $stats = ['scanned' => 0, 'changed' => 0, 'files' => []];
+        $base = $this->getIntraVoxFolder();
+        foreach ($this->getCachedDirectoryListing($base) as $langFolder) {
+            if (!($langFolder instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            // Language folders are 2–3 letter codes; skip _media/_resources/etc.
+            if (!preg_match('/^[a-z]{2,3}$/', $langFolder->getName())) {
+                continue;
+            }
+            $this->repairEntitiesInFolder($langFolder, $dryRun, $stats);
+        }
+        return $stats;
+    }
+
+    /**
+     * Recurse a folder, decoding entity-encoded plain-text in each page JSON.
+     *
+     * @param array{scanned:int, changed:int, files:string[]} $stats
+     */
+    private function repairEntitiesInFolder(\OCP\Files\Folder $folder, bool $dryRun, array &$stats): void {
+        foreach ($this->getCachedDirectoryListing($folder) as $node) {
+            if ($node instanceof \OCP\Files\File && str_ends_with($node->getName(), '.json')) {
+                // Only page JSONs carry the fields we repair; navigation.json,
+                // footer.json, homepage.json are handled/normalised elsewhere.
+                $name = $node->getName();
+                if (in_array($name, ['navigation.json', 'footer.json', 'homepage.json'], true)) {
+                    continue;
+                }
+                $stats['scanned']++;
+                try {
+                    $data = json_decode($node->getContent(), true);
+                    if (!is_array($data) || !isset($data['title'])) {
+                        continue;
+                    }
+                    $before = json_encode($data);
+                    $this->decodePlainTextFields($data);
+                    $after = json_encode($data);
+                    if ($before !== $after) {
+                        $stats['changed']++;
+                        $stats['files'][] = $node->getPath();
+                        if (!$dryRun) {
+                            $node->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+                        }
+                    }
+                } catch (\Throwable $e) {
+                    $this->logger->warning('[PageService] repairEntities skipped ' . $node->getPath() . ': ' . $e->getMessage());
+                }
+            } elseif ($node instanceof \OCP\Files\Folder) {
+                $this->repairEntitiesInFolder($node, $dryRun, $stats);
+            }
+        }
+    }
+
+    /**
+     * Decode HTML entities in the plain-text fields of a page-data array,
+     * in place: title, and each widget's content/alt/title and link titles.
+     */
+    private function decodePlainTextFields(array &$data): void {
+        if (isset($data['title']) && is_string($data['title'])) {
+            $data['title'] = $this->htmlSanitizer->decodeEntitiesRecursive($data['title']);
+        }
+        $rows = $data['layout']['rows'] ?? null;
+        if (!is_array($rows)) {
+            return;
+        }
+        foreach ($rows as &$row) {
+            if (isset($row['sectionTitle']) && is_string($row['sectionTitle'])) {
+                $row['sectionTitle'] = $this->htmlSanitizer->decodeEntitiesRecursive($row['sectionTitle']);
+            }
+            $columns = $row['columns'] ?? (isset($row['widgets']) ? [$row] : []);
+            foreach ($columns as &$col) {
+                foreach (($col['widgets'] ?? []) as &$widget) {
+                    foreach (['content', 'alt', 'title'] as $field) {
+                        if (isset($widget[$field]) && is_string($widget[$field])) {
+                            $widget[$field] = $this->htmlSanitizer->decodeEntitiesRecursive($widget[$field]);
+                        }
+                    }
+                    foreach (($widget['links'] ?? []) as &$link) {
+                        if (isset($link['title']) && is_string($link['title'])) {
+                            $link['title'] = $this->htmlSanitizer->decodeEntitiesRecursive($link['title']);
+                        }
+                    }
+                    unset($link);
+                }
+                unset($widget);
+            }
+            unset($col);
+        }
+        unset($row);
     }
 
     /**
