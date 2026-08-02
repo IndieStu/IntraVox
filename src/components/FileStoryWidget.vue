@@ -372,7 +372,10 @@ export default {
       return (Number.isFinite(n) && n > 0) ? n : 20;
     },
     totalPages() {
-      const size = this.pagination.pageSize || this.effectivePageSize;
+      // Use the configured page size, NOT pagination.pageSize: the backend
+      // clamps its pageSize to the remaining rows under the `limit` cap on the
+      // last page, which would otherwise inflate the page count (#78).
+      const size = this.effectivePageSize;
       if (!size) return 1;
       // pagination.total already reflects the backend "limit" cap when set.
       return Math.max(1, Math.ceil((this.pagination.total || 0) / size));
@@ -527,9 +530,14 @@ export default {
         this.capabilities = d.capabilities || null;
         this.warmFederatedPreviews(this.files);
         if (d.pagination) {
+          // In pages mode keep the stable configured page size; the backend may
+          // clamp its own pageSize under the limit cap (#78).
+          const respPageSize = this.effectivePaginationMode === 'pages'
+            ? this.effectivePageSize
+            : (d.pagination.pageSize || 100);
           this.pagination = {
             offset: d.pagination.offset || 0,
-            pageSize: d.pagination.pageSize || 100,
+            pageSize: respPageSize,
             total: d.pagination.total || this.files.length,
             hasMore: !!d.pagination.hasMore,
             truncated: !!d.pagination.truncated,
@@ -567,7 +575,12 @@ export default {
         params.append('limit', String(c.limit));
       }
       params.append('offset', String(offset));
-      params.append('pageSize', String(this.pagination.pageSize || 100));
+      // In pages mode use the stable configured page size (the backend may clamp
+      // its own pageSize under the limit cap, but our paging must not drift).
+      const reqPageSize = this.effectivePaginationMode === 'pages'
+        ? this.effectivePageSize
+        : (this.pagination.pageSize || 100);
+      params.append('pageSize', String(reqPageSize));
       params.append('sortOrder', c.sortOrder || 'desc');
       params.append('sortBy', c.sortBy || 'mtime');
       if (offset > 0 && this.pagination.total > 0) {
@@ -635,7 +648,7 @@ export default {
       this._abortController = new AbortController();
       const signal = this._abortController.signal;
 
-      const pageSize = this.pagination.pageSize || this.effectivePageSize;
+      const pageSize = this.effectivePageSize;
       const offset = (target - 1) * pageSize;
       this.loadingMore = true;
       try {
@@ -651,7 +664,8 @@ export default {
         if (d.pagination) {
           this.pagination = {
             offset: d.pagination.offset || offset,
-            pageSize: d.pagination.pageSize || pageSize,
+            // Keep our stable page size; ignore the backend's clamped value (#78).
+            pageSize,
             total: d.pagination.total || this.pagination.total,
             hasMore: !!d.pagination.hasMore,
             truncated: !!d.pagination.truncated,
