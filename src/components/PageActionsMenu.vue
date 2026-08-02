@@ -18,6 +18,15 @@
       {{ t('intravox', 'Edit navigation') }}
     </NcActionButton>
 
+    <!-- Rename Page (for editors) -->
+    <NcActionButton v-if="canPerformAction('editPage')"
+                    @click="emitAndClose('rename-page')">
+      <template #icon>
+        <RenameBox :size="20" />
+      </template>
+      {{ t('intravox', 'Rename page') }}
+    </NcActionButton>
+
     <!-- Page Settings (for editors) -->
     <NcActionButton v-if="canPerformAction('editPage')"
                     @click="emitAndClose('page-settings')">
@@ -70,6 +79,7 @@ import { translate, translatePlural } from '@nextcloud/l10n';
 import { NcActions, NcActionButton } from '@nextcloud/vue';
 import Cog from 'vue-material-design-icons/Cog.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
+import RenameBox from 'vue-material-design-icons/RenameBox.vue';
 import TuneVertical from 'vue-material-design-icons/TuneVertical.vue';
 import FileDocumentMultipleOutline from 'vue-material-design-icons/FileDocumentMultipleOutline.vue';
 import Rss from 'vue-material-design-icons/Rss.vue';
@@ -83,6 +93,7 @@ export default {
     NcActionButton,
     Cog,
     Plus,
+    RenameBox,
     TuneVertical,
     FileDocumentMultipleOutline,
     Rss,
@@ -109,7 +120,7 @@ export default {
       default: false
     }
   },
-  emits: ['edit-navigation', 'create-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'delete-page'],
+  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'delete-page'],
   methods: {
     t(app, text, vars) {
       return translate(app, text, vars);

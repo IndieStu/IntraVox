@@ -64,6 +64,7 @@
                          :is-home="isCurrentPageHome"
                          @edit-navigation="showNavigationEditor = true"
                          @create-page="createNewPage"
+                         @rename-page="renameCurrentPage"
                          @page-settings="showPageSettingsModal = true"
                          @save-as-template="showSaveAsTemplateModal = true"
                          @feed-settings="showFeedSettings = true"
@@ -192,6 +193,7 @@
       @navigate="selectPage"
       @reorder="reorderPages"
       @move="movePage"
+      @rename="renamePageFromTree"
       @delete="deletePageFromTree"
       @set-homepage="handleSetHomepage"
       @copy="copyPageFromTree"
@@ -205,6 +207,14 @@
       @close="showNewPageModal = false"
       @create="handleCreatePage"
       @create-from-template="handleCreatePageFromTemplate"
+    />
+
+    <RenamePageModal
+      v-if="renameTarget"
+      :page-id="renameTarget.pageId"
+      :current-title="renameTarget.title"
+      @close="renameTarget = null"
+      @renamed="onPageRenamed"
     />
 
     <NavigationEditor
@@ -279,6 +289,7 @@ const PageEditor = defineAsyncComponent(() => import('./components/PageEditor.vu
 const PageListModal = defineAsyncComponent(() => import('./components/PageListModal.vue'));
 const PageTreeModal = defineAsyncComponent(() => import('./components/PageTreeModal.vue'));
 const NewPageModal = defineAsyncComponent(() => import('./components/NewPageModal.vue'));
+const RenamePageModal = defineAsyncComponent(() => import('./components/RenamePageModal.vue'));
 const NavigationEditor = defineAsyncComponent(() => import('./components/NavigationEditor.vue'));
 const PageDetailsSidebar = defineAsyncComponent(() => import('./components/PageDetailsSidebar.vue'));
 const WelcomeScreen = defineAsyncComponent(() => import('./components/WelcomeScreen.vue'));
@@ -309,6 +320,7 @@ export default {
     PageEditor,
     PageListModal,
     PageTreeModal,
+    RenamePageModal,
     NewPageModal,
     Navigation,
     NavigationEditor,
@@ -341,6 +353,9 @@ export default {
       moveTargetId: null,
       moveInProgress: false,
       showNewPageModal: false,
+      // Rename modal target: { pageId, title } when open, null when closed.
+      // Shared by the page-header action and the page-tree rename button.
+      renameTarget: null,
       showSaveAsTemplateModal: false,
       showDetailsSidebar: false,
       breadcrumb: [],
@@ -1261,6 +1276,35 @@ export default {
       const sourceId = node && node.uniqueId ? node.uniqueId : node;
       if (!sourceId) return;
       await this.copyPage(sourceId, null);
+      if (this.$refs.pageTreeModal) {
+        await this.$refs.pageTreeModal.loadTree();
+      }
+    },
+    renameCurrentPage() {
+      if (!this.currentPage?.uniqueId) return;
+      this.renameTarget = {
+        pageId: this.currentPage.uniqueId,
+        title: this.currentPage.title || '',
+      };
+    },
+    renamePageFromTree(node) {
+      const pageId = node && node.uniqueId ? node.uniqueId : node;
+      if (!pageId) return;
+      this.renameTarget = {
+        pageId,
+        title: (node && node.title) || '',
+      };
+    },
+    async onPageRenamed(newTitle) {
+      // Reflect the new title immediately in the header/breadcrumb when the
+      // renamed page is the one on screen, then refresh pages + navigation so
+      // every reference (menu, breadcrumb, list) picks up the change.
+      if (this.currentPage && this.renameTarget
+          && this.currentPage.uniqueId === this.renameTarget.pageId) {
+        this.currentPage.title = newTitle;
+      }
+      this.renameTarget = null;
+      await Promise.all([this.loadPages(), this.loadNavigation()]);
       if (this.$refs.pageTreeModal) {
         await this.$refs.pageTreeModal.loadTree();
       }

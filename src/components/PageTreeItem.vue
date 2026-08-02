@@ -21,9 +21,12 @@
         <span v-if="item.isCurrent" class="current-badge">{{ t('intravox', 'Current') }}</span>
       </button>
 
-      <!-- Manage actions (issue #69) -->
+      <!-- Manage actions (issue #69). Each action is gated on the permission the
+           backend actually enforces, so the UI never offers something that 403s
+           (issue #86): reorder/move need write on the page, copy needs create. -->
       <div v-if="manageMode" class="tree-item-actions">
         <button
+          v-if="canWrite"
           class="tree-action"
           :disabled="isFirst"
           :aria-label="t('intravox', 'Move up')"
@@ -33,6 +36,7 @@
           <ArrowUp :size="18" />
         </button>
         <button
+          v-if="canWrite"
           class="tree-action"
           :disabled="isLast"
           :aria-label="t('intravox', 'Move down')"
@@ -42,7 +46,7 @@
           <ArrowDown :size="18" />
         </button>
         <button
-          v-if="!isThisHomepage"
+          v-if="canWrite && !isThisHomepage"
           class="tree-action"
           :aria-label="t('intravox', 'Move to another page')"
           :title="t('intravox', 'Move to another page')"
@@ -60,6 +64,16 @@
           <HomeOutline :size="18" />
         </button>
         <button
+          v-if="canWrite"
+          class="tree-action"
+          :aria-label="t('intravox', 'Rename')"
+          :title="t('intravox', 'Rename')"
+          @click="$emit('rename', item)"
+        >
+          <RenameBox :size="18" />
+        </button>
+        <button
+          v-if="canCreate"
           class="tree-action"
           :aria-label="t('intravox', 'Copy page')"
           :title="t('intravox', 'Copy page')"
@@ -96,6 +110,7 @@
         @move-up="(id) => $emit('move-up', id)"
         @move-down="(id) => $emit('move-down', id)"
         @move-to="(node) => $emit('move-to', node)"
+        @rename="(node) => $emit('rename', node)"
         @delete="(node) => $emit('delete', node)"
         @copy="(node) => $emit('copy', node)"
         @set-homepage="(node) => $emit('set-homepage', node)"
@@ -117,6 +132,7 @@ import FileDocument from 'vue-material-design-icons/FileDocument.vue';
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue';
 import ArrowDown from 'vue-material-design-icons/ArrowDown.vue';
 import FolderMove from 'vue-material-design-icons/FolderMove.vue';
+import RenameBox from 'vue-material-design-icons/RenameBox.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import HomeOutline from 'vue-material-design-icons/HomeOutline.vue';
@@ -130,6 +146,7 @@ export default {
     ArrowUp,
     ArrowDown,
     FolderMove,
+    RenameBox,
     Delete,
     ContentCopy,
     HomeOutline
@@ -164,7 +181,7 @@ export default {
       default: null
     }
   },
-  emits: ['toggle', 'navigate', 'move-up', 'move-down', 'move-to', 'delete', 'copy', 'set-homepage'],
+  emits: ['toggle', 'navigate', 'move-up', 'move-down', 'move-to', 'rename', 'delete', 'copy', 'set-homepage'],
   data() {
     return {
       visibleChildCount: 50,
@@ -196,7 +213,17 @@ export default {
     },
     canSetHomepage() {
       // Only root-level pages can become the homepage, and not the current one.
-      return this.isRootLevel && !this.isThisHomepage;
+      // Setting the homepage writes the language root, so also require write
+      // here (issue #86) — the backend enforces the root check as the safety net.
+      return this.isRootLevel && !this.isThisHomepage && this.canWrite;
+    },
+    // Per-item permission gates (issue #86) — match what each backend endpoint
+    // enforces so a manage action is only shown when it will actually succeed.
+    canWrite() {
+      return !!(this.item.permissions && this.item.permissions.canWrite);
+    },
+    canCreate() {
+      return !!(this.item.permissions && this.item.permissions.canCreate);
     },
   },
   methods: {

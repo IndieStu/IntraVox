@@ -7,7 +7,7 @@
         {{ t('intravox', 'This shows all your actual pages. Use "Manage structure" to move, reorder, copy or delete them. Only top-level pages can be set as the homepage; to make a subpage the homepage, move it to the top level first. To change the links in the navigation bar and their order, use "Edit navigation".') }}
       </NcNoteCard>
 
-      <div v-if="canManage && !loading && !error && tree.length > 0" class="page-tree-toolbar">
+      <div v-if="canManageAny && !loading && !error && tree.length > 0" class="page-tree-toolbar">
         <NcButton type="tertiary"
                   @click="manageMode = !manageMode">
           <template #icon>
@@ -77,6 +77,7 @@
             @move-up="handleMoveUp"
             @move-down="handleMoveDown"
             @move-to="handleMoveTo"
+            @rename="handleRename"
             @delete="handleDelete"
             @copy="handleCopy"
             @set-homepage="handleSetHomepage"
@@ -122,7 +123,7 @@ export default {
       default: false
     }
   },
-  emits: ['close', 'navigate', 'reorder', 'move', 'delete', 'copy', 'set-homepage', 'homepage'],
+  emits: ['close', 'navigate', 'reorder', 'move', 'rename', 'delete', 'copy', 'set-homepage', 'homepage'],
   data() {
     return {
       tree: [],
@@ -140,6 +141,24 @@ export default {
   computed: {
     modalTitle() {
       return this.t('intravox', 'Page structure');
+    },
+    // Show "Manage structure" when the user can act on ANY page in the tree —
+    // not only when they have write on the root. A department editor with write
+    // on just their own section must still get the manage toolbar so they can
+    // reorder/rename/delete within that section (issue #86). Falls back to the
+    // root-level canManage prop when the tree carries no permission data.
+    canManageAny() {
+      if (this.canManage) {
+        return true;
+      }
+      const anyManageable = (nodes) => (nodes || []).some((n) => {
+        const p = n.permissions || {};
+        if (p.canWrite || p.canCreate || p.canDelete) {
+          return true;
+        }
+        return anyManageable(n.children);
+      });
+      return anyManageable(this.tree);
     }
   },
   async mounted() {
@@ -293,6 +312,9 @@ export default {
           await this.loadTree();
         }
       });
+    },
+    handleRename(node) {
+      this.$emit('rename', node);
     },
     handleDelete(node) {
       this.$emit('delete', node);
