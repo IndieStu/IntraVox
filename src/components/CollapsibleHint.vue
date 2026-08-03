@@ -47,7 +47,10 @@ export default {
 
 <style scoped>
 .collapsible-hint {
-  margin: 4px 0 12px;
+  /* Reserve room on the right so the card (and its chevron) never sits under
+     the modal's absolutely-positioned close (×) button, which overlaps the top
+     of the dialog body. 44px = NcModal's close-button clearance. */
+  margin: 4px 44px 12px 0;
   border: 1px solid var(--color-border);
   border-radius: var(--border-radius);
   background: var(--color-background-hover);
