@@ -158,6 +158,39 @@ add/change strings in src/** or lib/**  →  npm run build  →  guard FAILS ("s
 ```
 A check-only GitHub Action (`.github/workflows/l10n.yml`) runs the same guard on push to main as a backstop; it never writes or auto-commits (that would fight the bot's POT delete).
 
+### After a release — fill empty `nl` (and de/fr) translations (optional, maintainer)
+
+New source strings ship untranslated and **fall back to English at runtime** — a release is never blocked by this. But once the bot has ingested the release's POT (next daily sync), the new strings appear as **empty** on Transifex, and the maintainer can fill the languages they control (for IntraVox: `nl`; `de`/`fr` follow the bot/community — do **not** hand-fill them). Timeline: strings become fillable ~1 day after `git push github main`, not immediately.
+
+> ⚠️ Writing translations is an **outward-facing action on the live shared Nextcloud resource** — treat it like a force-push to a shared `main`. The 2026-07-07 incident (whole-PO upload → English-as-confirmed-translation → removed from the German team) is why the golden rules below exist. **Read [`../Nextcloud/transifix/VEILIGHEID-en-backup.md`](../Nextcloud/transifix/VEILIGHEID-en-backup.md) before any write.**
+
+Safe fill workflow (proven for 1.9.0 — 74 `nl` strings filled, 0 community records touched):
+
+```bash
+cd ../Nextcloud/transifix/tools           # tx.py / scan_mine.py / patch_translations.py (RESOURCE=…:r:intravox)
+mkdir -p /tmp/l10n_fill
+python3 po_download.py nl                  # 1. BACKUP: fresh full PO snapshot (Scenario A)
+cp /tmp/l10n_fill/tx_current_nl.po /tmp/l10n_fill/backup_nl_$(date +%Y%m%d_%H%M%S).po
+# 2. Build tr_nl.json = {"<source msgid>": "<nl>"} for singulars,
+#    {"<source msgid>": {"one":"…","other":"…"}} for plurals. Keep %n / %s / {var} EXACT.
+python3 patch_translations.py nl /tmp/l10n_fill/tr_nl.json          # 3. DRY-RUN (no writes)
+#    → confirm "SKIP (has translation by <someone-not-you>)" count is ZERO before going live
+python3 patch_translations.py nl /tmp/l10n_fill/tr_nl.json --live   # 4. per-string PATCH, unreviewed
+rm -rf /tmp/l10n_fill                       # 5. cleanup after verifying stats went up
+```
+
+Hard rules (full list in VEILIGHEID-en-backup.md): **delta not bulk** (never re-upload a whole PO), **only empty or your-own-still-English records** (the tool re-fetches and asserts this per string), **never `msgstr == source`**, **leave `reviewed` false**, **respect team removal** (404 on only one language = stay out). The `patch_translations.py` tool already enforces the re-fetch guard; don't bypass it.
+
+Verify + review after filling:
+```bash
+# coverage jumped (read-only stat):
+curl -s -H "Authorization: Bearer $TX_TOKEN" \
+  "https://rest.api.transifex.com/resource_language_stats/o:nextcloud:p:nextcloud:r:intravox:l:nl" | python3 -c "import sys,json;a=json.load(sys.stdin)['data']['attributes'];print(a['translated_strings'],'/',a['total_strings'])"
+```
+Your just-written strings are unreviewed — review them in the editor:
+`https://app.transifex.com/nextcloud/nextcloud/translate/#nl/intravox/?q=translator%3Arikd`
+(Note the `limit out of range` 400 trap on `resource_translations` GET — use `limit=150`, per the diagnosis table in VEILIGHEID-en-backup.md.)
+
 > **Cross-reference**: [`IntroVox/RELEASE_CHECKLIST.md §2`](../IntroVox/RELEASE_CHECKLIST.md) uses the same Transifex pool — mirror whichever app has the guard first.
 
 ---
@@ -383,6 +416,7 @@ https://github.com/nextcloud/IntraVox/releases/download/vX.Y.Z/intravox-X.Y.Z.ta
 - [ ] Test upgrade path from previous version
 - [ ] Test demo data import on fresh install
 - [ ] Test public share links in incognito browser
+- [ ] **~1 day later**: after the bot ingests this release's POT, this release's new strings show as empty on Transifex. Optionally fill `nl` (maintainer's language) — see §2 "After a release — fill empty translations". `de`/`fr` follow the bot; don't hand-fill.
 
 ---
 
