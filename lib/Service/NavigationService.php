@@ -162,6 +162,11 @@ class NavigationService {
             $this->permissionsCache?->clear();
 
             return $validated;
+        } catch (NotPermittedException $e) {
+            // Preserve the type so the controller can map it to HTTP 403 rather
+            // than a generic 500 — a write attempt without permission is a
+            // permission failure, not a server error (issue #86 follow-up).
+            throw $e;
         } catch (\Exception $e) {
             throw new \Exception('Failed to save navigation: ' . $e->getMessage());
         }

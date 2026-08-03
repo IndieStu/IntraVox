@@ -4,11 +4,15 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [1.9.1] - 2026-08-03 — Tidier page actions menu + dependency security updates
+## [1.9.1] - 2026-08-03 — Tidier page actions menu, permission follow-ups + dependency security updates
 
 ### Changed
 
 - **The page actions (⋯) menu is now grouped.** As the menu grew it had become a flat, interleaved list. Its items are now organised into logical groups — page actions (Rename, Page settings, Copy, Save as template), site (New page, Edit navigation), utility (RSS feed) and the destructive Delete on its own — separated by thin dividers. The dividers adapt to your permissions, so you never see a stray or doubled line: a read-only visitor sees a clean short menu, the homepage hides Delete, and so on. No actions changed — only their order and grouping.
+
+### Fixed
+
+- **Copy, and the navigation editor, now respect per-user permissions correctly in Team folders** ([#86](https://github.com/nextcloud/IntraVox/issues/86) follow-up, thanks @kma-cloud). Three remaining gaps after 1.9.0: (1) the page tree's **Copy** button appeared where the user couldn't actually create, then failed — it now copies a page as a sibling into its own parent and is shown only where the backend will allow it (root-level items are gated on create-permission at the language root). (2) Trying to save the navigation without write permission returned a **500 error** instead of a clean refusal — it now returns 403. (3) **Edit navigation** is gated strictly on write access to the root, so a read-only user no longer sees a button whose save would be refused.
 
 ### Security
 

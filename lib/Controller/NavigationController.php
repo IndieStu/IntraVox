@@ -10,6 +10,7 @@ use OCA\IntraVox\Service\PermissionService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
+use OCP\Files\NotPermittedException;
 use OCP\IRequest;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
@@ -130,6 +131,13 @@ class NavigationController extends Controller {
             $navigation = $this->navigationService->saveNavigation($navigationData);
 
             return new JSONResponse(['navigation' => $navigation]);
+        } catch (NotPermittedException $e) {
+            // The permission check above already guards the common case, but a
+            // filesystem write can still be refused (e.g. an ACL/mount edge the
+            // canWrite bit didn't reflect). Return 403, not a 500 (issue #86).
+            return new JSONResponse([
+                'error' => 'Permission denied: cannot edit navigation'
+            ], Http::STATUS_FORBIDDEN);
         } catch (\Exception $e) {
             return new JSONResponse([
                 'error' => $e->getMessage()

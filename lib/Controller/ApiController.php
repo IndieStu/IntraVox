@@ -1299,9 +1299,15 @@ class ApiController extends Controller {
             // offer "set as homepage" only on root pages (configurable homepage).
             $homepageUniqueId = $this->pageService->resolveHomepageNodeUniqueId($language, $filteredTree);
 
+            // Root-folder permissions so the tree UI can gate actions that target
+            // the language root — a sibling copy of a top-level page lands there,
+            // so the Copy button on root-level items needs root canCreate (#86).
+            $rootPermissions = $this->pageService->getFolderPermissions('');
+
             return new DataResponse([
                 'tree' => $filteredTree,
                 'homepageUniqueId' => $homepageUniqueId,
+                'rootPermissions' => $rootPermissions,
             ]);
         } catch (\Exception $e) {
             return new DataResponse(

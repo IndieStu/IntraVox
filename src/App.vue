@@ -1280,10 +1280,17 @@ export default {
       if (!this.currentPage?.uniqueId) return;
       await this.copyPage(this.currentPage.uniqueId, null);
     },
-    async copyPageFromTree(node) {
-      const sourceId = node && node.uniqueId ? node.uniqueId : node;
+    async copyPageFromTree(payload) {
+      // payload = { item, parentId }. Copy the page as a SIBLING (into its own
+      // parent, parentId=null means the language root) instead of always root —
+      // the tree only shows Copy where the user can create in that parent, so
+      // this matches the backend's create-permission check and avoids a 403 for
+      // section editors who lack create at root (issue #86 follow-up).
+      const item = payload && payload.item ? payload.item : payload;
+      const parentId = payload && 'parentId' in payload ? payload.parentId : null;
+      const sourceId = item && item.uniqueId ? item.uniqueId : item;
       if (!sourceId) return;
-      await this.copyPage(sourceId, null);
+      await this.copyPage(sourceId, parentId);
       if (this.$refs.pageTreeModal) {
         await this.$refs.pageTreeModal.loadTree();
       }
@@ -1410,9 +1417,13 @@ export default {
         const url = generateUrl('/apps/intravox/api/navigation');
         const response = await axios.get(url);
         this.navigation = response.data.navigation;
-        // Use permissions object if available, fall back to canEdit for backwards compatibility
+        // Editing navigation writes navigation.json at the language root, so it
+        // requires write on the root — gate strictly on canWrite. (The legacy
+        // `canEdit` fallback is dropped: it mirrored canWrite anyway and a stale
+        // truthy value could show "Edit navigation" to a read-only user, whose
+        // save would then be refused — issue #86 follow-up.)
         const perms = response.data.permissions || {};
-        this.canEditNavigation = perms.canWrite ?? response.data.canEdit ?? false;
+        this.canEditNavigation = perms.canWrite === true;
       } catch (err) {
         // Provide default empty navigation
         this.navigation = {

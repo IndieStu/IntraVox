@@ -73,11 +73,11 @@
           <RenameBox :size="18" />
         </button>
         <button
-          v-if="canCreate"
+          v-if="parentCanCreate"
           class="tree-action"
           :aria-label="t('intravox', 'Copy page')"
           :title="t('intravox', 'Copy page')"
-          @click="$emit('copy', item)"
+          @click="$emit('copy', { item, parentId })"
         >
           <ContentCopy :size="18" />
         </button>
@@ -102,6 +102,7 @@
         :expanded-nodes="expandedNodes"
         :manage-mode="manageMode"
         :parent-id="item.uniqueId"
+        :parent-can-create="canCreate"
         :homepage-unique-id="homepageUniqueId"
         :is-first="idx === 0"
         :is-last="idx === visibleChildren.length - 1"
@@ -112,7 +113,7 @@
         @move-to="(node) => $emit('move-to', node)"
         @rename="(node) => $emit('rename', node)"
         @delete="(node) => $emit('delete', node)"
-        @copy="(node) => $emit('copy', node)"
+        @copy="(payload) => $emit('copy', payload)"
         @set-homepage="(node) => $emit('set-homepage', node)"
       />
       <li v-if="hasMoreChildren" class="tree-show-more">
@@ -175,6 +176,13 @@ export default {
     parentId: {
       type: String,
       default: null
+    },
+    // Create-permission on THIS item's parent folder — i.e. where a sibling copy
+    // of this page would land. Gates the Copy button so it only shows when the
+    // backend copy (into the parent) will actually succeed (issue #86 follow-up).
+    parentCanCreate: {
+      type: Boolean,
+      default: false
     },
     homepageUniqueId: {
       type: String,

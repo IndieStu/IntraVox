@@ -69,6 +69,7 @@
             :expanded-nodes="expandedNodes"
             :manage-mode="manageMode"
             :parent-id="null"
+            :parent-can-create="rootCanCreate"
             :homepage-unique-id="homepageUniqueId"
             :is-first="idx === 0"
             :is-last="idx === tree.length - 1"
@@ -131,6 +132,7 @@ export default {
       error: null,
       expandedNodes: new Set(),
       homepageUniqueId: null,
+      rootPermissions: {},
       movingNode: null,
       moveTargetId: null,
       moveToRoot: false,
@@ -159,6 +161,11 @@ export default {
         return anyManageable(n.children);
       });
       return anyManageable(this.tree);
+    },
+    // Create-permission on the language root — where a sibling copy of a
+    // top-level page lands. Gates the Copy button on root-level tree items (#86).
+    rootCanCreate() {
+      return !!this.rootPermissions.canCreate;
     }
   },
   async mounted() {
@@ -183,6 +190,7 @@ export default {
         const response = await axios.get(url, { params });
         this.tree = response.data.tree || [];
         this.homepageUniqueId = response.data.homepageUniqueId || null;
+        this.rootPermissions = response.data.rootPermissions || {};
         this.$emit('homepage', this.homepageUniqueId);
 
         // Auto-expand nodes: path to current page + all children below current
@@ -319,8 +327,10 @@ export default {
     handleDelete(node) {
       this.$emit('delete', node);
     },
-    handleCopy(node) {
-      this.$emit('copy', node);
+    handleCopy(payload) {
+      // payload = { item, parentId } — forward so the parent copies the page as
+      // a sibling (into parentId), where create-permission was already checked.
+      this.$emit('copy', payload);
     },
     handleSetHomepage(node) {
       this.$emit('set-homepage', node);
