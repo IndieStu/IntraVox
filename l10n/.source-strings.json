@@ -1,6 +1,6 @@
 {
-    "count": 1273,
-    "sha256": "bc89ea91a5b2b63271b306ff4b5671fd37391d4b73e05d100c02d5a7e8be6612",
+    "count": 1276,
+    "sha256": "93930c44b279c21b919b5b53d57c252cd9cb9126b8efbe4d178ba7c11b2cbe4e",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -34,6 +34,8 @@
         "A network error occurred while loading the video.",
         "A subscription includes: guaranteed Nextcloud compatibility, email support, priority bug fixes, and active development.",
         "A unique hash of your instance URL (privacy-friendly identifier)",
+        "About editing navigation",
+        "About the page structure",
         "Accent",
         "Access denied. Check the connection permissions.",
         "Account",
@@ -525,6 +527,7 @@
         "Home",
         "Homepage only",
         "Homepage updated",
+        "How does this work?",
         "https://example.com",
         "https://example.com/calendar.ics",
         "Icon:",

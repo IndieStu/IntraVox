@@ -3,9 +3,10 @@
            :name="modalTitle"
            size="normal">
     <div class="page-tree-content">
-      <NcNoteCard v-if="!loading && !error && tree.length > 0" type="info">
+      <CollapsibleHint v-if="!loading && !error && tree.length > 0"
+                       :summary="t('intravox', 'About the page structure')">
         {{ t('intravox', 'This shows all your actual pages. Use "Manage structure" to move, reorder, copy or delete them. Only top-level pages can be set as the homepage; to make a subpage the homepage, move it to the top level first. To change the links in the navigation bar and their order, use "Edit navigation".') }}
-      </NcNoteCard>
+      </CollapsibleHint>
 
       <div v-if="canManageAny && !loading && !error && tree.length > 0" class="page-tree-toolbar">
         <NcButton type="tertiary"
@@ -92,6 +93,7 @@
 <script>
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { NcModal, NcLoadingIcon, NcButton, NcNoteCard, NcCheckboxRadioSwitch } from '@nextcloud/vue';
+import CollapsibleHint from './CollapsibleHint.vue';
 import Cog from 'vue-material-design-icons/Cog.vue';
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
@@ -106,6 +108,7 @@ export default {
     NcButton,
     NcNoteCard,
     NcCheckboxRadioSwitch,
+    CollapsibleHint,
     PageTreeItem,
     PageTreeSelect,
     Cog
