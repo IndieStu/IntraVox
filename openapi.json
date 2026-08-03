@@ -330,6 +330,73 @@
         }
       }
     },
+    "/api/pages/{pageId}/metadata": {
+      "get": {
+        "operationId": "get-page-metadata",
+        "summary": "Get page metadata",
+        "description": "Returns the page's metadata (title, modified/created timestamps, path, permissions). Does not return the page layout.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Page metadata"
+          }
+        }
+      },
+      "put": {
+        "operationId": "update-page-metadata",
+        "summary": "Update page metadata (rename)",
+        "description": "Updates page metadata without touching the layout. Currently the title — this is what the \"Rename page\" action calls. Requires write permission. Renaming only changes the title; the page's folder/address and its uniqueId are unchanged. If the navigation menu label still matched the old title it is updated too.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "New page title."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated page metadata"
+          },
+          "403": {
+            "description": "Permission denied"
+          }
+        }
+      }
+    },
     "/api/pages/{pageId}/versions": {
       "get": {
         "operationId": "get-page-versions",
@@ -3251,9 +3318,11 @@
           "style": {
             "type": "string",
             "enum": ["magazine", "apple", "travelogue"],
-            "description": "photo-story timeline style."
+            "description": "photo-story timeline style. Values: magazine, apple (shown in the UI as \"Clean grid\", the default), travelogue."
           },
-          "limit": { "type": "integer", "description": "Maximum rows (both)." },
+          "limit": { "type": "integer", "description": "Optional total cap on rows/photos, applied in both pagination modes (photo-story + file-story). Blank = all." },
+          "paginationMode": { "type": "string", "enum": ["infinite", "pages"], "description": "Long-list handling (photo-story + file-story): infinite scroll (default) or Previous/Next page buttons. Page buttons apply where the widget paginates — file-story list/tiles, photo-story single-folder timeline/grid." },
+          "pageSize": { "type": "integer", "minimum": 1, "maximum": 500, "description": "Documents/photos per page in paginationMode=pages (photo-story + file-story). Default 20 (file-story) / 30 (photo-story)." },
           "columns": { "type": "integer", "minimum": 2, "maximum": 5, "description": "photo-story grid columns." },
           "showCaptions": { "type": "boolean", "description": "photo-story." },
           "showMap": { "type": "boolean", "description": "photo-story." },

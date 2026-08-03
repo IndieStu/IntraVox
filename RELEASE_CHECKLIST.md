@@ -182,8 +182,23 @@ A check-only GitHub Action (`.github/workflows/l10n.yml`) runs the same guard on
 
 ## 4. API Documentation
 
-- [ ] Update `openapi.json` with any new/changed API endpoints
+### 4.1 Do the release's changes actually reach the API — and are they documented?
+
+For **every** feature/fix in this release, confirm both halves, because the two drift apart easily:
+
+1. **Exposed at the API layer** (not just the frontend). A widget config field or page mutation only "works via the API" if the **backend accepts and persists it**. The classic trap: a new widget-config key is added in the Vue editor but the backend `sanitizeWidget`/`sanitizePage` allowlist in `lib/Service/PageService.php` silently drops it — the setting reverts on reload. Every new config key MUST be added to that allowlist (this is what broke `paginationMode`/`pageSize` in 1.9.0 until added). Verify by round-tripping through the real service, e.g.:
+   ```bash
+   # Adjust the widget/config to the release's new fields, then confirm they survive sanitizePage:
+   ssh rik@<nc-dev> "docker exec -u www-data nc-dev php -r '…sanitizePage(…); // assert the new keys are still present'"
+   ```
+   Also sanity-check the actual endpoints on nc-dev (rename → `PUT /api/pages/{pageId}/metadata`, pagination → `limit`/`offset`/`pageSize` on `/api/{photo,file}-story/*`) return what the UI expects.
+2. **Documented in `openapi.json`.** New endpoints, new query params, and — easy to forget — **new fields in shared schemas** (e.g. `WidgetConfig`, `PageTreeNode`). A new widget-config key is invisible in the API doc until added to the `WidgetConfig` schema, even though the endpoint already accepts it.
+
+- [ ] Update `openapi.json` with any new/changed API **endpoints** (paths + verbs). Cross-check `appinfo/routes.php` — every route a release touched should have a documented path (1.9.0 caught `/api/pages/{pageId}/metadata` GET+PUT missing entirely).
+- [ ] Update `openapi.json` **shared schemas** for any new config/response fields (notably `WidgetConfig` for new widget settings, `PageTreeNode`/`Permissions` for tree/permission changes).
+- [ ] Update descriptions when a field's meaning changed (e.g. `limit` going from "max rows" to "total cap in both pagination modes").
 - [ ] Validate JSON syntax: `python3 -c "import json; json.load(open('openapi.json')); print('Valid')"`
+- [ ] Bump `openapi.json` `"version"` to match (see §3 — `sync-version.js` does not touch it).
 - [ ] Verify all public share endpoints are documented
 - [ ] Update response schemas if changed
 
