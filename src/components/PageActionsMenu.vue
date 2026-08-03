@@ -1,24 +1,6 @@
 <template>
   <NcActions ref="actions">
-    <!-- New Page -->
-    <NcActionButton v-if="canPerformAction('createPage')"
-                    @click="emitAndClose('create-page')">
-      <template #icon>
-        <Plus :size="20" />
-      </template>
-      {{ t('intravox', 'New page') }}
-    </NcActionButton>
-
-    <!-- Edit Navigation (admin action, less frequently used) -->
-    <NcActionButton v-if="canPerformAction('editNavigation')"
-                    @click="emitAndClose('edit-navigation')">
-      <template #icon>
-        <Cog :size="20" />
-      </template>
-      {{ t('intravox', 'Edit navigation') }}
-    </NcActionButton>
-
-    <!-- Rename Page (for editors) -->
+    <!-- ===== Group A — Page actions (this page) ===== -->
     <NcActionButton v-if="canPerformAction('editPage')"
                     @click="emitAndClose('rename-page')">
       <template #icon>
@@ -27,7 +9,6 @@
       {{ t('intravox', 'Rename page') }}
     </NcActionButton>
 
-    <!-- Page Settings (for editors) -->
     <NcActionButton v-if="canPerformAction('editPage')"
                     @click="emitAndClose('page-settings')">
       <template #icon>
@@ -36,24 +17,6 @@
       {{ t('intravox', 'Page settings') }}
     </NcActionButton>
 
-    <!-- Save as Template -->
-    <NcActionButton v-if="canPerformAction('saveAsTemplate')"
-                    @click="emitAndClose('save-as-template')">
-      <template #icon>
-        <FileDocumentMultipleOutline :size="20" />
-      </template>
-      {{ t('intravox', 'Save as template') }}
-    </NcActionButton>
-
-    <!-- RSS Feed -->
-    <NcActionButton @click="emitAndClose('feed-settings')">
-      <template #icon>
-        <Rss :size="20" />
-      </template>
-      {{ t('intravox', 'RSS feed') }}
-    </NcActionButton>
-
-    <!-- Copy page -->
     <NcActionButton v-if="canPerformAction('createPage')"
                     @click="emitAndClose('copy-page')">
       <template #icon>
@@ -62,8 +25,50 @@
       {{ t('intravox', 'Copy page') }}
     </NcActionButton>
 
-    <!-- Delete page (destructive; hidden for the homepage) -->
-    <NcActionButton v-if="canPerformAction('deletePage') && !isHome"
+    <NcActionButton v-if="canPerformAction('saveAsTemplate')"
+                    @click="emitAndClose('save-as-template')">
+      <template #icon>
+        <FileDocumentMultipleOutline :size="20" />
+      </template>
+      {{ t('intravox', 'Save as template') }}
+    </NcActionButton>
+
+    <!-- Separator A → B: only between two non-empty groups -->
+    <NcActionSeparator v-if="hasPageGroup && (hasCreateGroup || hasUtilityGroup)" />
+
+    <!-- ===== Group B — Site / structure ===== -->
+    <NcActionButton v-if="canPerformAction('createPage')"
+                    @click="emitAndClose('create-page')">
+      <template #icon>
+        <Plus :size="20" />
+      </template>
+      {{ t('intravox', 'New page') }}
+    </NcActionButton>
+
+    <NcActionButton v-if="canPerformAction('editNavigation')"
+                    @click="emitAndClose('edit-navigation')">
+      <template #icon>
+        <Cog :size="20" />
+      </template>
+      {{ t('intravox', 'Edit navigation') }}
+    </NcActionButton>
+
+    <!-- Separator B → C -->
+    <NcActionSeparator v-if="hasCreateGroup && hasUtilityGroup" />
+
+    <!-- ===== Group C — Utility ===== -->
+    <NcActionButton @click="emitAndClose('feed-settings')">
+      <template #icon>
+        <Rss :size="20" />
+      </template>
+      {{ t('intravox', 'RSS feed') }}
+    </NcActionButton>
+
+    <!-- Separator C → D (before the destructive action) -->
+    <NcActionSeparator v-if="hasDeleteGroup && (hasPageGroup || hasCreateGroup || hasUtilityGroup)" />
+
+    <!-- ===== Group D — Destructive (hidden for the homepage) ===== -->
+    <NcActionButton v-if="hasDeleteGroup"
                     class="action-delete-page"
                     @click="emitAndClose('delete-page')">
       <template #icon>
@@ -76,7 +81,7 @@
 
 <script>
 import { translate, translatePlural } from '@nextcloud/l10n';
-import { NcActions, NcActionButton } from '@nextcloud/vue';
+import { NcActions, NcActionButton, NcActionSeparator } from '@nextcloud/vue';
 import Cog from 'vue-material-design-icons/Cog.vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import RenameBox from 'vue-material-design-icons/RenameBox.vue';
@@ -91,6 +96,7 @@ export default {
   components: {
     NcActions,
     NcActionButton,
+    NcActionSeparator,
     Cog,
     Plus,
     RenameBox,
@@ -121,6 +127,32 @@ export default {
     }
   },
   emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'delete-page'],
+  computed: {
+    // Group-presence flags drive the separators: a separator only renders
+    // between two non-empty groups, so permission-gated hiding never leaves a
+    // dangling or doubled divider. Expressions mirror the per-item gates.
+    // Group A — page actions. createPage is folded in because "Copy page" lives
+    // here (createPage implies editPage, but stated explicitly for robustness).
+    hasPageGroup() {
+      return this.canPerformAction('editPage')
+        || this.canPerformAction('createPage')
+        || this.canPerformAction('saveAsTemplate');
+    },
+    // Group B — site/structure.
+    hasCreateGroup() {
+      return this.canPerformAction('createPage')
+        || this.canPerformAction('editNavigation');
+    },
+    // Group C — utility. RSS is ungated → always present. Named so the separator
+    // logic stays correct if RSS ever becomes gated.
+    hasUtilityGroup() {
+      return true;
+    },
+    // Group D — destructive. Same gate as the Delete button.
+    hasDeleteGroup() {
+      return this.canPerformAction('deletePage') && !this.isHome;
+    },
+  },
   methods: {
     t(app, text, vars) {
       return translate(app, text, vars);
