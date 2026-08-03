@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.1] - 2026-08-03 — Tidier page actions menu + dependency security updates
+
+### Changed
+
+- **The page actions (⋯) menu is now grouped.** As the menu grew it had become a flat, interleaved list. Its items are now organised into logical groups — page actions (Rename, Page settings, Copy, Save as template), site (New page, Edit navigation), utility (RSS feed) and the destructive Delete on its own — separated by thin dividers. The dividers adapt to your permissions, so you never see a stray or doubled line: a read-only visitor sees a clean short menu, the homepage hides Delete, and so on. No actions changed — only their order and grouping.
+
+### Security
+
+- **Dependency updates.** Patched bundled front-end dependencies to clear all known npm advisories (axios, postcss, dompurify, fast-uri, linkify-it, brace-expansion) — non-breaking patch/minor bumps, no functional change.
+
 ## [1.9.0] - 2026-08-02 — Rename pages, File Story pagination, per-user Team-folder permissions + special-character and widget-filter fixes
 
 ### Added
