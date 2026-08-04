@@ -109,6 +109,36 @@ Pages have a status: **Draft** or **Published**. This controls who can see the p
 - Only editors (users with write permission) can see and change the page status
 - For genuinely confidential material, rely on folder permissions — not on Draft
 
+### Scheduled publishing (Publish on / Expire on)
+
+Instead of publishing by hand, you can let a **date** decide. If your administrator has configured publication date fields (see [News Widget → Publication Date Filtering](../features/news-widget.md#publication-date-filtering)), every page gets a **Publish on** and optionally an **Expire on** field in the **MetaVox** tab of the details sidebar (the ⓘ button, available in both view and edit mode).
+
+**A page is always in exactly one of three states:**
+
+| State | When | Visible to readers |
+|-------|------|--------------------|
+| **Draft** | No publish date, and you set the page to Draft | No |
+| **Scheduled** | The publish date is in the future | No — until that moment |
+| **Published** | The publish date has passed, or the page is published with no date | Yes |
+
+Editors always see the page, with a **Scheduled** or **Expired** badge next to the title.
+
+**The date wins.** As soon as a page has a Publish on date, that date controls publication and the manual Draft/Published button is ignored — the button is replaced by a read-only chip showing the effective state. This prevents the contradiction of a page marked "Draft" whose publish date has long passed.
+
+**To go back to manual control, clear the Publish on date.** The Draft/Published toggle then becomes active again.
+
+**How to schedule a page:**
+1. Open the page and click **ⓘ** to open the details sidebar
+2. Go to the **MetaVox** tab
+3. Set **Publish on** to the date *and time* the page should go live — fill in **both**; MetaVox only offers its **Save** button once the field holds a complete date and time
+4. Save the metadata. The page shows **Scheduled** until that moment, then becomes visible automatically
+
+No background job is needed — the state is evaluated the moment someone looks at the page. Times are interpreted in your Nextcloud instance's timezone, and the time of day counts: a page scheduled for 15:00 today stays hidden until 15:00.
+
+**Expiration** works the same way in reverse: once the Expire on date has passed, the page is hidden from readers again and shows an **Expired** badge for editors.
+
+> The same caveat as Draft applies: Scheduled and Expired are visibility filters inside IntraVox, not access permissions. The page file remains readable for anyone with access to the folder.
+
 ## Page Structure
 
 ### Rows
@@ -232,6 +262,8 @@ Titles and section headers.
 - Use H1 for page title (one per page)
 - Use H2 for main sections
 - Use H3-H4 for subsections
+
+**Link to a section.** Every heading is also an anchor. Hover a heading (in view mode) and a small link icon appears next to it; click it to copy a direct link to that section — for example `…?page=…#h-holiday-schedule`. Opening that link loads the page and jumps straight to the heading. This works for headings inside a Text widget too, and in public share links, so you can point colleagues at one specific part of a long page.
 
 #### Text
 

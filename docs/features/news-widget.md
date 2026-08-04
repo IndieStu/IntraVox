@@ -94,26 +94,32 @@ When using multiple filters, you can choose:
 
 ## Publication Date Filtering
 
+> **Since 1.9.2 these dates apply everywhere, not just in the News Widget.** Once the publish/expiration fields are configured, a page with a future publish date (or a passed expiration date) is hidden from readers throughout IntraVox — navigation, page tree, search, RSS and public shares — and becomes visible automatically the moment its publish time passes. See [Scheduled publishing](../user/editor.md#scheduled-publishing-publish-on--expire-on) in the editor guide. The News Widget option below now only controls whether *this list* also applies the filter.
+
 The News Widget can automatically filter pages based on publication and expiration dates. This allows you to schedule content to appear and disappear automatically.
 
 ### How it Works
 
 When enabled, pages are filtered based on two MetaVox date fields:
-- **Publish date**: The page becomes visible on this date
-- **Expiration date**: The page is hidden after this date
+- **Publish date**: The page becomes visible on this date and time
+- **Expiration date**: The page is hidden after this date and time
 
 A page is visible when:
-- The publish date is empty OR the publish date is today or in the past
+- The publish date is empty OR the publish date is in the past
 - AND the expiration date is empty OR the expiration date is in the future
 
-| Publish date | Expiration date | Today      | Visible? |
-|--------------|-----------------|------------|----------|
-| (empty)      | (empty)         | -          | Yes      |
-| 2025-01-01   | (empty)         | 2025-01-15 | Yes      |
-| 2025-02-01   | (empty)         | 2025-01-15 | No       |
-| (empty)      | 2025-01-20      | 2025-01-15 | Yes      |
-| (empty)      | 2025-01-10      | 2025-01-15 | No       |
-| 2025-01-01   | 2025-01-31      | 2025-01-15 | Yes      |
+The comparison includes the **time of day** and is made in the instance's timezone, so a page scheduled for 15:00 today stays hidden until 15:00.
+
+| Publish date     | Expiration date  | Now              | Visible? |
+|------------------|------------------|------------------|----------|
+| (empty)          | (empty)          | -                | Yes      |
+| 2025-01-01       | (empty)          | 2025-01-15       | Yes      |
+| 2025-02-01       | (empty)          | 2025-01-15       | No       |
+| (empty)          | 2025-01-20       | 2025-01-15       | Yes      |
+| (empty)          | 2025-01-10       | 2025-01-15       | No       |
+| 2025-01-01       | 2025-01-31       | 2025-01-15       | Yes      |
+| 2025-01-15 15:00 | (empty)          | 2025-01-15 14:00 | No       |
+| 2025-01-15 15:00 | (empty)          | 2025-01-15 16:00 | Yes      |
 
 ### Setup
 

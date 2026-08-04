@@ -96,28 +96,34 @@ Bij meerdere filters kun je kiezen:
 
 ## Publicatie-datum-filtering
 
+> **Sinds 1.9.2 gelden deze datums overal, niet alleen in de News-widget.** Zodra de publicatie- en vervalvelden zijn geconfigureerd, is een pagina met een toekomstige publicatiedatum (of een verstreken vervaldatum) overal in IntraVox verborgen voor lezers — navigatie, paginaboom, zoeken, RSS en publieke shares — en wordt hij automatisch zichtbaar zodra het publicatiemoment is bereikt. Zie [Geplande publicatie](../user/editor.nl.md#geplande-publicatie-publish-on--expire-on) in de editorhandleiding. De optie in de News-widget hieronder bepaalt nu alleen nog of *deze lijst* het filter ook toepast.
+
 De News-widget kan pagina's automatisch filteren op basis van publicatie- en vervaldatums. Dit maakt het mogelijk om content automatisch te laten verschijnen en verdwijnen.
 
 ### Hoe het werkt
 
 Indien ingeschakeld worden pagina's gefilterd op basis van twee MetaVox-datum-velden:
 
-- **Publicatiedatum**: de pagina wordt zichtbaar op deze datum
-- **Vervaldatum**: de pagina wordt verborgen na deze datum
+- **Publicatiedatum**: de pagina wordt zichtbaar op deze datum en tijd
+- **Vervaldatum**: de pagina wordt verborgen na deze datum en tijd
 
 Een pagina is zichtbaar wanneer:
 
-- De publicatiedatum leeg is OF vandaag of in het verleden ligt
+- De publicatiedatum leeg is OF in het verleden ligt
 - EN de vervaldatum leeg is OF in de toekomst ligt
 
-| Publicatiedatum | Vervaldatum | Vandaag    | Zichtbaar? |
-|-----------------|-------------|------------|------------|
-| (leeg)          | (leeg)      | -          | Ja         |
-| 2025-01-01      | (leeg)      | 2025-01-15 | Ja         |
-| 2025-02-01      | (leeg)      | 2025-01-15 | Nee        |
-| (leeg)          | 2025-01-20  | 2025-01-15 | Ja         |
-| (leeg)          | 2025-01-10  | 2025-01-15 | Nee        |
-| 2025-01-01      | 2025-01-31  | 2025-01-15 | Ja         |
+De vergelijking houdt rekening met het **tijdstip** en gebeurt in de tijdzone van de instance: een pagina die om 15:00 vandaag gepland staat, blijft verborgen tot 15:00.
+
+| Publicatiedatum  | Vervaldatum      | Nu               | Zichtbaar? |
+|------------------|------------------|------------------|------------|
+| (leeg)           | (leeg)           | -                | Ja         |
+| 2025-01-01       | (leeg)           | 2025-01-15       | Ja         |
+| 2025-02-01       | (leeg)           | 2025-01-15       | Nee        |
+| (leeg)           | 2025-01-20       | 2025-01-15       | Ja         |
+| (leeg)           | 2025-01-10       | 2025-01-15       | Nee        |
+| 2025-01-01       | 2025-01-31       | 2025-01-15       | Ja         |
+| 2025-01-15 15:00 | (leeg)           | 2025-01-15 14:00 | Nee        |
+| 2025-01-15 15:00 | (leeg)           | 2025-01-15 16:00 | Ja         |
 
 ### Setup
 

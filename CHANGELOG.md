@@ -4,64 +4,35 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [1.9.8] - 2026-08-04 — Draft is honest about what it does
-
-### Changed
-
-- **Draft no longer promises more than it delivers.** The status is still called **Draft** (consistent with the rest of the industry and with how it is stored), but the wording around it now states plainly that it is a *visibility filter, not a permission*. Hovering the Draft/Scheduled/Expired badge — or the Draft button in edit mode — explains that the page is hidden from readers everywhere in IntraVox, while the page file itself keeps the folder's normal Nextcloud rights.
-
-- **The editor documentation now spells out where a draft page is still reachable.** Previously it claimed a draft was "completely invisible to readers", which was only true inside IntraVox. The guide (EN + NL) now lists the routes that bypass the filter — Files/WebDAV, Unified and full-text search, the activity stream and notifications, versions and trash, Collabora, sync clients and MetaVox metadata — and advises restricting the folder with Team folder permissions for genuinely confidential content.
-
-- **The explanation is shown the Nextcloud way.** Instead of a browser tooltip on the Draft button, editing a draft page now shows a standard info note card above the editor — the same pattern used elsewhere in IntraVox and Nextcloud. The status badges keep a short, state-specific tooltip.
-
-- **The details sidebar (ⓘ) is now reachable while editing.** It was hidden in edit mode, so setting a page's *Publish on* date — which lives in the sidebar's MetaVox tab — meant leaving the editor first. The button is now available in both view and edit mode.
-
-## [1.9.7] - 2026-08-04 — Clearer publish/draft interaction + correct timezone
-
-### Changed
-
-- **In edit mode, the Draft/Published toggle now reflects reality when a publish date governs.** Previously the toggle could show "Draft" while the page was actually Scheduled or Published because of its "Publish on" date — two controls telling different stories. When a Publish-on / Expire-on date is set, the toggle is replaced by a read-only chip showing the effective state (**Scheduled** / **Published** / **Expired**) with an explanation: *"Publication is controlled by the Publish on date. Clear the date to switch manually."* With no date, the manual toggle works as before.
-
-### Fixed
-
-- **Publish/expiration dates are interpreted in the instance timezone, not UTC.** A time entered as local time (e.g. 15:57 in Amsterdam) was compared against a UTC clock, so a page could read "Scheduled" for a couple of hours after it was actually live. Naive dates are now read in the instance timezone (system setting → the user's Nextcloud timezone → server default); dates with an explicit offset keep their own zone.
-
-## [1.9.6] - 2026-08-04 — A publish date now overrides the draft flag
-
-### Changed
-
-- **When a page has a "Publish on" date, that date decides publication — the manual Draft flag is ignored.** Following the WordPress/Drupal model, a page can be in exactly one effective state: *Draft* (no date, held back manually), *Scheduled* (a future publish date), or *Published* (publish date has passed, or published with no date). This removes the confusing case where a page showed a **Draft** badge even though its publish date had already passed. A page is only a manual Draft when it has no publish date. The status badge always reflects this effective state.
-
-## [1.9.5] - 2026-08-04 — Scheduled publishing (Publish on / Expire on)
+## [1.9.2] - 2026-08-04 — Scheduled publishing, section anchors and working public folder shares
 
 ### Added
 
 - **A page's "Publish on" / "Expire on" date now controls visibility everywhere.** Previously the publication-date MetaVox fields only filtered the News widget's list; a page with a future publish date was still reachable directly, via the menu, the page tree and public shares. Now a page that is not yet published (future publish date) or has expired is hidden from readers and anonymous visitors — exactly like a draft — and automatically becomes visible the moment its publish time passes (evaluated live, no cron). Editors still see these pages, with a **Scheduled** / **Expired** badge next to the title.
 
-### Fixed
-
-- **Publication date is now time-aware.** The check compared dates only, so a page scheduled for later *today* counted as already published. It now respects the time of day.
-- **Draft and scheduled pages no longer leak into a public share's menu or page tree.** The share navigation and tree now apply the same visibility rules as the page content (which already returned "not available").
-
-## [1.9.4] - 2026-08-04 — Deep links to page sections
-
-### Added
-
 - **Copy a link to any section of a page.** Every heading — both stand-alone heading widgets and headings inside a text block — now gets a stable anchor. Hover a heading to reveal a small link icon; clicking it copies a deep link (e.g. `…?page=…#h-creating-a-new-form`) to the clipboard. Opening that link loads the page and scrolls straight to the section. Works in both the logged-in view and anonymous public shares. Page navigation (`?page=` / `#page-…`) is unaffected — section anchors use a distinct `#h-…` fragment so the two never collide.
 
-## [1.9.3] - 2026-08-04 — Breadcrumb inside folder shares
+### Changed
 
-### Fixed
+- **A publish date takes precedence over the manual Draft flag.** Following the WordPress/Drupal model, a page is in exactly one effective state: *Draft* (no date, held back manually), *Scheduled* (a future publish date) or *Published* (publish date has passed, or published with no date). This removes the confusing case where a page showed a **Draft** badge even though its publish date had already passed. In edit mode the manual toggle is then replaced by a read-only chip showing the effective state, with the explanation *"Publication is controlled by the Publish on date. Clear the date to switch manually."*
 
-- **The breadcrumb inside a public folder share now shows the full path.** On a nested page in a shared folder (e.g. Docs → FormVox → User → *Creating Forms*), the anonymous breadcrumb collapsed to just the share root. The breadcrumb builder was fed a per-user *mount* path (`/admin/files/IntraVox/en/docs/…`) whose `__groupfolders/{id}/` prefix could not be stripped, so every intermediate level fell outside the share scope and was dropped. It now uses the canonical GroupFolder-storage path (resolved by fileid, the same lookup that fixed folder-share access in 1.9.2), so all levels between the share root and the current page appear and are clickable.
+- **Draft no longer promises more than it delivers.** The status keeps the name **Draft** (consistent with the rest of the industry and with how it is stored), but the wording now states plainly that it is a *visibility filter, not a permission*: the page is hidden from readers everywhere in IntraVox, while the page file itself keeps the folder's normal Nextcloud rights. Editing a draft page shows this as a standard Nextcloud info note card; the status badges carry a short, state-specific tooltip.
 
-## [1.9.2] - 2026-08-04 — Public folder shares render for anonymous visitors + translation fixes
+- **The editor documentation spells out where a draft page is still reachable.** It previously claimed a draft was "completely invisible to readers", which was only true inside IntraVox. The guide (EN + NL) now lists the routes that bypass the filter — Files/WebDAV, Unified and full-text search, the activity stream and notifications, versions and trash, Collabora, sync clients and MetaVox metadata — and advises restricting the folder with Team folder permissions for genuinely confidential content.
+
+- **The details sidebar (ⓘ) is now reachable while editing.** It was hidden in edit mode, so setting a page's *Publish on* date — which lives in the sidebar's MetaVox tab — meant leaving the editor first.
 
 ### Fixed
 
 - **Public link shares on a page folder now render for anonymous visitors.** Opening the anonymous URL of a shared folder (e.g. a whole-language or sub-tree share) returned "This page is not available or the share link has expired" for every page under it — the share tree loaded, but each individual page 404'd. The page-scope check compared a per-user *mount* path (`/Sam/files/IntraVox/en/docs/…`) against the GroupFolder *storage* path (`files/en/docs`), so nothing ever matched. Pages are now resolved by their fileid in the GroupFolder storage — the same robust lookup already used for the share path — so folder-level public sharing works.
 
 - **Internal links inside a shared page now navigate.** In the public (anonymous) share view, clicking an internal page link in a Link or News widget did nothing — the shared view's navigation handler only understood the Navigation bar's object payload and silently ignored the bare page-id string that widgets emit. Both payload shapes are now handled, so sub-page tiles/links inside a folder share work.
+
+- **The breadcrumb inside a public folder share shows the full path.** On a nested page in a shared folder (e.g. Docs → FormVox → User → *Creating Forms*), the anonymous breadcrumb collapsed to just the share root, because the builder was fed a per-user mount path that could not be normalised against the share scope. It now uses the canonical GroupFolder-storage path, so all levels between the share root and the current page appear and are clickable.
+
+- **Draft and scheduled pages no longer leak into a public share's menu or page tree.** The share navigation and tree now apply the same visibility rules as the page content (which already returned "not available").
+
+- **Publication dates are time-aware and use the instance timezone.** The check compared dates only, so a page scheduled for later *today* counted as already published; and a time entered as local time (e.g. 15:57 in Amsterdam) was compared against a UTC clock, so a page could read "Scheduled" for hours after it was live. Dates now respect the time of day and are read in the instance timezone (system setting → the user's Nextcloud timezone → server default); dates with an explicit offset keep their own zone.
 
 - **Blank items in the text widget's "Paragraph" dropdown.** The heading options (H1–H4) below "Paragraph" rendered empty because their labels were passed to the translation function with the level as the app id. The markers now show correctly.
 

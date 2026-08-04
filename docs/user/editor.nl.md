@@ -112,6 +112,37 @@ Pagina's hebben een status: **Concept** of **Gepubliceerd**. Dit bepaalt wie de 
 - Alleen editors (gebruikers met schrijfrechten) kunnen de pagina-status zien en wijzigen
 - Voor echt vertrouwelijk materiaal: vertrouw op maprechten, niet op Concept
 
+### Geplande publicatie (Publish on / Expire on)
+
+In plaats van handmatig publiceren kun je een **datum** laten beslissen. Als je beheerder publicatie-datumvelden heeft ingesteld (zie [News-widget → Publicatie-datum-filtering](../features/news-widget.nl.md#publicatie-datum-filtering)), krijgt elke pagina een veld **Publish on** en eventueel **Expire on** in het tabblad **MetaVox** van de detailzijbalk (de ⓘ-knop, beschikbaar in zowel weergave- als bewerkmodus).
+
+**Een pagina heeft altijd precies één van drie statussen:**
+
+| Status | Wanneer | Zichtbaar voor lezers |
+|--------|---------|------------------------|
+| **Concept** | Geen publicatiedatum, en jij zet de pagina op Concept | Nee |
+| **Gepland** | De publicatiedatum ligt in de toekomst | Nee — tot dat moment |
+| **Gepubliceerd** | De publicatiedatum is verstreken, of de pagina is gepubliceerd zonder datum | Ja |
+
+Editors zien de pagina altijd, met een **Gepland**- of **Verlopen**-badge naast de titel.
+
+**De datum wint.** Zodra een pagina een Publish on-datum heeft, bepaalt die datum de publicatie en wordt de handmatige Concept/Gepubliceerd-knop genegeerd — de knop wordt vervangen door een alleen-lezen chip met de effectieve status. Zo kan de tegenstrijdige situatie niet meer ontstaan waarin een pagina "Concept" heet terwijl de publicatiedatum allang verstreken is.
+
+**Wil je weer handmatig sturen? Maak de Publish on-datum leeg.** De Concept/Gepubliceerd-knop wordt dan weer actief.
+
+**Een pagina inplannen:**
+
+1. Open de pagina en klik op **ⓘ** om de detailzijbalk te openen
+2. Ga naar het tabblad **MetaVox**
+3. Zet **Publish on** op de datum *en tijd* waarop de pagina live moet gaan — vul **beide** in; MetaVox toont zijn **Opslaan**-knop pas als het veld een volledige datum én tijd bevat
+4. Sla de metadata op. De pagina toont **Gepland** tot dat moment en wordt daarna automatisch zichtbaar
+
+Er is geen achtergrondtaak nodig — de status wordt bepaald op het moment dat iemand de pagina bekijkt. Tijden worden geïnterpreteerd in de tijdzone van je Nextcloud-instance, en het tijdstip telt mee: een pagina die om 15:00 vandaag gepland staat, blijft verborgen tot 15:00.
+
+**Vervallen** werkt omgekeerd hetzelfde: zodra de Expire on-datum verstreken is, is de pagina weer verborgen voor lezers en zien editors een **Verlopen**-badge.
+
+> Dezelfde kanttekening als bij Concept geldt hier: Gepland en Verlopen zijn zichtbaarheidsfilters binnen IntraVox, geen toegangsrechten. Het paginabestand blijft leesbaar voor iedereen met toegang tot de map.
+
 ## Pagina-structuur
 
 ### Rijen
@@ -244,6 +275,8 @@ Titels en sectie-headers.
 - Gebruik H1 voor pagina-titel (één per pagina)
 - Gebruik H2 voor hoofdsecties
 - Gebruik H3–H4 voor subsecties
+
+**Link naar een sectie.** Elke kop is ook een anker. Beweeg je muis over een kop (in weergavemodus) en er verschijnt een klein link-icoontje; klik erop om een directe link naar die sectie te kopiëren — bijvoorbeeld `…?page=…#h-vakantierooster`. Wie die link opent, komt op de pagina en springt direct naar de kop. Dit werkt ook voor koppen bínnen een tekstwidget en in publieke deellinks, zodat je collega's naar één specifiek deel van een lange pagina kunt verwijzen.
 
 #### Tekst
 
