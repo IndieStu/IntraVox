@@ -91,7 +91,6 @@
           <NcButton v-else
                     @click="toggleDraftStatus"
                     :type="currentPage?.status === 'draft' ? 'warning' : 'secondary'"
-                    :title="draftMeaningHint"
                     :aria-label="currentPage?.status === 'draft' ? t('intravox', 'Draft — click to publish') : t('intravox', 'Published — click to unpublish')">
             <template #icon>
               <EyeOff :size="20" v-if="currentPage?.status === 'draft'" />
@@ -151,13 +150,14 @@
 
       <main v-else class="intravox-content" id="intravox-main-content">
         <!-- Breadcrumb row with Details button -->
-        <div v-if="breadcrumb.length > 0 || !isEditMode" class="breadcrumb-row">
+        <div class="breadcrumb-row">
           <Breadcrumb v-if="breadcrumb.length > 0"
                       :breadcrumb="breadcrumb"
                       @navigate="selectPage" />
           <div v-else class="breadcrumb-spacer"></div>
-          <button v-if="!isEditMode"
-                  class="details-btn"
+          <!-- Also available while editing: the sidebar holds the MetaVox tab
+               with the Publish on date, which editors need during editing. -->
+          <button class="details-btn"
                   :class="{ 'details-btn-disabled': showDetailsSidebar }"
                   :disabled="showDetailsSidebar"
                   @click="showDetailsSidebar = true"
@@ -173,11 +173,20 @@
           :engagement-settings="globalEngagementSettings"
           @navigate="selectPage"
         />
-        <PageEditor
-          v-else-if="isEditMode && currentPage"
-          :page="currentPage"
-          @update="updatePage"
-        />
+        <template v-else-if="isEditMode && currentPage">
+          <!-- What "Draft" actually means. Shown while editing a draft page, so
+               editors don't mistake a visibility filter for an access permission. -->
+          <NcNoteCard v-if="currentPage.status === 'draft'"
+                      type="info"
+                      class="draft-meaning-note">
+            <p>{{ t('intravox', 'This page is a draft: hidden from readers everywhere in IntraVox.') }}</p>
+            <p>{{ t('intravox', 'Draft is a visibility filter, not a permission. The page file keeps the folder\'s normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on Draft for confidential content.') }}</p>
+          </NcNoteCard>
+          <PageEditor
+            :page="currentPage"
+            @update="updatePage"
+          />
+        </template>
       </main>
 
       <!-- Page Details Sidebar (inside content wrapper) -->
@@ -283,7 +292,7 @@ import { generateUrl } from '@nextcloud/router';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { showSuccess, showError } from '@nextcloud/dialogs';
 import PageTreeSelect from './components/PageTreeSelect.vue';
-import { NcButton, NcDialog, NcCheckboxRadioSwitch } from '@nextcloud/vue';
+import { NcButton, NcDialog, NcCheckboxRadioSwitch, NcNoteCard } from '@nextcloud/vue';
 import ContentSave from 'vue-material-design-icons/ContentSave.vue';
 import Close from 'vue-material-design-icons/Close.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
@@ -328,6 +337,7 @@ export default {
   components: {
     NcButton,
     NcCheckboxRadioSwitch,
+    NcNoteCard,
     PageTreeSelect,
     ContentSave,
     Close,
@@ -427,26 +437,16 @@ export default {
       switch (state) {
         case 'draft':
           return { class: 'draft', label: this.t('intravox', 'Draft'),
-                   tooltip: this.t('intravox', 'Draft: hidden from readers everywhere in IntraVox. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
+                   tooltip: this.t('intravox', 'Hidden from readers in IntraVox') };
         case 'scheduled':
           return { class: 'scheduled', label: this.t('intravox', 'Scheduled'),
-                   tooltip: this.t('intravox', 'Scheduled: hidden from readers in IntraVox until the publish date. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
+                   tooltip: this.t('intravox', 'Hidden from readers in IntraVox until the publish date') };
         case 'expired':
           return { class: 'expired', label: this.t('intravox', 'Expired'),
-                   tooltip: this.t('intravox', 'Expired: past its expiration date, so hidden from readers in IntraVox. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
+                   tooltip: this.t('intravox', 'Past its expiration date, so hidden from readers in IntraVox') };
         default:
           return null;
       }
-    },
-    /**
-     * Explains what Draft actually does, so editors don't mistake a visibility
-     * filter for an access permission. Draft hides a page throughout IntraVox,
-     * but the underlying JSON file keeps the folder's normal Nextcloud
-     * permissions — anyone who can read the folder can still reach it through
-     * Files, WebDAV, search, activity or a sync client.
-     */
-    draftMeaningHint() {
-      return this.t('intravox', 'Draft hides the page from readers everywhere in IntraVox. It is a visibility filter, not a permission: the page file keeps the folder\'s normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on Draft for confidential content.');
     },
     /**
      * True when a Publish-on / Expire-on date is set and therefore governs

@@ -12,6 +12,10 @@ IntraVox is a Nextcloud intranet page builder.
 
 - **The editor documentation now spells out where a draft page is still reachable.** Previously it claimed a draft was "completely invisible to readers", which was only true inside IntraVox. The guide (EN + NL) now lists the routes that bypass the filter — Files/WebDAV, Unified and full-text search, the activity stream and notifications, versions and trash, Collabora, sync clients and MetaVox metadata — and advises restricting the folder with Team folder permissions for genuinely confidential content.
 
+- **The explanation is shown the Nextcloud way.** Instead of a browser tooltip on the Draft button, editing a draft page now shows a standard info note card above the editor — the same pattern used elsewhere in IntraVox and Nextcloud. The status badges keep a short, state-specific tooltip.
+
+- **The details sidebar (ⓘ) is now reachable while editing.** It was hidden in edit mode, so setting a page's *Publish on* date — which lives in the sidebar's MetaVox tab — meant leaving the editor first. The button is now available in both view and edit mode.
+
 ## [1.9.7] - 2026-08-04 — Clearer publish/draft interaction + correct timezone
 
 ### Changed
