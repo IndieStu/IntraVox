@@ -174,13 +174,13 @@
           @navigate="selectPage"
         />
         <template v-else-if="isEditMode && currentPage">
-          <!-- What "Draft" actually means. Shown while editing a draft page, so
-               editors don't mistake a visibility filter for an access permission. -->
-          <NcNoteCard v-if="currentPage.status === 'draft'"
+          <!-- Explains why this page is hidden from readers (draft, scheduled or
+               expired) and makes clear it is a visibility filter, not a permission. -->
+          <NcNoteCard v-if="publishStateExplanation"
                       type="info"
                       class="draft-meaning-note">
-            <p>{{ t('intravox', 'This page is a draft: hidden from readers everywhere in IntraVox.') }}</p>
-            <p>{{ t('intravox', 'Draft is a visibility filter, not a permission. The page file keeps the folder\'s normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on Draft for confidential content.') }}</p>
+            <p>{{ publishStateExplanation }}</p>
+            <p>{{ t('intravox', 'This is a visibility filter, not a permission. The page file keeps the folder\'s normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on it for confidential content.') }}</p>
           </NcNoteCard>
           <PageEditor
             :page="currentPage"
@@ -199,6 +199,7 @@
         @close="handleCloseSidebar"
         @version-restored="handleVersionRestored"
         @version-selected="handleVersionSelected"
+        @metadata-saved="refreshPublicationState"
       />
     </div>
 
@@ -446,6 +447,25 @@ export default {
                    tooltip: this.t('intravox', 'Past its expiration date, so hidden from readers in IntraVox') };
         default:
           return null;
+      }
+    },
+    /**
+     * One-line explanation of why the page is currently hidden from readers,
+     * shown in an info note card while editing. Returns '' for a plainly
+     * published page (no note needed).
+     */
+    publishStateExplanation() {
+      const state = this.currentPage?.effectivePublishState
+        || (this.currentPage?.status === 'draft' ? 'draft' : 'published');
+      switch (state) {
+        case 'draft':
+          return this.t('intravox', 'This page is a draft: hidden from readers everywhere in IntraVox until you publish it.');
+        case 'scheduled':
+          return this.t('intravox', 'This page is scheduled: it has a publish date in the future, so it stays hidden from readers until that moment and then appears automatically. The publish date overrides the Draft/Published button — clear the date to switch manually again.');
+        case 'expired':
+          return this.t('intravox', 'This page has expired: its expiration date has passed, so it is hidden from readers. Change or clear the expiration date to make it visible again.');
+        default:
+          return '';
       }
     },
     /**
@@ -1690,6 +1710,26 @@ export default {
       this.sidebarInitialTab = 'details-tab';
       // Clear version preview when closing sidebar
       this.clearVersionPreview();
+    },
+    /**
+     * Re-read just the publication state after MetaVox saved a publish or
+     * expiration date. Only these two fields are copied over, so a page being
+     * edited keeps its unsaved changes — we just want the Draft/Scheduled/
+     * Expired badge and the edit-mode chip to reflect the new date at once.
+     */
+    async refreshPublicationState() {
+      const pageId = this.currentPage?.uniqueId;
+      if (!pageId) return;
+      try {
+        const response = await axios.get(generateUrl(`/apps/intravox/api/pages/${pageId}`));
+        const fresh = response.data;
+        if (!fresh || this.currentPage?.uniqueId !== pageId) return;
+        this.currentPage.effectivePublishState = fresh.effectivePublishState;
+        this.currentPage.publicationDateActive = fresh.publicationDateActive;
+      } catch (err) {
+        // Non-critical: the badge simply keeps its previous value until reload.
+        console.error('IntraVox: could not refresh publication state:', err);
+      }
     },
     async loadEngagementSettings() {
       try {

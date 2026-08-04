@@ -264,7 +264,7 @@ export default {
       default: 'details-tab'
     }
   },
-  emits: ['close', 'version-restored', 'version-selected'],
+  emits: ['close', 'version-restored', 'version-selected', 'metadata-saved'],
   data() {
     return {
       activeTab: 'details-tab',
@@ -389,11 +389,16 @@ export default {
     window.addEventListener('intravox:page:saved', this.handlePageSaved);
     // Listen for edit mode started to reset to current version
     window.addEventListener('intravox:edit:started', this.handleEditStarted);
+    // MetaVox saves the publish/expiration dates itself, outside IntraVox's
+    // save flow. Listen for it so the page's publication state (and its
+    // Draft/Scheduled/Expired badge) is recomputed straight away.
+    window.addEventListener('metavox:metadata:saved', this.handleMetaVoxSaved);
   },
   beforeUnmount() {
     // Clean up event listeners
     window.removeEventListener('intravox:page:saved', this.handlePageSaved);
     window.removeEventListener('intravox:edit:started', this.handleEditStarted);
+    window.removeEventListener('metavox:metadata:saved', this.handleMetaVoxSaved);
   },
   methods: {
     t(app, text, vars) {
@@ -763,6 +768,13 @@ export default {
       if (event.detail?.pageId === this.pageId) {
         this.selectCurrentVersion();
       }
+    },
+    handleMetaVoxSaved() {
+      // MetaVox stores the publish/expiration dates on the page file itself, so
+      // IntraVox has no idea the page's publication state just changed. Ask the
+      // app to re-read it, otherwise a page that was just scheduled would keep
+      // showing its old Draft/Published badge until a reload.
+      this.$emit('metadata-saved');
     }
   }
 };

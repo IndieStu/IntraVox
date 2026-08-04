@@ -22,6 +22,8 @@ IntraVox is a Nextcloud intranet page builder.
 
 - **The details sidebar (ⓘ) is now reachable while editing.** It was hidden in edit mode, so setting a page's *Publish on* date — which lives in the sidebar's MetaVox tab — meant leaving the editor first.
 
+- **The status updates immediately after saving a publish date.** MetaVox stores those dates itself, outside IntraVox's own save flow, so a page you had just scheduled kept showing its old **Draft** badge until you reloaded. IntraVox now picks up the save and re-reads the page's publication state straight away. While editing, an info note explains the current state — including what **Scheduled** means and that the publish date overrides the Draft/Published button.
+
 ### Fixed
 
 - **Public link shares on a page folder now render for anonymous visitors.** Opening the anonymous URL of a shared folder (e.g. a whole-language or sub-tree share) returned "This page is not available or the share link has expired" for every page under it — the share tree loaded, but each individual page 404'd. The page-scope check compared a per-user *mount* path (`/Sam/files/IntraVox/en/docs/…`) against the GroupFolder *storage* path (`files/en/docs`), so nothing ever matched. Pages are now resolved by their fileid in the GroupFolder storage — the same robust lookup already used for the share path — so folder-level public sharing works.
