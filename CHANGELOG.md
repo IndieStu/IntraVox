@@ -4,6 +4,12 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.6] - 2026-08-04 — A publish date now overrides the draft flag
+
+### Changed
+
+- **When a page has a "Publish on" date, that date decides publication — the manual Draft flag is ignored.** Following the WordPress/Drupal model, a page can be in exactly one effective state: *Draft* (no date, held back manually), *Scheduled* (a future publish date), or *Published* (publish date has passed, or published with no date). This removes the confusing case where a page showed a **Draft** badge even though its publish date had already passed. A page is only a manual Draft when it has no publish date. The status badge always reflects this effective state.
+
 ## [1.9.5] - 2026-08-04 — Scheduled publishing (Publish on / Expire on)
 
 ### Added

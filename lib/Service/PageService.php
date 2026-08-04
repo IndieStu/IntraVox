@@ -6334,18 +6334,15 @@ class PageService {
      *                                is looked up on demand.
      */
     public function effectivePublishState(array $page, ?array $metaForFile = null): string {
-        // A manual draft always wins, regardless of any dates.
-        if (($page['status'] ?? 'published') === 'draft') {
-            return 'draft';
-        }
+        $manualDraft = ($page['status'] ?? 'published') === 'draft';
 
         $publishField = $this->publicationSettings->getPublishDateField();
         $expireField = $this->publicationSettings->getExpirationDateField();
 
-        // No scheduling configured, or MetaVox unavailable → behave exactly as
-        // before: a non-draft page is simply published.
+        // No scheduling configured, or MetaVox unavailable → the manual
+        // draft/published flag governs, exactly as before.
         if ((empty($publishField) && empty($expireField)) || !$this->isMetaVoxAvailable()) {
-            return 'published';
+            return $manualDraft ? 'draft' : 'published';
         }
 
         $meta = $metaForFile;
@@ -6356,18 +6353,29 @@ class PageService {
 
         $now = new \DateTime();
 
-        if (!empty($publishField) && !empty($meta[$publishField])) {
-            $publishAt = $this->parseDateTime((string)$meta[$publishField]);
-            if ($publishAt !== null && $publishAt > $now) {
-                return 'scheduled'; // not live yet
+        // Resolve the configured date values (field names are admin-configurable
+        // in the IntraVox settings and may differ or be empty).
+        $publishAt = (!empty($publishField) && !empty($meta[$publishField]))
+            ? $this->parseDateTime((string)$meta[$publishField]) : null;
+        $expireAt = (!empty($expireField) && !empty($meta[$expireField]))
+            ? $this->parseDateTime((string)$meta[$expireField]) : null;
+
+        // WordPress-style model: a Publish-on DATE, when set, governs publication
+        // and overrides the manual draft flag — so you never get the confusing
+        // "Draft badge + past publish date" combination. The manual draft only
+        // applies when no publish date is set.
+        if ($publishAt !== null) {
+            if ($publishAt > $now) {
+                return 'scheduled'; // future → not live yet (draft flag ignored)
             }
+            // publish date has passed → published, subject only to expiration below.
+        } elseif ($manualDraft) {
+            return 'draft'; // no publish date → manual draft holds it back
         }
 
-        if (!empty($expireField) && !empty($meta[$expireField])) {
-            $expireAt = $this->parseDateTime((string)$meta[$expireField]);
-            if ($expireAt !== null && $expireAt <= $now) {
-                return 'expired'; // no longer live
-            }
+        // Expiration applies regardless of how the page became published.
+        if ($expireAt !== null && $expireAt <= $now) {
+            return 'expired';
         }
 
         return 'published';
