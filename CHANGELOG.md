@@ -4,6 +4,12 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.4] - 2026-08-04 — Deep links to page sections
+
+### Added
+
+- **Copy a link to any section of a page.** Every heading — both stand-alone heading widgets and headings inside a text block — now gets a stable anchor. Hover a heading to reveal a small link icon; clicking it copies a deep link (e.g. `…?page=…#h-creating-a-new-form`) to the clipboard. Opening that link loads the page and scrolls straight to the section. Works in both the logged-in view and anonymous public shares. Page navigation (`?page=` / `#page-…`) is unaffected — section anchors use a distinct `#h-…` fragment so the two never collide.
+
 ## [1.9.3] - 2026-08-04 — Breadcrumb inside folder shares
 
 ### Fixed

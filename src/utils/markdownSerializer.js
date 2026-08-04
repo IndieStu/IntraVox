@@ -5,6 +5,7 @@
 
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
+import { slugifyHeading, ANCHOR_PREFIX } from './headingAnchors.js';
 
 // Configure marked for GFM (GitHub Flavored Markdown) with tables
 // Use synchronous parsing to avoid Promise issues
@@ -12,6 +13,41 @@ marked.use({
   gfm: true,
   breaks: true,
   async: false  // Force synchronous parsing
+});
+
+// Give H1–H4 inside a text block a stable `h-<slug>` id so visitors can deep-link
+// to a section. Uniqueness is scoped per markdownToHtml() call via a local counter
+// that is reset at the start of each parse (see markdownToHtml). The ids are what
+// scrollToHashAnchor()/the copy-link affordance target.
+let _headingSlugCounts = null;
+marked.use({
+  renderer: {
+    heading({ tokens, depth }) {
+      const text = this.parser.parseInline(tokens);
+      const plain = text.replace(/<[^>]*>/g, '');
+      const base = slugifyHeading(plain);
+      // Per-parse uniqueness: title, title-2, title-3, …
+      let id = ANCHOR_PREFIX + base;
+      if (_headingSlugCounts) {
+        const n = _headingSlugCounts.get(base) || 0;
+        _headingSlugCounts.set(base, n + 1);
+        if (n > 0) id = `${ANCHOR_PREFIX}${base}-${n + 1}`;
+      }
+      return `<h${depth} id="${id}">${text}</h${depth}>\n`;
+    },
+  },
+});
+
+// DOMPurify allows `id` (see ALLOWED_ATTR below) so our heading anchors survive
+// sanitisation. To keep that from becoming an id-injection / DOM-clobbering vector,
+// strip every id that is not one of our own `h-…` anchors. Registered once.
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.hasAttribute && node.hasAttribute('id')) {
+    const id = node.getAttribute('id');
+    if (!/^h-[a-z0-9-]+$/.test(id)) {
+      node.removeAttribute('id');
+    }
+  }
 });
 
 /**
@@ -245,8 +281,14 @@ export function markdownToHtml(markdown) {
     // Strategy: Replace sequences of empty lines with placeholder paragraphs
     const preservedMarkdown = preserveEmptyLines(normalizedMarkdown);
 
+    // Reset per-parse heading-slug uniqueness so ids are stable & deduped
+    // (title, title-2, …) within this one block of content.
+    _headingSlugCounts = new Map();
+
     // Parse markdown (GFM configured globally above)
     let html = marked.parse(preservedMarkdown);
+
+    _headingSlugCounts = null;
 
     // Validate that marked returned HTML, not raw markdown
     // If the result looks like raw markdown (contains unprocessed emphasis markers),
@@ -261,15 +303,24 @@ export function markdownToHtml(markdown) {
 
     // Convert alignment comment markers to CSS classes on the following element.
     // Format: <!-- align:center -->\n<p>text</p> → <p class="text-align-center">text</p>
-    // Also handle legacy HTML block format: <p class="text-align-center">text</p>
-    html = html.replace(/<!--\s*align:(center|right)\s*-->\s*<(p|h[1-6])>/g,
-      (_, align, tag) => `<${tag} class="text-align-${align}">`);
+    // The opening tag may already carry attributes (e.g. a heading's id="h-…"), so
+    // capture and preserve them instead of dropping them by rewriting a bare tag.
+    html = html.replace(/<!--\s*align:(center|right)\s*-->\s*<(p|h[1-6])([^>]*)>/g,
+      (_, align, tag, attrs) => {
+        const cls = `text-align-${align}`;
+        // Merge into an existing class attribute if present, else add one.
+        if (/\sclass\s*=/.test(attrs)) {
+          const merged = attrs.replace(/(\sclass\s*=\s*)(["'])(.*?)\2/, (mm, pre, q, val) => `${pre}${q}${val} ${cls}${q}`);
+          return `<${tag}${merged}>`;
+        }
+        return `<${tag}${attrs} class="${cls}">`;
+      });
 
     const sanitized = DOMPurify.sanitize(html, {
       ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 's', 'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote', 'code', 'pre', 'hr',
                      'table', 'thead', 'tbody', 'tr', 'th', 'td', 'colgroup', 'col',
                      'details', 'summary', 'details-content', 'div'],
-      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'open', 'style', 'colspan', 'rowspan',
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'class', 'id', 'open', 'style', 'colspan', 'rowspan',
                      'colwidth', 'data-colwidth', 'data-table-width', 'data-table-align']
     });
 

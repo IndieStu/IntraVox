@@ -281,6 +281,7 @@ import PageActionsMenu from './components/PageActionsMenu.vue';
 import Breadcrumb from './components/Breadcrumb.vue';
 import ShareButton from './components/ShareButton.vue';
 import CacheService from './services/CacheService.js';
+import { isSectionAnchor, scrollToHashAnchor } from './utils/headingAnchors.js';
 import './metavox-integration.js'; // Load MetaVox integration
 
 // Lazy-loaded components (only loaded when needed)
@@ -568,8 +569,21 @@ export default {
             }
           }
 
-          // Priority 2: Hash in URL
-          if (!targetPage && hash) {
+          // Priority 2: ?page=<uniqueId> query (used by section deep links,
+          // where the hash carries the section anchor #h-… instead of the page).
+          if (!targetPage) {
+            const pageFromQuery = new URLSearchParams(window.location.search).get('page');
+            if (pageFromQuery) {
+              targetPage = this.pages.find(p => p.uniqueId === pageFromQuery);
+              if (targetPage) {
+                foundInHash = true;
+              }
+            }
+          }
+
+          // Priority 3: Hash in URL — but ignore a section anchor (#h-…), which
+          // is intra-page navigation, not a page identifier.
+          if (!targetPage && hash && !isSectionAnchor(hash)) {
             const pageIdentifier = hash.substring(1); // Remove '#'
 
             // Try to find page by ID or uniqueId
@@ -1520,6 +1534,14 @@ export default {
     handleHashChange() {
       // Handle URL hash changes for navigation
       const hash = window.location.hash;
+
+      // A section anchor (#h-…) is intra-page navigation, not a page switch —
+      // scroll to it and don't treat it as a uniqueId (which would fall back to home).
+      if (isSectionAnchor(hash)) {
+        scrollToHashAnchor();
+        return;
+      }
+
       if (!hash || hash === '#') {
         // No hash, load home page
         const homePage = this.resolveHomePage();

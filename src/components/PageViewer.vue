@@ -9,6 +9,7 @@
         :key="widget.id || widget.order"
         :widget="widget"
         :page-id="page.uniqueId"
+        :anchor-id="anchorIdForWidget(widget)"
         :editable="false"
         :row-background-color="page.layout.headerRow.backgroundColor || ''"
         :share-token="shareToken"
@@ -27,6 +28,7 @@
         :key="widget.id || widget.order"
         :widget="widget"
         :page-id="page.uniqueId"
+        :anchor-id="anchorIdForWidget(widget)"
         :editable="false"
         :row-background-color="page.layout.sideColumns.left.backgroundColor || ''"
         :share-token="shareToken"
@@ -75,6 +77,7 @@
                 :key="widget.order"
                 :widget="widget"
                 :page-id="page.uniqueId"
+                :anchor-id="anchorIdForWidget(widget)"
                 :editable="false"
                 :row-background-color="row.backgroundColor || ''"
                 :share-token="shareToken"
@@ -95,6 +98,7 @@
         :key="widget.id || widget.order"
         :widget="widget"
         :page-id="page.uniqueId"
+        :anchor-id="anchorIdForWidget(widget)"
         :editable="false"
         :row-background-color="page.layout.sideColumns.right.backgroundColor || ''"
         :share-token="shareToken"
@@ -126,6 +130,7 @@ import Widget from './Widget.vue';
 import ReactionBar from './reactions/ReactionBar.vue';
 import CommentSection from './reactions/CommentSection.vue';
 import { getPageReactions } from '../services/CommentService.js';
+import { makeUniqueAnchorId, scrollToHashAnchor } from '../utils/headingAnchors.js';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 
@@ -181,6 +186,31 @@ export default {
     hasRightColumn() {
       return this.page?.layout?.sideColumns?.right?.enabled &&
              this.page.layout.sideColumns.right.widgets?.length > 0;
+    },
+    /**
+     * Map every stand-alone heading widget on the page to a unique `h-<slug>`
+     * anchor id, in a stable render order (header → main rows → side columns).
+     * Keyed by widget identity so lookups are cheap and stable across re-renders.
+     * Headings inside text blocks get their ids from the markdown serializer.
+     */
+    headingAnchorIds() {
+      const nextId = makeUniqueAnchorId();
+      const map = new Map();
+      const layout = this.page?.layout;
+      if (!layout) return map;
+      const assign = (widgets) => {
+        (widgets || []).forEach((w) => {
+          if (w && w.type === 'heading') {
+            map.set(w, nextId(w.content || ''));
+          }
+        });
+      };
+      // Header row first, then main-content rows in visual order, then side columns.
+      assign(layout.headerRow?.widgets);
+      (layout.rows || []).forEach((row) => assign(row.widgets));
+      assign(layout.sideColumns?.left?.widgets);
+      assign(layout.sideColumns?.right?.widgets);
+      return map;
     },
     /**
      * Check if reactions are allowed on this page
@@ -345,13 +375,28 @@ export default {
     handleReactionsUpdate(result) {
       this.pageReactions = result.reactions || {};
       this.userReactions = result.userReactions || [];
+    },
+    /** Anchor id for a stand-alone heading widget, or '' if none. */
+    anchorIdForWidget(widget) {
+      return this.headingAnchorIds.get(widget) || '';
     }
+  },
+  mounted() {
+    // Honour a `#h-…` section anchor on the initial (deep-linked) load.
+    this.$nextTick(() => scrollToHashAnchor());
   },
   watch: {
     'page.uniqueId': {
       immediate: true,
       handler() {
         this.loadReactions();
+      }
+    },
+    // After navigating to another page, re-check the fragment so
+    // `?page=…#h-section` deep links scroll once the new content is in the DOM.
+    'page': {
+      handler() {
+        this.$nextTick(() => scrollToHashAnchor());
       }
     }
   }

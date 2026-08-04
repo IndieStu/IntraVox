@@ -11,16 +11,29 @@
         @focus="$emit('focus')"
         @blur="onBlur"
       />
-      <div v-else v-html="sanitizeHtml(widget.content || '')"></div>
+      <div v-else ref="textBody" v-html="sanitizeHtml(widget.content || '')"></div>
     </div>
 
     <!-- Heading Widget -->
     <component
       v-else-if="widget.type === 'heading'"
       :is="`h${widget.level}`"
+      :id="!editable && anchorId ? anchorId : undefined"
       class="widget-heading"
-      v-html="sanitizedContent"
-    ></component>
+      :class="{ 'has-anchor': !editable && anchorId }"
+    >
+      <span v-html="sanitizedContent"></span>
+      <a
+        v-if="!editable && anchorId"
+        class="heading-anchor"
+        :href="`#${anchorId}`"
+        :title="t('intravox', 'Copy link to this section')"
+        :aria-label="t('intravox', 'Copy link to this section')"
+        @click.prevent="copyAnchorLink(anchorId)"
+      >
+        <LinkVariant :size="16" />
+      </a>
+    </component>
 
     <!-- Image Widget -->
     <div v-else-if="widget.type === 'image'" class="widget-image">
@@ -197,7 +210,9 @@
 import { defineAsyncComponent } from 'vue';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
+import { showSuccess } from '@nextcloud/dialogs';
 import { markdownToHtml } from '../utils/markdownSerializer.js';
+import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 
 export default {
   name: 'Widget',
@@ -210,6 +225,7 @@ export default {
     FeedWidget: defineAsyncComponent(() => import('./FeedWidget.vue')),
     PhotoStoryWidget: defineAsyncComponent(() => import('./PhotoStoryWidget.vue')),
     FileStoryWidget: defineAsyncComponent(() => import('./FileStoryWidget.vue')),
+    LinkVariant,
   },
   props: {
     widget: {
@@ -219,6 +235,12 @@ export default {
     pageId: {
       type: String,
       required: true
+    },
+    // Stable `h-<slug>` anchor id for a stand-alone heading widget (empty for
+    // non-heading widgets). Assigned by PageViewer so ids are unique per page.
+    anchorId: {
+      type: String,
+      default: ''
     },
     editable: {
       type: Boolean,
@@ -249,6 +271,10 @@ export default {
       this.isCompactMode = width < 400;
     });
     this.resizeObserver.observe(this.$el);
+    this.decorateTextHeadings();
+  },
+  updated() {
+    this.decorateTextHeadings();
   },
   beforeUnmount() {
     if (this.resizeObserver) {
@@ -379,6 +405,56 @@ export default {
       // markdownToHtml handles sanitization and table hydration (colgroup
       // normalization + .tableWrapper for horizontal scroll).
       return markdownToHtml(content);
+    },
+    /**
+     * Copy a deep link to a section anchor to the clipboard. The link keeps the
+     * current page in `?page=` and the section in the `#h-…` fragment so it works
+     * in both the public share view and the logged-in view.
+     */
+    async copyAnchorLink(anchorId) {
+      try {
+        const url = new URL(window.location.href);
+        if (this.pageId) url.searchParams.set('page', this.pageId);
+        url.hash = `#${anchorId}`;
+        const link = url.toString();
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(link);
+          showSuccess(this.t('intravox', 'Section link copied'));
+        } else {
+          // Fallback: navigate to the anchor so the URL at least updates.
+          window.location.hash = `#${anchorId}`;
+        }
+      } catch (e) {
+        // Clipboard blocked (e.g. no permission) — fall back to updating the hash.
+        window.location.hash = `#${anchorId}`;
+      }
+    },
+    /**
+     * Read-mode text widgets render markdown that may contain H1–H4 with a
+     * `h-<slug>` id (added by the serializer). Inject a clickable copy-link
+     * affordance next to each such heading. Idempotent — skips headings that
+     * already have one.
+     */
+    decorateTextHeadings() {
+      if (this.editable || this.widget.type !== 'text') return;
+      const root = this.$refs.textBody;
+      if (!root) return;
+      const headings = root.querySelectorAll('h1[id^="h-"], h2[id^="h-"], h3[id^="h-"], h4[id^="h-"], h5[id^="h-"], h6[id^="h-"]');
+      headings.forEach((h) => {
+        if (h.classList.contains('has-anchor')) return;
+        h.classList.add('has-anchor');
+        const a = document.createElement('a');
+        a.className = 'heading-anchor';
+        a.href = `#${h.id}`;
+        a.title = this.t('intravox', 'Copy link to this section');
+        a.setAttribute('aria-label', this.t('intravox', 'Copy link to this section'));
+        a.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M10.59,13.41C11,13.8 11,14.44 10.59,14.83C10.2,15.22 9.56,15.22 9.17,14.83C7.22,12.88 7.22,9.71 9.17,7.76V7.76L12.71,4.22C14.66,2.27 17.83,2.27 19.78,4.22C21.73,6.17 21.73,9.34 19.78,11.29L18.29,12.78C18.3,11.96 18.17,11.14 17.89,10.36L18.36,9.88C19.54,8.71 19.54,6.81 18.36,5.64C17.19,4.46 15.29,4.46 14.12,5.64L10.59,9.17C9.41,10.34 9.41,12.24 10.59,13.41M13.41,9.17C13.8,8.78 14.44,8.78 14.83,9.17C16.78,11.12 16.78,14.29 14.83,16.24V16.24L11.29,19.78C9.34,21.73 6.17,21.73 4.22,19.78C2.27,17.83 2.27,14.66 4.22,12.71L5.71,11.22C5.7,12.04 5.83,12.86 6.11,13.65L5.64,14.12C4.46,15.29 4.46,17.19 5.64,18.36C6.81,19.54 8.71,19.54 9.88,18.36L13.41,14.83C14.59,13.66 14.59,11.76 13.41,10.59C13,10.2 13,9.56 13.41,9.17Z" /></svg>';
+        a.addEventListener('click', (ev) => {
+          ev.preventDefault();
+          this.copyAnchorLink(h.id);
+        });
+        h.appendChild(a);
+      });
     },
     onBlur() {
       // No need to save here anymore - watcher handles it
@@ -824,6 +900,68 @@ export default {
 .widget-heading h4 { font-size: 20px; }
 .widget-heading h5 { font-size: 18px; }
 .widget-heading h6 { font-size: 16px; }
+
+/* Section anchor (¶ copy-link) affordance — shown on hover of the heading.
+   Covers both stand-alone heading widgets (.widget-heading.has-anchor) and
+   headings inside a text block (.widget-text :deep(h*.has-anchor)). */
+.widget-heading.has-anchor {
+  position: relative;
+}
+
+/* The heading content is run through the markdown serializer, which wraps the
+   text in a block <p>. Force it inline so the anchor icon sits directly after
+   the text instead of dropping to the next line. Applies to both stand-alone
+   heading widgets and headings rendered inside a text block. */
+.widget-heading.has-anchor > span,
+.widget-heading.has-anchor > span :deep(p) {
+  display: inline;
+  margin: 0;
+}
+
+.heading-anchor,
+.widget-text :deep(.heading-anchor) {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.35em;
+  /* Inherit the heading's own text colour so the icon reads correctly on any
+     background (white on a coloured/dark header, dark on a light page). The
+     resting state is dimmed; hover brings it to full strength. */
+  color: inherit;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  text-decoration: none;
+  vertical-align: middle;
+  cursor: pointer;
+}
+
+.widget-heading.has-anchor:hover .heading-anchor,
+.heading-anchor:focus-visible,
+.widget-text :deep(h1.has-anchor:hover .heading-anchor),
+.widget-text :deep(h2.has-anchor:hover .heading-anchor),
+.widget-text :deep(h3.has-anchor:hover .heading-anchor),
+.widget-text :deep(h4.has-anchor:hover .heading-anchor),
+.widget-text :deep(h5.has-anchor:hover .heading-anchor),
+.widget-text :deep(h6.has-anchor:hover .heading-anchor),
+.widget-text :deep(.heading-anchor:focus-visible) {
+  opacity: 0.6;
+}
+
+.heading-anchor:hover,
+.widget-text :deep(.heading-anchor:hover) {
+  opacity: 1;
+}
+
+/* Give deep-linked headings a little scroll offset so the sticky share header
+   (if any) doesn't cover them after scrollIntoView. */
+.widget-heading.has-anchor,
+.widget-text :deep(h1[id^="h-"]),
+.widget-text :deep(h2[id^="h-"]),
+.widget-text :deep(h3[id^="h-"]),
+.widget-text :deep(h4[id^="h-"]),
+.widget-text :deep(h5[id^="h-"]),
+.widget-text :deep(h6[id^="h-"]) {
+  scroll-margin-top: 80px;
+}
 
 /* Image Widget */
 .widget-image {

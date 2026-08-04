@@ -1,6 +1,6 @@
 {
-    "count": 1287,
-    "sha256": "f1ede326291b0717ddc12b5c38d2e450d0f8a9bcb8a42fe3a1b65a720f3241b3",
+    "count": 1289,
+    "sha256": "c63698a18340ac155e9db860d69a5551982aeca132da12dc447dbbbf246435af",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -233,6 +233,7 @@
         "Content",
         "Content is available in:",
         "Content type",
+        "Copy link to this section",
         "Copy page",
         "Copy public link",
         "Copy URL",
@@ -1011,6 +1012,7 @@
         "Search results for \"{query}\"",
         "Search users …",
         "Searching …",
+        "Section link copied",
         "Section title",
         "Section title …",
         "Security",

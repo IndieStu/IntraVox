@@ -98,6 +98,7 @@ import { defineAsyncComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
+import { isSectionAnchor, scrollToHashAnchor } from '../utils/headingAnchors.js'
 import PageViewer from './PageViewer.vue'
 import Navigation from './Navigation.vue'
 import Footer from './Footer.vue'
@@ -242,11 +243,14 @@ export default {
 		},
 		updateUrl(uniqueId) {
 			if (uniqueId) {
-				// Keep ?page= as the canonical format (survives sharing via chat/email)
-				// Remove any legacy hash fragment
+				// Keep ?page= as the canonical format (survives sharing via chat/email).
+				// Preserve a section anchor (#h-…) if present; only clear legacy
+				// page hashes (#page-…) so a deep link to a section keeps working.
 				const url = new URL(window.location.href)
 				url.searchParams.set('page', uniqueId)
-				url.hash = ''
+				if (!isSectionAnchor(url.hash)) {
+					url.hash = ''
+				}
 				window.history.replaceState(null, '', url.toString())
 			}
 		},
@@ -319,7 +323,12 @@ export default {
 				this.breadcrumb = response.data.breadcrumb || []
 				this.error = null
 				this.updateUrl(uniqueId)
-				window.scrollTo(0, 0)
+				// Scroll to the top, unless a section anchor asks for a specific spot.
+				this.$nextTick(() => {
+					if (!scrollToHashAnchor()) {
+						window.scrollTo(0, 0)
+					}
+				})
 			} catch (err) {
 				if (err.response?.status === 401 && err.response?.data?.passwordRequired) {
 					this.passwordRequired = true
