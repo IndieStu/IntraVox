@@ -206,10 +206,14 @@ class SystemFileService {
 
             // Check for home.json in root
             $homeData = null;
+            $homeFileId = null;
             try {
                 $homeFile = $languageFolder->get('home.json');
                 $content = $homeFile->getContent();
                 $homeData = $this->safeJsonDecode($content);
+                if ($homeFile instanceof \OCP\Files\File) {
+                    $homeFileId = $homeFile->getId();
+                }
             } catch (NotFoundException $e) {
                 // home.json not found, try page-*.json fallback
                 try {
@@ -219,6 +223,9 @@ class SystemFileService {
                             $content = $node->getContent();
                             $homeData = $this->safeJsonDecode($content);
                             if ($homeData && isset($homeData['uniqueId'])) {
+                                if ($node instanceof \OCP\Files\File) {
+                                    $homeFileId = $node->getId();
+                                }
                                 break;
                             }
                         }
@@ -232,6 +239,10 @@ class SystemFileService {
                 $tree[] = [
                     'uniqueId' => $homeData['uniqueId'],
                     'title' => $homeData['title'],
+                    // status + fileId let the public tree apply the same
+                    // scheduled-publish visibility gate as the rest of the app.
+                    'status' => $homeData['status'] ?? 'published',
+                    'fileId' => $homeFileId,
                     'path' => $language,
                     'language' => $language,
                     'isCurrent' => false,
@@ -311,6 +322,10 @@ class SystemFileService {
                     $pageNode = [
                         'uniqueId' => $data['uniqueId'],
                         'title' => $data['title'],
+                        // status + fileId let the public tree apply the same
+                        // scheduled-publish visibility gate as the rest of the app.
+                        'status' => $data['status'] ?? 'published',
+                        'fileId' => ($jsonFile instanceof \OCP\Files\File) ? $jsonFile->getId() : null,
                         'path' => $relativePath,
                         'language' => $language,
                         'isCurrent' => false,

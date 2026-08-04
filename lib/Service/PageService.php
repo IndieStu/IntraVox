@@ -5076,6 +5076,7 @@ class PageService {
                     'uniqueId' => $data['uniqueId'],
                     'title' => $data['title'],
                     'status' => $data['status'] ?? 'published',
+                    'fileId' => ($homeFile instanceof \OCP\Files\File) ? $homeFile->getId() : null,
                     'path' => $lang,
                     'language' => $lang,
                     'isCurrent' => false, // Will be set by markCurrentPageInTree
@@ -5265,6 +5266,9 @@ class PageService {
                         'uniqueId' => $data['uniqueId'],
                         'title' => $data['title'],
                         'status' => $data['status'] ?? 'published',
+                        // fileId of the page JSON, so the tree gate can resolve the
+                        // publish/expiration MetaVox fields for scheduled visibility.
+                        'fileId' => ($jsonFile instanceof \OCP\Files\File) ? $jsonFile->getId() : null,
                         'path' => $this->getRelativePathFromRoot($item),
                         'language' => $language ?? $this->getUserLanguage(),
                         'isCurrent' => ($currentPageId === $data['uniqueId']),
@@ -6291,41 +6295,143 @@ class PageService {
             return $pages;
         }
 
+        // Delegate to the shared, time-aware publication gate so a News list uses
+        // exactly the same definition of "published" as the rest of the app
+        // (fixes the previous date-only comparison where "today 03:25" already
+        // counted as published). A page is kept only when it is effectively
+        // published right now.
         $metaVoxData = $this->getMetaVoxDataForFiles($fileIds);
-        $today = date('Y-m-d');
 
-        return array_values(array_filter($pages, function($page) use ($publishDateField, $expirationDateField, $metaVoxData, $today) {
+        return array_values(array_filter($pages, function($page) use ($metaVoxData) {
             $fileId = $page['fileId'] ?? null;
             if (!$fileId) {
                 return true; // No fileId = include page (can't filter without metadata)
             }
-
             $meta = $metaVoxData[$fileId] ?? [];
-
-            // Check publish date: page is visible if publish date is empty OR publish date <= today
-            if (!empty($publishDateField)) {
-                $publishDate = $meta[$publishDateField] ?? '';
-                if (!empty($publishDate)) {
-                    $parsedPublishDate = $this->parseDate($publishDate);
-                    if ($parsedPublishDate && $parsedPublishDate > $today) {
-                        return false; // Not yet published
-                    }
-                }
-            }
-
-            // Check expiration date: page is visible if expiration date is empty OR expiration date > today
-            if (!empty($expirationDateField)) {
-                $expirationDate = $meta[$expirationDateField] ?? '';
-                if (!empty($expirationDate)) {
-                    $parsedExpirationDate = $this->parseDate($expirationDate);
-                    if ($parsedExpirationDate && $parsedExpirationDate <= $today) {
-                        return false; // Already expired
-                    }
-                }
-            }
-
-            return true; // Page is visible
+            return $this->effectivePublishState($page, $meta) === 'published';
         }));
+    }
+
+    /**
+     * Effective publication state of a single page, evaluated live ("lazy") so a
+     * scheduled page flips to published the moment its publish time passes — no
+     * cron needed. Combines the manual draft/published status with the
+     * admin-configured MetaVox publish/expiration date fields.
+     *
+     * Returns one of:
+     *   'published' — publicly visible now
+     *   'draft'     — manually held back
+     *   'scheduled' — publish date is in the future
+     *   'expired'   — expiration date has passed
+     *
+     * Only 'published' is visible to readers/anonymous visitors; the other three
+     * are hidden from them but shown to users with write permission.
+     *
+     * @param array      $page        Page array (needs 'status' and 'fileId')
+     * @param array|null $metaForFile Pre-fetched MetaVox fields for this file
+     *                                (fieldName => value). Pass this in list
+     *                                contexts to avoid an N+1 query; when null it
+     *                                is looked up on demand.
+     */
+    public function effectivePublishState(array $page, ?array $metaForFile = null): string {
+        // A manual draft always wins, regardless of any dates.
+        if (($page['status'] ?? 'published') === 'draft') {
+            return 'draft';
+        }
+
+        $publishField = $this->publicationSettings->getPublishDateField();
+        $expireField = $this->publicationSettings->getExpirationDateField();
+
+        // No scheduling configured, or MetaVox unavailable → behave exactly as
+        // before: a non-draft page is simply published.
+        if ((empty($publishField) && empty($expireField)) || !$this->isMetaVoxAvailable()) {
+            return 'published';
+        }
+
+        $meta = $metaForFile;
+        if ($meta === null) {
+            $fileId = $page['fileId'] ?? null;
+            $meta = $fileId ? ($this->getMetaVoxDataForFiles([$fileId])[$fileId] ?? []) : [];
+        }
+
+        $now = new \DateTime();
+
+        if (!empty($publishField) && !empty($meta[$publishField])) {
+            $publishAt = $this->parseDateTime((string)$meta[$publishField]);
+            if ($publishAt !== null && $publishAt > $now) {
+                return 'scheduled'; // not live yet
+            }
+        }
+
+        if (!empty($expireField) && !empty($meta[$expireField])) {
+            $expireAt = $this->parseDateTime((string)$meta[$expireField]);
+            if ($expireAt !== null && $expireAt <= $now) {
+                return 'expired'; // no longer live
+            }
+        }
+
+        return 'published';
+    }
+
+    /**
+     * Whether a page must be hidden from a viewer WITHOUT write permission.
+     * True for draft, scheduled (future) and expired pages.
+     *
+     * @param array      $page
+     * @param array|null $metaForFile Optional pre-fetched MetaVox fields (see
+     *                                effectivePublishState) to avoid N+1 queries.
+     */
+    public function isHiddenFromReaders(array $page, ?array $metaForFile = null): bool {
+        return $this->effectivePublishState($page, $metaForFile) !== 'published';
+    }
+
+    /**
+     * Time-aware date/time parse for publication scheduling. Unlike parseDate()
+     * (which truncates to Y-m-d and made "today 03:25" count as already
+     * published), this preserves the time component so a same-day schedule is
+     * respected to the minute.
+     *
+     * @return \DateTime|null Parsed date/time, or null if unparseable.
+     */
+    private function parseDateTime(string $dateStr): ?\DateTime {
+        $dateStr = trim($dateStr);
+        if ($dateStr === '') {
+            return null;
+        }
+
+        $formats = [
+            'Y-m-d\TH:i:s',   // ISO 8601: 2025-01-15T14:30:00
+            'Y-m-d\TH:i',     // datetime-local input: 2025-01-15T14:30
+            'Y-m-d H:i:s',    // 2025-01-15 14:30:00
+            'Y-m-d H:i',      // 2025-01-15 14:30
+            'd-m-Y H:i:s',    // European with time
+            'd-m-Y H:i',
+            'Y-m-d',          // date only → midnight
+            'd-m-Y',
+            'm/d/Y',
+            'd/m/Y',
+            'Y/m/d',
+        ];
+
+        foreach ($formats as $format) {
+            $date = \DateTime::createFromFormat($format, $dateStr);
+            if ($date !== false) {
+                // For date-only formats, createFromFormat keeps the current time;
+                // normalise those to start-of-day so "publish on <date>" means
+                // 00:00 of that day.
+                if (!str_contains($format, 'H')) {
+                    $date->setTime(0, 0, 0);
+                }
+                return $date;
+            }
+        }
+
+        $timestamp = strtotime($dateStr);
+        if ($timestamp !== false) {
+            return (new \DateTime())->setTimestamp($timestamp);
+        }
+
+        return null;
     }
 
     /**
@@ -6367,6 +6473,24 @@ class PageService {
         }
 
         return null;
+    }
+
+    /**
+     * Public batch accessor for MetaVox fields, so list-context callers (page
+     * loading, tree, search) can fetch once and hand per-page metadata to
+     * effectivePublishState()/isHiddenFromReaders() — avoiding an N+1 query.
+     * Returns [] when scheduling is not configured or MetaVox is unavailable.
+     *
+     * @param int[] $fileIds
+     * @return array<int, array<string, string>> fileId => [fieldName => value]
+     */
+    public function publicationMetaForFiles(array $fileIds): array {
+        $publishField = $this->publicationSettings->getPublishDateField();
+        $expireField = $this->publicationSettings->getExpirationDateField();
+        if ((empty($publishField) && empty($expireField)) || empty($fileIds)) {
+            return [];
+        }
+        return $this->getMetaVoxDataForFiles(array_values(array_filter($fileIds)));
     }
 
     /**

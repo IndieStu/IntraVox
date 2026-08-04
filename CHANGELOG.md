@@ -4,6 +4,17 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.5] - 2026-08-04 — Scheduled publishing (Publish on / Expire on)
+
+### Added
+
+- **A page's "Publish on" / "Expire on" date now controls visibility everywhere.** Previously the publication-date MetaVox fields only filtered the News widget's list; a page with a future publish date was still reachable directly, via the menu, the page tree and public shares. Now a page that is not yet published (future publish date) or has expired is hidden from readers and anonymous visitors — exactly like a draft — and automatically becomes visible the moment its publish time passes (evaluated live, no cron). Editors still see these pages, with a **Scheduled** / **Expired** badge next to the title.
+
+### Fixed
+
+- **Publication date is now time-aware.** The check compared dates only, so a page scheduled for later *today* counted as already published. It now respects the time of day.
+- **Draft and scheduled pages no longer leak into a public share's menu or page tree.** The share navigation and tree now apply the same visibility rules as the page content (which already returned "not available").
+
 ## [1.9.4] - 2026-08-04 — Deep links to page sections
 
 ### Added

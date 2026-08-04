@@ -23,9 +23,14 @@
       </div>
 
       <div class="header-right">
-        <!-- Draft indicator (visible to editors in view mode) -->
-        <span v-if="!isEditMode && currentPage?.status === 'draft'" class="draft-badge draft">
-          {{ t('intravox', 'Draft') }}
+        <!-- Publication status indicator (visible to editors in view mode).
+             Readers never reach draft/scheduled/expired pages, so this badge is
+             only ever seen by users with write access. -->
+        <span v-if="!isEditMode && publishStatusBadge"
+              class="draft-badge"
+              :class="publishStatusBadge.class"
+              :title="publishStatusBadge.tooltip">
+          {{ publishStatusBadge.label }}
         </span>
 
         <!-- Share Button (only visible when NC share exists) -->
@@ -396,6 +401,29 @@ export default {
     };
   },
   computed: {
+    /**
+     * Publication-status badge for the current page (view mode, editors only).
+     * Uses the backend's effectivePublishState (draft | scheduled | expired |
+     * published). Falls back to the manual status for older responses. Returns
+     * null when the page is plainly published (no badge).
+     */
+    publishStatusBadge() {
+      const state = this.currentPage?.effectivePublishState
+        || (this.currentPage?.status === 'draft' ? 'draft' : 'published');
+      switch (state) {
+        case 'draft':
+          return { class: 'draft', label: this.t('intravox', 'Draft'),
+                   tooltip: this.t('intravox', 'This page is a draft and is only visible to editors.') };
+        case 'scheduled':
+          return { class: 'scheduled', label: this.t('intravox', 'Scheduled'),
+                   tooltip: this.t('intravox', 'This page has a future publish date and is only visible to editors until then.') };
+        case 'expired':
+          return { class: 'expired', label: this.t('intravox', 'Expired'),
+                   tooltip: this.t('intravox', 'This page is past its expiration date and is only visible to editors.') };
+        default:
+          return null;
+      }
+    },
     /**
      * Page permissions based on folder-level ACLs from GroupFolder
      * Uses Nextcloud's permission system to determine what the user can do
@@ -1750,7 +1778,7 @@ export default {
   align-items: center;
 }
 
-.draft-badge.draft {
+.draft-badge {
   display: inline-block;
   padding: 4px 12px;
   border-radius: 12px;
@@ -1758,9 +1786,28 @@ export default {
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  cursor: default;
+}
+
+/* Draft — held back manually (warning/amber). */
+.draft-badge.draft {
   background: var(--color-warning-light, #fff3cd);
   color: var(--color-warning-text, #6d5003);
   border: 1px solid var(--color-warning, #ffc107);
+}
+
+/* Scheduled — future publish date (info/blue, uses NC primary tokens). */
+.draft-badge.scheduled {
+  background: var(--color-primary-element-light, #e3effb);
+  color: var(--color-primary-element-light-text, var(--color-main-text));
+  border: 1px solid var(--color-primary-element, #1a67a3);
+}
+
+/* Expired — past expiration date (muted/neutral). */
+.draft-badge.expired {
+  background: var(--color-background-dark, #ededed);
+  color: var(--color-text-maxcontrast, #6b7280);
+  border: 1px solid var(--color-border-dark, #c9c9c9);
 }
 
 .page-lock-indicator {

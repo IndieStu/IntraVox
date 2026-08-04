@@ -198,15 +198,18 @@ class ApiController extends Controller {
         try {
             $pages = $this->pageService->listPages();
 
-            // PageService already includes permissions from Nextcloud's filesystem
-            // Filter pages to only include those the user can read
-            // Draft pages are only visible to users with write permission
+            // PageService already includes permissions from Nextcloud's filesystem.
+            // Filter to pages the user can read. Draft/scheduled/expired pages are
+            // only visible to users with write permission. Batch the publication
+            // metadata once to avoid an N+1 lookup.
+            $pubMeta = $this->pageService->publicationMetaForFiles(array_column($pages, 'fileId'));
             $filteredPages = [];
             foreach ($pages as $page) {
                 if (!($page['permissions']['canRead'] ?? false)) {
                     continue;
                 }
-                if (($page['status'] ?? 'published') === 'draft' && !($page['permissions']['canWrite'] ?? false)) {
+                $meta = $pubMeta[$page['fileId'] ?? null] ?? [];
+                if ($this->pageService->isHiddenFromReaders($page, $meta) && !($page['permissions']['canWrite'] ?? false)) {
                     continue;
                 }
                 $filteredPages[] = $page;
@@ -245,13 +248,18 @@ class ApiController extends Controller {
                 );
             }
 
-            // Draft pages are only accessible to users with write permission
-            if (($page['status'] ?? 'published') === 'draft' && !($page['permissions']['canWrite'] ?? false)) {
+            // Draft / scheduled (future) / expired pages are only accessible to
+            // users with write permission.
+            if ($this->pageService->isHiddenFromReaders($page) && !($page['permissions']['canWrite'] ?? false)) {
                 return new DataResponse(
                     ['error' => 'Page not found'],
                     Http::STATUS_NOT_FOUND
                 );
             }
+
+            // Expose the effective publication state so the editor UI can show a
+            // "Scheduled"/"Expired" indicator (only meaningful for canWrite users).
+            $page['effectivePublishState'] = $this->pageService->effectivePublishState($page);
 
             // Add breadcrumb to page response
             try {
@@ -1106,14 +1114,17 @@ class ApiController extends Controller {
 
             $results = $this->pageService->searchPages($query);
 
-            // Filter results based on Nextcloud's permissions (already in the results)
-            // Draft pages are only visible to users with write permission
+            // Filter results based on Nextcloud's permissions (already in the results).
+            // Draft/scheduled/expired pages are only visible to users with write
+            // permission. Batch publication metadata once (N+1 avoidance).
+            $pubMeta = $this->pageService->publicationMetaForFiles(array_column($results, 'fileId'));
             $filteredResults = [];
             foreach ($results as $result) {
                 if (!($result['permissions']['canRead'] ?? false)) {
                     continue;
                 }
-                if (($result['status'] ?? 'published') === 'draft' && !($result['permissions']['canWrite'] ?? false)) {
+                $meta = $pubMeta[$result['fileId'] ?? null] ?? [];
+                if ($this->pageService->isHiddenFromReaders($result, $meta) && !($result['permissions']['canWrite'] ?? false)) {
                     continue;
                 }
                 $filteredResults[] = $result;
@@ -1318,24 +1329,99 @@ class ApiController extends Controller {
     }
 
     /**
-     * Filter page tree to only include pages user can read
+     * Filter page tree to only include pages the user can read. Draft/scheduled/
+     * expired pages are hidden unless the user has write permission.
+     *
+     * @param array      $tree
+     * @param array|null $pubMeta Publication metadata keyed by fileId, batched
+     *                            once at the top level and threaded through the
+     *                            recursion to avoid N+1 lookups.
      */
-    private function filterTreeByPermissions(array $tree): array {
+    private function filterTreeByPermissions(array $tree, ?array $pubMeta = null): array {
+        if ($pubMeta === null) {
+            $pubMeta = $this->pageService->publicationMetaForFiles($this->collectTreeFileIds($tree));
+        }
         $filtered = [];
         foreach ($tree as $item) {
             if (!($item['permissions']['canRead'] ?? false)) {
                 continue;
             }
-            // Draft pages are only visible to users with write permission
-            if (($item['status'] ?? 'published') === 'draft' && !($item['permissions']['canWrite'] ?? false)) {
+            $meta = $pubMeta[$item['fileId'] ?? null] ?? [];
+            if ($this->pageService->isHiddenFromReaders($item, $meta) && !($item['permissions']['canWrite'] ?? false)) {
                 continue;
             }
             if (!empty($item['children'])) {
-                $item['children'] = $this->filterTreeByPermissions($item['children']);
+                $item['children'] = $this->filterTreeByPermissions($item['children'], $pubMeta);
             }
             $filtered[] = $item;
         }
         return $filtered;
+    }
+
+    /** Collect all page fileIds in a (nested) tree for a single batch lookup. */
+    private function collectTreeFileIds(array $tree): array {
+        $ids = [];
+        foreach ($tree as $item) {
+            if (!empty($item['fileId'])) {
+                $ids[] = $item['fileId'];
+            }
+            if (!empty($item['children'])) {
+                $ids = array_merge($ids, $this->collectTreeFileIds($item['children']));
+            }
+        }
+        return $ids;
+    }
+
+    /**
+     * Set of page uniqueIds that must be hidden from readers (draft / scheduled /
+     * expired) for a language, computed from the system page tree (which now
+     * carries status + fileId). Used to prune the public navigation menu.
+     *
+     * @return array<string, true> uniqueId => true
+     */
+    private function hiddenUniqueIdsForLanguage(string $language): array {
+        try {
+            $tree = $this->systemFileService->getPageTree($language);
+        } catch (\Exception $e) {
+            return [];
+        }
+        $pubMeta = $this->pageService->publicationMetaForFiles($this->collectTreeFileIds($tree));
+        $hidden = [];
+        $walk = function (array $nodes) use (&$walk, $pubMeta, &$hidden) {
+            foreach ($nodes as $node) {
+                $meta = $pubMeta[$node['fileId'] ?? null] ?? [];
+                if ($this->pageService->isHiddenFromReaders($node, $meta) && !empty($node['uniqueId'])) {
+                    $hidden[$node['uniqueId']] = true;
+                }
+                if (!empty($node['children'])) {
+                    $walk($node['children']);
+                }
+            }
+        };
+        $walk($tree);
+        return $hidden;
+    }
+
+    /**
+     * Remove navigation items (recursively) whose target page is in the hidden
+     * set. Items are matched by uniqueId; sub-items are pruned too.
+     *
+     * @param array<int, array>    $items
+     * @param array<string, true>  $hidden
+     */
+    private function filterNavigationByHiddenIds(array $items, array $hidden): array {
+        $out = [];
+        foreach ($items as $item) {
+            $uid = $item['uniqueId'] ?? ($item['pageId'] ?? null);
+            if ($uid !== null && isset($hidden[$uid])) {
+                continue;
+            }
+            if (!empty($item['children']) && is_array($item['children'])) {
+                $item['children'] = $this->filterNavigationByHiddenIds($item['children'], $hidden);
+            }
+            $out[] = $item;
+        }
+        return $out;
     }
 
     /**
@@ -2310,8 +2396,9 @@ class ApiController extends Controller {
                 return $this->shareNotFoundResponse();
             }
 
-            // Draft pages are never accessible via public share
-            if (($pageData['status'] ?? 'published') === 'draft') {
+            // Draft, scheduled (not-yet-published) and expired pages are never
+            // accessible via a public share — anonymous visitors are never editors.
+            if ($this->pageService->isHiddenFromReaders($pageData)) {
                 return $this->shareNotFoundResponse();
             }
 
@@ -2482,6 +2569,16 @@ class ApiController extends Controller {
                     $shareScopeRelative,
                     $pagePathMap
                 );
+            }
+
+            // Also drop nav entries that point at pages hidden from readers
+            // (draft / scheduled / expired), so anonymous visitors don't see menu
+            // items that lead to a "not available" page.
+            if (isset($navigation['items']) && is_array($navigation['items'])) {
+                $hidden = $this->hiddenUniqueIdsForLanguage($language);
+                if (!empty($hidden)) {
+                    $navigation['items'] = $this->filterNavigationByHiddenIds($navigation['items'], $hidden);
+                }
             }
 
             $this->logger->info('[PublicShare] Navigation accessed', [
@@ -2728,14 +2825,21 @@ class ApiController extends Controller {
     /**
      * Remove draft pages from a tree structure.
      */
-    private function filterDraftsFromTree(array $tree): array {
+    private function filterDraftsFromTree(array $tree, ?array $pubMeta = null): array {
+        // Public (anonymous) tree: hide draft, scheduled (future) and expired
+        // pages — there is never an editor here to reveal them. Batch the
+        // publication metadata once and thread it through the recursion.
+        if ($pubMeta === null) {
+            $pubMeta = $this->pageService->publicationMetaForFiles($this->collectTreeFileIds($tree));
+        }
         $filtered = [];
         foreach ($tree as $node) {
-            if (($node['status'] ?? 'published') === 'draft') {
+            $meta = $pubMeta[$node['fileId'] ?? null] ?? [];
+            if ($this->pageService->isHiddenFromReaders($node, $meta)) {
                 continue;
             }
             if (!empty($node['children'])) {
-                $node['children'] = $this->filterDraftsFromTree($node['children']);
+                $node['children'] = $this->filterDraftsFromTree($node['children'], $pubMeta);
             }
             $filtered[] = $node;
         }

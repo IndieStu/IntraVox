@@ -551,10 +551,16 @@ class PublicShareService {
             // __groupfolders/{id}/ already stripped and normalised) that callers
             // such as the share breadcrumb builder need — the mount path cannot be
             // normalised against the share scope (see the scope-resolution note above).
+            $pageData = $pageInfo['data'];
+            // Attach the page's fileId so the caller can resolve scheduled-publish
+            // MetaVox fields (publish/expiration) for the visibility gate.
+            if (isset($pageInfo['node']) && $pageInfo['node'] !== null && !isset($pageData['fileId'])) {
+                $pageData['fileId'] = $pageInfo['node']->getId();
+            }
             return [
                 'valid' => true,
                 'share' => $share,
-                'pageData' => $pageInfo['data'],
+                'pageData' => $pageData,
                 'pagePath' => $pagePath,
                 'pageGfPath' => $pageGfPath,
             ];

@@ -1,6 +1,6 @@
 {
-    "count": 1289,
-    "sha256": "c63698a18340ac155e9db860d69a5551982aeca132da12dc447dbbbf246435af",
+    "count": 1293,
+    "sha256": "0bc56a3813d344bd4742a316f9b36c1487e07f53765ba9ecea30de21208e5dcc",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -1004,6 +1004,7 @@
         "Saving …",
         "Scan for orphaned data",
         "Scanning …",
+        "Scheduled",
         "Scope",
         "Search …",
         "Search pages",
@@ -1147,8 +1148,11 @@
         "This link shares only this page",
         "This link shares the \"{section}\" section",
         "This month",
+        "This page has a future publish date and is only visible to editors until then.",
+        "This page is a draft and is only visible to editors.",
         "This page is not available or the share link has expired.",
         "This page is not shared publicly",
+        "This page is past its expiration date and is only visible to editors.",
         "This page is shared via a public link",
         "This page is the homepage. Set another page as the homepage first.",
         "This shared page is password protected. Enter the password to continue.",
