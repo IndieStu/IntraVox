@@ -2344,14 +2344,23 @@ class ApiController extends Controller {
                         if (str_starts_with($relPath, 'files/')) {
                             $relPath = substr($relPath, 6);
                         }
-                        // Compute the page's relative path from the filesystem path
-                        // pagePath is like "/__groupfolders/1/files/nl/afdeling/marketing/campagnes/campagnes.json"
-                        // We need: "nl/afdeling/marketing/campagnes"
-                        $pagePath = $validation['pagePath'] ?? '';
-                        $pageRelPath = $pagePath;
-                        // Strip __groupfolders/{id}/files/ prefix
-                        if (preg_match('#__groupfolders/\d+/files/(.+)$#', $pageRelPath, $m)) {
-                            $pageRelPath = $m[1];
+                        // Compute the page's relative folder path for the breadcrumb.
+                        // Prefer pageGfPath, the canonical GF-storage path
+                        // ("files/nl/afdeling/marketing/campagnes/campagnes.json"),
+                        // which validateShareAccess resolves by fileid. The legacy
+                        // pagePath is a per-user MOUNT view (e.g.
+                        // "/admin/files/IntraVox/nl/…") that the __groupfolders regex
+                        // cannot normalise, so the breadcrumb collapsed to just the
+                        // share root. We need: "nl/afdeling/marketing/campagnes".
+                        $pageRelPath = $validation['pageGfPath'] ?? '';
+                        if ($pageRelPath === '') {
+                            // Fallback to the legacy mount path + regex strip.
+                            $pageRelPath = $validation['pagePath'] ?? '';
+                            if (preg_match('#__groupfolders/\d+/files/(.+)$#', $pageRelPath, $m)) {
+                                $pageRelPath = $m[1];
+                            }
+                        } elseif (str_starts_with($pageRelPath, 'files/')) {
+                            $pageRelPath = substr($pageRelPath, 6);
                         }
                         // Remove filename (e.g., campagnes.json) to get folder path
                         $pageRelPath = dirname($pageRelPath);

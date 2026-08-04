@@ -4,6 +4,12 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.3] - 2026-08-04 — Breadcrumb inside folder shares
+
+### Fixed
+
+- **The breadcrumb inside a public folder share now shows the full path.** On a nested page in a shared folder (e.g. Docs → FormVox → User → *Creating Forms*), the anonymous breadcrumb collapsed to just the share root. The breadcrumb builder was fed a per-user *mount* path (`/admin/files/IntraVox/en/docs/…`) whose `__groupfolders/{id}/` prefix could not be stripped, so every intermediate level fell outside the share scope and was dropped. It now uses the canonical GroupFolder-storage path (resolved by fileid, the same lookup that fixed folder-share access in 1.9.2), so all levels between the share root and the current page appear and are clickable.
+
 ## [1.9.2] - 2026-08-04 — Public folder shares render for anonymous visitors + translation fixes
 
 ### Fixed

@@ -545,12 +545,18 @@ class PublicShareService {
                 'pageTitle' => $pageInfo['data']['title'] ?? 'unknown'
             ]);
 
-            // Valid! Return share and page data
+            // Valid! Return share and page data.
+            // pagePath is the per-user MOUNT view (kept for backwards compat);
+            // pageGfPath is the canonical GF-storage path ("files/en/docs/…/x.json",
+            // __groupfolders/{id}/ already stripped and normalised) that callers
+            // such as the share breadcrumb builder need — the mount path cannot be
+            // normalised against the share scope (see the scope-resolution note above).
             return [
                 'valid' => true,
                 'share' => $share,
                 'pageData' => $pageInfo['data'],
                 'pagePath' => $pagePath,
+                'pageGfPath' => $pageGfPath,
             ];
 
         } catch (ShareNotFound $e) {
