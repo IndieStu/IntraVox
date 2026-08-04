@@ -473,12 +473,34 @@ class PublicShareService {
                 return ['valid' => false, 'reason' => 'error'];
             }
 
-            // The GF storage path is like "files/nl/afdeling"
-            // The page's internal path is like "/__groupfolders/1/files/nl/afdeling/afdeling.json"
-            // Convert page path to GF storage format: strip __groupfolders/{id}/ prefix
+            // Resolve the PAGE's canonical GF-storage path the same way as the share
+            // path: by its fileid in the GF storage's filecache. $pagePath (from
+            // Node::getPath()) is a per-user MOUNT view (e.g. "/Sam/files/IntraVox/en/
+            // docs/docs.json"), which the __groupfolders/{id}/ strip cannot normalise —
+            // so the mount-form path never matches the GF-storage share path and every
+            // page falls "out of scope". Looking it up by fileid yields the canonical
+            // "files/..." path, identical in form to $sharePath below.
             $gfPrefix = '__groupfolders/' . $groupfolderId . '/';
-            $pageGfPath = $pagePath;
-            // Strip leading / and remove the __groupfolders/{id}/ prefix if present
+            $pageGfPath = null;
+            $pageNode = $pageInfo['node'] ?? null;
+            if ($pageNode !== null) {
+                $qbPagePath = $this->db->getQueryBuilder();
+                $qbPagePath->select('path')
+                    ->from('filecache')
+                    ->where($qbPagePath->expr()->eq('storage', $qbPagePath->createNamedParameter($gfStorageId, IQueryBuilder::PARAM_INT)))
+                    ->andWhere($qbPagePath->expr()->eq('fileid', $qbPagePath->createNamedParameter($pageNode->getId(), IQueryBuilder::PARAM_INT)));
+                $pagePathResult = $qbPagePath->executeQuery();
+                $pagePathRow = $pagePathResult->fetch();
+                $pagePathResult->closeCursor();
+                if ($pagePathRow && !empty($pagePathRow['path'])) {
+                    $pageGfPath = $pagePathRow['path'];
+                }
+            }
+
+            // Fallback to the legacy string-strip if the fileid lookup found nothing.
+            if ($pageGfPath === null) {
+                $pageGfPath = $pagePath;
+            }
             $pageGfPath = ltrim($pageGfPath, '/');
             if (str_starts_with($pageGfPath, $gfPrefix)) {
                 $pageGfPath = substr($pageGfPath, strlen($gfPrefix));

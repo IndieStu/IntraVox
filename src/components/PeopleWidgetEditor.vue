@@ -509,13 +509,15 @@ export default {
         this.availableFields = response.data.fields || [];
       } catch (err) {
         console.error('[PeopleWidgetEditor] Failed to load fields:', err);
-        // Fallback to basic fields
+        // Fallback to basic fields. Labels are translated here with literal
+        // t('intravox', …) calls so the l10n extractor finds them; the template
+        // renders field.label directly.
         this.availableFields = [
-          { fieldName: 'group', label: 'Group', type: 'select' },
-          { fieldName: 'displayname', label: 'Name', type: 'text' },
-          { fieldName: 'email', label: 'Email', type: 'text' },
-          { fieldName: 'organisation', label: 'Organisation', type: 'text' },
-          { fieldName: 'role', label: 'Role', type: 'text' },
+          { fieldName: 'group', label: this.t('intravox', 'Group'), type: 'select' },
+          { fieldName: 'displayname', label: this.t('intravox', 'Name'), type: 'text' },
+          { fieldName: 'email', label: this.t('intravox', 'Email'), type: 'text' },
+          { fieldName: 'organisation', label: this.t('intravox', 'Organisation'), type: 'text' },
+          { fieldName: 'role', label: this.t('intravox', 'Role'), type: 'text' },
         ];
       }
     },

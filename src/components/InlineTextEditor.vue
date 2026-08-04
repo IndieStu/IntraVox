@@ -789,7 +789,10 @@ export default {
     },
     getHeadingLabel(level) {
       if (level === 0) return this.t('intravox', 'Paragraph');
-      return this.t(`H${level}`);
+      // Heading labels are the standard H1–H4 markers; they need no
+      // translation. (Passing them through t() with only the level as the
+      // first arg treated it as the app-id and rendered blank — the bug.)
+      return `H${level}`;
     },
     isHeadingLevel(level) {
       return this.getCurrentHeadingLevel() === level;

@@ -422,7 +422,7 @@
 					<div v-for="category in categories" :key="category.id" class="service-category" :class="category.id">
 						<h3 class="category-header" :class="category.id">
 							<span class="category-icon">{{ category.icon }}</span>
-							{{ t('intravox', category.name) }}
+							{{ category.name }}
 						</h3>
 
 						<div class="service-list">
@@ -482,7 +482,7 @@
 										</a>
 									</span>
 									<span :class="['risk-badge', item.risk.risk]">
-										{{ item.risk.icon }} {{ t('intravox', item.risk.label) }}
+										{{ item.risk.icon }} {{ item.risk.label }}
 									</span>
 								</div>
 								<NcButton
@@ -1595,16 +1595,21 @@ export default {
 				{ id: 'youtube', name: 'YouTube (standard)', domain: 'https://www.youtube.com', category: 'tracking', description: 'Contains Google tracking' },
 				{ id: 'dailymotion', name: 'Dailymotion', domain: 'https://www.dailymotion.com', category: 'tracking', description: 'Contains tracking' },
 			],
-			// Categories for display (2 columns: privacy + tracking)
-			categories: [
-				{ id: 'privacy', name: 'Privacy-friendly', icon: '✅', description: 'No or minimal tracking' },
-				{ id: 'tracking', name: 'Tracking concerns', icon: '⚠️', description: 'Platforms with known trackers' },
-			],
 		}
 	},
 	computed: {
 		callbackUrl() {
 			return window.location.origin + generateUrl('/apps/intravox/api/lms/callback')
+		},
+		// Video-service categories shown in the recommendations grid (2 columns:
+		// privacy + tracking). Names are translated here with literal
+		// t('intravox', …) calls so the l10n extractor finds them; the template
+		// renders category.name directly.
+		categories() {
+			return [
+				{ id: 'privacy', name: this.t('intravox', 'Privacy-friendly'), icon: '✅' },
+				{ id: 'tracking', name: this.t('intravox', 'Tracking concerns'), icon: '⚠️' },
+			]
 		},
 		// Demo-data table only shows admin-enabled languages. Disabled languages
 		// stay on disk but are hidden from the UI per the language-management contract.
@@ -2350,39 +2355,42 @@ export default {
 		},
 		// Risk assessment for custom domains
 		assessDomainRisk(domain) {
+			// Labels are translated here with literal t('intravox', …) calls so the
+			// l10n extractor picks them up. The template renders item.risk.label
+			// directly (no t() wrapper needed — it is already translated).
 			try {
 				const url = new URL(domain)
 				const host = url.hostname.toLowerCase()
 
 				// 1. HTTPS check - critical
 				if (url.protocol !== 'https:') {
-					return { risk: 'danger', label: 'No HTTPS', icon: '🔴' }
+					return { risk: 'danger', label: this.t('intravox', 'No HTTPS'), icon: '🔴' }
 				}
 
 				// 2. Known trackers - warning
 				if (/google\.|youtube\.|facebook\.|meta\.|doubleclick/i.test(host)) {
-					return { risk: 'warning', label: 'Tracking concerns', icon: '⚠️' }
+					return { risk: 'warning', label: this.t('intravox', 'Tracking concerns'), icon: '⚠️' }
 				}
 
 				// 3. PeerTube patterns - good
 				if (/peertube|tube\.|video\./i.test(host)) {
-					return { risk: 'good', label: 'Video platform', icon: '✅' }
+					return { risk: 'good', label: this.t('intravox', 'Video platform'), icon: '✅' }
 				}
 
 				// 4. Educational - good
 				if (/\.edu$|\.ac\.|university|college/i.test(host)) {
-					return { risk: 'good', label: 'Educational', icon: '🎓' }
+					return { risk: 'good', label: this.t('intravox', 'Educational'), icon: '🎓' }
 				}
 
 				// 5. Government - good
 				if (/\.gov$|\.overheid\.|\.govt\./i.test(host)) {
-					return { risk: 'good', label: 'Government', icon: '🏛️' }
+					return { risk: 'good', label: this.t('intravox', 'Government'), icon: '🏛️' }
 				}
 
 				// 6. Unknown - neutral
-				return { risk: 'unknown', label: 'Unknown platform', icon: '❓' }
+				return { risk: 'unknown', label: this.t('intravox', 'Unknown platform'), icon: '❓' }
 			} catch {
-				return { risk: 'danger', label: 'Invalid URL', icon: '🔴' }
+				return { risk: 'danger', label: this.t('intravox', 'Invalid URL'), icon: '🔴' }
 			}
 		},
 		getStatusLabel(status) {

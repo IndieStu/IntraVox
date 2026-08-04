@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.2] - 2026-08-04 — Public folder shares render for anonymous visitors + translation fixes
+
+### Fixed
+
+- **Public link shares on a page folder now render for anonymous visitors.** Opening the anonymous URL of a shared folder (e.g. a whole-language or sub-tree share) returned "This page is not available or the share link has expired" for every page under it — the share tree loaded, but each individual page 404'd. The page-scope check compared a per-user *mount* path (`/Sam/files/IntraVox/en/docs/…`) against the GroupFolder *storage* path (`files/en/docs`), so nothing ever matched. Pages are now resolved by their fileid in the GroupFolder storage — the same robust lookup already used for the share path — so folder-level public sharing works.
+
+- **Blank items in the text widget's "Paragraph" dropdown.** The heading options (H1–H4) below "Paragraph" rendered empty because their labels were passed to the translation function with the level as the app id. The markers now show correctly.
+
+- **Several untranslated interface strings are now translatable.** The page tree's "Show N more…" button and its expand/collapse labels, the navigation editor's focus-trap label, and the admin video-recommendation risk badges, category names and People-widget fallback field labels were hard-coded (or passed a variable the extractor never saw), so they stayed English in every language. They now go through the translation system.
+
 ## [1.9.1] - 2026-08-03 — Tidier page actions menu, permission follow-ups + dependency security updates
 
 ### Changed

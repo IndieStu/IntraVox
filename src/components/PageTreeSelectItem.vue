@@ -14,7 +14,7 @@
         v-if="hasChildren"
         class="expand-toggle"
         @click.stop="$emit('toggle', item.uniqueId)"
-        :aria-label="isExpanded ? 'Collapse' : 'Expand'"
+        :aria-label="isExpanded ? t('intravox', 'Collapse') : t('intravox', 'Expand')"
       >
         <ChevronRight v-if="!isExpanded" :size="16" />
         <ChevronDown v-else :size="16" />
@@ -46,7 +46,7 @@
       />
       <li v-if="hasMoreChildren" class="tree-show-more">
         <button class="show-more-button" @click="showMoreChildren">
-          Show {{ item.children.length - visibleChildCount }} more...
+          {{ t('intravox', 'Show {count} more...', { count: item.children.length - visibleChildCount }) }}
         </button>
       </li>
     </ul>
@@ -54,6 +54,7 @@
 </template>
 
 <script>
+import { translate } from '@nextcloud/l10n';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import FileDocument from 'vue-material-design-icons/FileDocument.vue';
@@ -119,6 +120,9 @@ export default {
     },
   },
   methods: {
+    t(app, text, vars) {
+      return translate(app, text, vars);
+    },
     showMoreChildren() {
       this.visibleChildCount += 50;
     },

@@ -141,7 +141,7 @@
                     </div>
                     <button class="dropdown-toggle-btn"
                             @click="toggleDropdownSection(getItemKey(child))"
-                            :aria-label="isDropdownSectionExpanded(getItemKey(child)) ? 'Collapse' : 'Expand'">
+                            :aria-label="isDropdownSectionExpanded(getItemKey(child)) ? t('intravox', 'Collapse') : t('intravox', 'Expand')">
                       <ChevronDown v-if="isDropdownSectionExpanded(getItemKey(child))" :size="16" />
                       <ChevronRight v-else :size="16" />
                     </button>
