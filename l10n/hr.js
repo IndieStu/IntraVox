@@ -205,6 +205,7 @@ OC.L10N.register(
     "Current" : "Trenutno",
     "Move up" : "Premjesti gore",
     "Move down" : "Premjesti dolje",
+    "Rename" : "Preimenuj",
     "Done" : "Gotovo",
     "Clear search" : "Izbriši pretragu",
     "Show more" : "Prikaži više",

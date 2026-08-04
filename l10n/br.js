@@ -82,6 +82,7 @@ OC.L10N.register(
     "Version" : "Stumm",
     "Disabled" : "Disaotreañ",
     "Current" : "A red",
+    "Rename" : "Adenvel",
     "Done" : "Graet",
     "Days" : "Deiz",
     "Avatar" : "Avatar",

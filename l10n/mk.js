@@ -175,6 +175,7 @@ OC.L10N.register(
     "Current" : "Моменталлни",
     "Move up" : "Помести горе",
     "Move down" : "Помести доле",
+    "Rename" : "Преименувај",
     "Done" : "Готово",
     "Clear search" : "Исчисти пребарување",
     "Clear selection" : "Исчисти ги селектираните",

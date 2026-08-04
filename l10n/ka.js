@@ -152,6 +152,7 @@ OC.L10N.register(
     "Current" : "Current",
     "Move up" : "Move up",
     "Move down" : "Move down",
+    "Rename" : "სახელის გადარქმევა",
     "Done" : "მზადაა",
     "Clear search" : "ძებნის გასუფთავება",
     "Clear selection" : "Clear selection",

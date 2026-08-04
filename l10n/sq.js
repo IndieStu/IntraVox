@@ -117,6 +117,7 @@ OC.L10N.register(
     "Disabled" : "I/E çaktivizuar",
     "Collapse" : "Tkurre",
     "Current" : "E tanishmja",
+    "Rename" : "Riemërtoje",
     "Done" : "U bë",
     "Avatar" : "Avatari",
     "Contact" : "Kontakt",

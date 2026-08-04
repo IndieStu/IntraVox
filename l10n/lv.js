@@ -136,6 +136,7 @@ OC.L10N.register(
     "Disabled" : "Atspējots",
     "Collapse" : "Sakļaut",
     "Current" : "Pašreizējās",
+    "Rename" : "Pārdēvēt",
     "Done" : "Pabeigts",
     "Clear search" : "Notīrīt meklēšanu",
     "Show more" : "Parādīt vairāk",

@@ -232,6 +232,7 @@ OC.L10N.register(
     "Current" : "当前",
     "Move up" : "上移",
     "Move down" : "下移",
+    "Rename" : "重命名",
     "Done" : "完成",
     "Move page" : "移动页面",
     "Search pages" : "搜索页面",

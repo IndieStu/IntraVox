@@ -81,6 +81,7 @@ OC.L10N.register(
     "Preview" : "Перадпрагляд",
     "Retry" : "Паўтарыць спробу",
     "Open {name}" : "Адкрыць {name}",
+    "Next page" : "Наступная старонка",
     "Filename" : "Назва файла",
     "Descending" : "Па ўбыванні",
     "Smallest first" : "Спачатку малыя",

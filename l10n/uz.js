@@ -130,6 +130,7 @@ OC.L10N.register(
     "Header row" : "Sarlavha qatori",
     "Duplicate row" : "Qatorni nusxalash",
     "Column {column}" : "Column {column}",
+    "Rename" : "Nomini o'zgartirish",
     "Done" : "Bajarildi",
     "Clear search" : "Qidiruvni tozalash",
     "Days" : "Kunlar",

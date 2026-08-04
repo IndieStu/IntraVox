@@ -192,6 +192,7 @@ OC.L10N.register(
     "Current" : "Núverandi",
     "Move up" : "Færa upp",
     "Move down" : "Færa niður",
+    "Rename" : "Endurnefna",
     "Done" : "Lokið",
     "Clear search" : "Hreinsa leit",
     "Show more" : "Birta meira",

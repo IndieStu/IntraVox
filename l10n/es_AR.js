@@ -118,6 +118,7 @@ OC.L10N.register(
     "Disabled" : "Deshabilitado",
     "Collapse" : "Colapsar",
     "Current" : "Actual",
+    "Rename" : "Renombrar",
     "Done" : "Terminado",
     "Avatar" : "Avatar",
     "Pronouns" : "Pronombres",

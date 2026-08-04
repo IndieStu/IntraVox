@@ -72,6 +72,7 @@ OC.L10N.register(
     "Restore" : "Gjenopprett",
     "Disabled" : "Deaktivert",
     "Current" : "Gjeldande",
+    "Rename" : "Endra namn",
     "Done" : "Ferdig",
     "Clear search" : "Tøm søk",
     "Avatar" : "Avatar",

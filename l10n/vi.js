@@ -152,6 +152,7 @@ OC.L10N.register(
     "Current" : "Hiện tại",
     "Move up" : "Di chuyển lên",
     "Move down" : "Di chuyển xuống",
+    "Rename" : "Đổi tên",
     "Done" : "Hoàn tất",
     "Days" : "Ngày",
     "Avatar" : "Hình đại diện",

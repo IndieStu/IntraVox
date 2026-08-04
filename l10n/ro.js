@@ -144,6 +144,7 @@ OC.L10N.register(
     "Current" : "Curent",
     "Move up" : "Mută înainte",
     "Move down" : "Mută în jos",
+    "Rename" : "Redenumire",
     "Done" : "Realizat",
     "Select group" : "Selectați grupul",
     "Avatar" : "Avatar",

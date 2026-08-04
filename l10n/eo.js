@@ -118,6 +118,7 @@ OC.L10N.register(
     "Collapse" : "Maletendi",
     "Current" : "Nuna",
     "Move down" : "Movi malsupren",
+    "Rename" : "Alinomi",
     "Done" : "Farita",
     "Show more" : "Montri pli",
     "Avatar" : "Avataro",

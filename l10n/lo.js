@@ -230,6 +230,7 @@ OC.L10N.register(
     "Current" : "ປັດຈຸບັນ",
     "Move up" : "Move up",
     "Move down" : "Move down",
+    "Rename" : "ປ່ຽນຊື່",
     "Done" : "ສະຖານະ",
     "Clear search" : "Clear search",
     "Clear selection" : "Clear selection",

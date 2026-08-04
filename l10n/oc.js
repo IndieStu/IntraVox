@@ -116,6 +116,7 @@ OC.L10N.register(
     "Disabled" : "Desactivat",
     "Collapse" : "Replegar",
     "Current" : "En aqueste moment",
+    "Rename" : "Tornar nommar",
     "Avatar" : "Avatar",
     "Role" : "Ròtle",
     "Headline" : "Títol",

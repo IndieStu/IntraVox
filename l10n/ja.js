@@ -219,6 +219,7 @@ OC.L10N.register(
     "Current" : "現在",
     "Move up" : "上に移動",
     "Move down" : "下に移動",
+    "Rename" : "名前を変更",
     "Done" : "完了",
     "Search pages" : "ページを検索",
     "Clear search" : "検索をクリア",

@@ -103,6 +103,7 @@ OC.L10N.register(
     "Disabled" : "ปิดใช้งาน",
     "Collapse" : "ย่อ",
     "Current" : "ปัจจุบัน",
+    "Rename" : "เปลี่ยนชื่อ",
     "Clear search" : "ล้างการค้นหา",
     "Avatar" : "ภาพแทนตัว",
     "Extended" : "ขยาย",

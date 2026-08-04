@@ -65,6 +65,7 @@ OC.L10N.register(
     "Location" : "Lleoliad",
     "Version" : "Fersiwn",
     "Restore" : "Adfer",
+    "Rename" : "Ailenwi",
     "Avatar" : "Afatar",
     "Contact" : "Cysylltu",
     "Normal" : "Arferol",
