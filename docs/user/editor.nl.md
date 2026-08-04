@@ -81,7 +81,21 @@ Pagina's hebben een status: **Concept** of **Gepubliceerd**. Dit bepaalt wie de 
 
 - **Editors** zijn gebruikers met schrijfrechten op de pagina-folder (IntraVox-beheerders, IntraVox-editors, en gebruikers met schrijftoegang via GroupFolder-ACL)
 - **Lezers** zijn gebruikers met alleen-lezen-rechten (reguliere IntraVox-gebruikers)
-- Een concept-pagina is volledig onzichtbaar voor lezers — verschijnt niet in navigatie, zoekresultaten, page-tree, RSS-feeds of publieke share-links
+- Binnen IntraVox verschijnt een concept-pagina nergens voor lezers: niet in navigatie, zoekresultaten, page-tree, RSS-feeds of publieke share-links
+
+> **Belangrijk — Concept is een zichtbaarheidsfilter, geen recht.**
+>
+> Concept bepaalt wat IntraVox *toont*. Het verandert niets aan de toegangsrechten op het onderliggende bestand. Elke pagina wordt opgeslagen als JSON-bestand in de IntraVox-teammap, en dat bestand houdt de normale Nextcloud-rechten van die map. Iedereen die de map mag lezen, kan de inhoud van een concept-pagina dus nog steeds bereiken via:
+>
+> - de **Files-app** of **WebDAV** (rechtstreeks naar de paginamap bladeren)
+> - **Unified Search / Fulltextsearch** op de bestandsinhoud
+> - de **activiteitenstroom** en notificaties ("… heeft page-x.json aangepast")
+> - **Versiegeschiedenis** en de **prullenbak**
+> - **Collabora/Office** als iemand het bestand direct opent
+> - **desktop- en mobiele sync-clients**
+> - eventuele **MetaVox-metadata** naast de pagina
+>
+> **Gebruik Concept niet voor vertrouwelijke inhoud.** Moet een pagina echt onleesbaar zijn voor een groep mensen, beperk dan de toegang op de map zelf met geavanceerde rechten (Team folder/GroupFolder-ACL), of houd de inhoud buiten IntraVox tot hij klaar is.
 
 **Nieuwe pagina's beginnen als Concept.** Wanneer je een nieuwe pagina maakt (leeg of vanuit template), staat hij automatisch op Concept en opent in edit-modus. Zo kun je je pagina opbouwen voor je hem zichtbaar maakt.
 
@@ -94,8 +108,9 @@ Pagina's hebben een status: **Concept** of **Gepubliceerd**. Dit bepaalt wie de 
 **Best practices:**
 
 - Gebruik Concept om nieuwe pagina's of grote updates voor te bereiden vóór publicatie
-- Onthoud dat een gepubliceerde pagina op Concept zetten hem direct onzichtbaar maakt voor lezers
+- Onthoud dat een gepubliceerde pagina op Concept zetten hem direct onzichtbaar maakt voor lezers *binnen IntraVox*
 - Alleen editors (gebruikers met schrijfrechten) kunnen de pagina-status zien en wijzigen
+- Voor echt vertrouwelijk materiaal: vertrouw op maprechten, niet op Concept
 
 ## Pagina-structuur
 

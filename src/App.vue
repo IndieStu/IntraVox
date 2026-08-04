@@ -91,6 +91,7 @@
           <NcButton v-else
                     @click="toggleDraftStatus"
                     :type="currentPage?.status === 'draft' ? 'warning' : 'secondary'"
+                    :title="draftMeaningHint"
                     :aria-label="currentPage?.status === 'draft' ? t('intravox', 'Draft — click to publish') : t('intravox', 'Published — click to unpublish')">
             <template #icon>
               <EyeOff :size="20" v-if="currentPage?.status === 'draft'" />
@@ -426,16 +427,26 @@ export default {
       switch (state) {
         case 'draft':
           return { class: 'draft', label: this.t('intravox', 'Draft'),
-                   tooltip: this.t('intravox', 'This page is a draft and is only visible to editors.') };
+                   tooltip: this.t('intravox', 'Draft: hidden from readers everywhere in IntraVox. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
         case 'scheduled':
           return { class: 'scheduled', label: this.t('intravox', 'Scheduled'),
-                   tooltip: this.t('intravox', 'This page has a future publish date and is only visible to editors until then.') };
+                   tooltip: this.t('intravox', 'Scheduled: hidden from readers in IntraVox until the publish date. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
         case 'expired':
           return { class: 'expired', label: this.t('intravox', 'Expired'),
-                   tooltip: this.t('intravox', 'This page is past its expiration date and is only visible to editors.') };
+                   tooltip: this.t('intravox', 'Expired: past its expiration date, so hidden from readers in IntraVox. This is a visibility filter, not a permission — the page file itself stays readable for everyone with access to the folder (Files, search, notifications).') };
         default:
           return null;
       }
+    },
+    /**
+     * Explains what Draft actually does, so editors don't mistake a visibility
+     * filter for an access permission. Draft hides a page throughout IntraVox,
+     * but the underlying JSON file keeps the folder's normal Nextcloud
+     * permissions — anyone who can read the folder can still reach it through
+     * Files, WebDAV, search, activity or a sync client.
+     */
+    draftMeaningHint() {
+      return this.t('intravox', 'Draft hides the page from readers everywhere in IntraVox. It is a visibility filter, not a permission: the page file keeps the folder\'s normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on Draft for confidential content.');
     },
     /**
      * True when a Publish-on / Expire-on date is set and therefore governs

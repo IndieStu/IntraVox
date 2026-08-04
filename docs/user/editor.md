@@ -80,7 +80,21 @@ Pages have a status: **Draft** or **Published**. This controls who can see the p
 
 - **Editors** are users with write permission on the page folder (IntraVox Admins, IntraVox Editors, and users with write access via GroupFolder ACL)
 - **Readers** are users with read-only permission (regular IntraVox Users)
-- A draft page is completely invisible to readers — it does not appear in navigation, search results, the page tree, RSS feeds, or public share links
+- Within IntraVox, a draft page does not appear for readers anywhere: not in navigation, search results, the page tree, RSS feeds, or public share links
+
+> **Important — Draft is a visibility filter, not a permission.**
+>
+> Draft controls what IntraVox *shows*. It does not change the access rights on the underlying file. Every page is stored as a JSON file in the IntraVox Team folder, and that file keeps the folder's normal Nextcloud permissions. Anyone who is allowed to read the folder can therefore still reach a draft page's content through:
+>
+> - the **Files app** or **WebDAV** (browsing to the page folder directly)
+> - **Unified Search / Full-text search** on the file contents
+> - the **Activity stream** and notifications ("… updated page-x.json")
+> - **Versions** and the **Trash bin**
+> - **Collabora/Office** if someone opens the file directly
+> - **desktop and mobile sync clients**
+> - any **MetaVox metadata** stored alongside the page
+>
+> **Do not use Draft for confidential content.** If a page must genuinely be unreadable for a group of people, restrict access on the folder itself with Team folder (GroupFolder) advanced permissions, or keep the content outside IntraVox until it is ready.
 
 **New pages start as Draft.** When you create a new page (blank or from a template), it is automatically set to Draft and opens in edit mode. This way you can build your page before making it visible to readers.
 
@@ -91,8 +105,9 @@ Pages have a status: **Draft** or **Published**. This controls who can see the p
 
 **Best practices:**
 - Use Draft to prepare new pages or major updates before publishing
-- Remember that setting a published page to Draft makes it immediately invisible to readers
+- Remember that setting a published page to Draft makes it immediately invisible to readers *inside IntraVox*
 - Only editors (users with write permission) can see and change the page status
+- For genuinely confidential material, rely on folder permissions — not on Draft
 
 ## Page Structure
 

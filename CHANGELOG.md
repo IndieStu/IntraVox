@@ -4,6 +4,14 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.8] - 2026-08-04 — Draft is honest about what it does
+
+### Changed
+
+- **Draft no longer promises more than it delivers.** The status is still called **Draft** (consistent with the rest of the industry and with how it is stored), but the wording around it now states plainly that it is a *visibility filter, not a permission*. Hovering the Draft/Scheduled/Expired badge — or the Draft button in edit mode — explains that the page is hidden from readers everywhere in IntraVox, while the page file itself keeps the folder's normal Nextcloud rights.
+
+- **The editor documentation now spells out where a draft page is still reachable.** Previously it claimed a draft was "completely invisible to readers", which was only true inside IntraVox. The guide (EN + NL) now lists the routes that bypass the filter — Files/WebDAV, Unified and full-text search, the activity stream and notifications, versions and trash, Collabora, sync clients and MetaVox metadata — and advises restricting the folder with Team folder permissions for genuinely confidential content.
+
 ## [1.9.7] - 2026-08-04 — Clearer publish/draft interaction + correct timezone
 
 ### Changed
