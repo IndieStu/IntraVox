@@ -6361,14 +6361,20 @@ class PageService {
             $meta = $fileId ? ($this->getMetaVoxDataForFiles([$fileId])[$fileId] ?? []) : [];
         }
 
-        $now = new \DateTime();
+        // Interpret the publish/expire dates AND "now" in one consistent instance
+        // timezone. The MetaVox datetime-local input stores a naive local time
+        // (e.g. "2026-08-04T15:57:00", no zone); the editor entered it in their
+        // local time. Comparing that against a UTC "now" was off by the UTC
+        // offset, so a page could read "Scheduled" when it was already live.
+        $tz = $this->publicationTimezone();
+        $now = new \DateTime('now', $tz);
 
         // Resolve the configured date values (field names are admin-configurable
         // in the IntraVox settings and may differ or be empty).
         $publishAt = (!empty($publishField) && !empty($meta[$publishField]))
-            ? $this->parseDateTime((string)$meta[$publishField]) : null;
+            ? $this->parseDateTime((string)$meta[$publishField], $tz) : null;
         $expireAt = (!empty($expireField) && !empty($meta[$expireField]))
-            ? $this->parseDateTime((string)$meta[$expireField]) : null;
+            ? $this->parseDateTime((string)$meta[$expireField], $tz) : null;
 
         // WordPress-style model: a Publish-on DATE, when set, governs publication
         // and overrides the manual draft flag — so you never get the confusing
@@ -6409,16 +6415,24 @@ class PageService {
      * published), this preserves the time component so a same-day schedule is
      * respected to the minute.
      *
+     * The MetaVox datetime-local input stores a NAIVE local time with no zone
+     * (e.g. "2026-08-04T15:57:00"); such values are interpreted in $tz (the
+     * instance timezone). Values that carry an explicit offset ("…Z" / "+02:00")
+     * keep their own zone.
+     *
+     * @param string             $dateStr
+     * @param \DateTimeZone|null  $tz Timezone for naive values (default: instance).
      * @return \DateTime|null Parsed date/time, or null if unparseable.
      */
-    private function parseDateTime(string $dateStr): ?\DateTime {
+    private function parseDateTime(string $dateStr, ?\DateTimeZone $tz = null): ?\DateTime {
         $dateStr = trim($dateStr);
         if ($dateStr === '') {
             return null;
         }
+        $tz = $tz ?? $this->publicationTimezone();
 
         $formats = [
-            'Y-m-d\TH:i:s',   // ISO 8601: 2025-01-15T14:30:00
+            'Y-m-d\TH:i:s',   // ISO 8601 (naive): 2025-01-15T14:30:00
             'Y-m-d\TH:i',     // datetime-local input: 2025-01-15T14:30
             'Y-m-d H:i:s',    // 2025-01-15 14:30:00
             'Y-m-d H:i',      // 2025-01-15 14:30
@@ -6431,8 +6445,19 @@ class PageService {
             'Y/m/d',
         ];
 
+        // If the value carries an explicit zone/offset, honour it (don't force $tz).
+        if (preg_match('/(Z|[+-]\d{2}:?\d{2})$/', $dateStr)) {
+            try {
+                return new \DateTime($dateStr);
+            } catch (\Exception $e) {
+                // fall through to format parsing
+            }
+        }
+
         foreach ($formats as $format) {
-            $date = \DateTime::createFromFormat($format, $dateStr);
+            // Parse naive values IN the instance timezone so the comparison
+            // against "now" (also in $tz) is apples-to-apples.
+            $date = \DateTime::createFromFormat($format, $dateStr, $tz);
             if ($date !== false) {
                 // For date-only formats, createFromFormat keeps the current time;
                 // normalise those to start-of-day so "publish on <date>" means
@@ -6446,10 +6471,38 @@ class PageService {
 
         $timestamp = strtotime($dateStr);
         if ($timestamp !== false) {
-            return (new \DateTime())->setTimestamp($timestamp);
+            return (new \DateTime('now', $tz))->setTimestamp($timestamp);
         }
 
         return null;
+    }
+
+    /**
+     * The timezone in which naive publication dates and "now" are compared.
+     * Prefers an explicit instance timezone (NC system `logtimezone`), then the
+     * current user's Nextcloud timezone (intranet ≈ org timezone), then the
+     * server default. Consistent for logged-in users and anonymous visitors.
+     */
+    private function publicationTimezone(): \DateTimeZone {
+        // 1. Admin-set instance timezone.
+        $sys = (string)$this->config->getSystemValue('logtimezone', '');
+        if ($sys !== '') {
+            try { return new \DateTimeZone($sys); } catch (\Exception $e) {}
+        }
+        // 2. Current user's NC timezone (empty for anonymous share visitors).
+        $uid = $this->userSession->getUser()?->getUID();
+        if ($uid) {
+            $userTz = (string)$this->config->getUserValue($uid, 'core', 'timezone', '');
+            if ($userTz !== '') {
+                try { return new \DateTimeZone($userTz); } catch (\Exception $e) {}
+            }
+        }
+        // 3. Server default (PHP date.timezone).
+        try {
+            return new \DateTimeZone(date_default_timezone_get());
+        } catch (\Exception $e) {
+            return new \DateTimeZone('UTC');
+        }
     }
 
     /**
