@@ -273,6 +273,18 @@ export default {
 			}
 		},
 		handleNavigation(item) {
+			// This handler is fed by two kinds of emitter:
+			//  - Navigation.vue emits the nav *item* (an object with uniqueId/url).
+			//  - The widget chain (Links/News/Widget → PageViewer) emits a bare
+			//    pageId *string*. Without the string branch, internal links inside
+			//    a shared page silently did nothing (item.uniqueId is undefined on
+			//    a string), so folder-share sub-page links appeared broken.
+			if (typeof item === 'string') {
+				if (item) {
+					this.loadPageByUniqueId(item)
+				}
+				return
+			}
 			if (item.uniqueId) {
 				this.loadPageByUniqueId(item.uniqueId)
 			} else if (item.url) {
