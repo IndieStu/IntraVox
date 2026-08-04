@@ -1440,6 +1440,11 @@ class PageService {
                     // baked in by pre-fix cache entries, so no flush is needed.
                     $decoded['permissions'] = $this->permissionsForPage($result['folder'], $result['file']);
                     $decoded['canEdit'] = $result['file']->isUpdateable();
+                    // fileId is user-independent but may be absent from older cache
+                    // entries; ensure it's present so the publication gate works.
+                    if (!isset($decoded['fileId']) && $result['file'] instanceof \OCP\Files\File) {
+                        $decoded['fileId'] = $result['file']->getId();
+                    }
                     $this->pageDataCache[$originalId] = $decoded;
                     $this->pageDataCache[$uniqueId] = $decoded;
                     return $decoded;
@@ -1509,6 +1514,11 @@ class PageService {
         if ($file !== null) {
             $page['permissions'] = $this->permissionsForPage($folder, $file);
             $page['canEdit'] = $file->isUpdateable();
+            // Expose the page file's id so the publication gate can resolve the
+            // scheduled-publish MetaVox fields (publish/expiration) for this page.
+            if ($file instanceof \OCP\Files\File) {
+                $page['fileId'] = $file->getId();
+            }
         } else {
             $page['permissions'] = $this->permissionsFromNode($folder);
             $page['canEdit'] = $folder->isUpdateable();
