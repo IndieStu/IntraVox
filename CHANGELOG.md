@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.7] - 2026-08-04 — Clearer publish/draft interaction + correct timezone
+
+### Changed
+
+- **In edit mode, the Draft/Published toggle now reflects reality when a publish date governs.** Previously the toggle could show "Draft" while the page was actually Scheduled or Published because of its "Publish on" date — two controls telling different stories. When a Publish-on / Expire-on date is set, the toggle is replaced by a read-only chip showing the effective state (**Scheduled** / **Published** / **Expired**) with an explanation: *"Publication is controlled by the Publish on date. Clear the date to switch manually."* With no date, the manual toggle works as before.
+
+### Fixed
+
+- **Publish/expiration dates are interpreted in the instance timezone, not UTC.** A time entered as local time (e.g. 15:57 in Amsterdam) was compared against a UTC clock, so a page could read "Scheduled" for a couple of hours after it was actually live. Naive dates are now read in the instance timezone (system setting → the user's Nextcloud timezone → server default); dates with an explicit offset keep their own zone.
+
 ## [1.9.6] - 2026-08-04 — A publish date now overrides the draft flag
 
 ### Changed

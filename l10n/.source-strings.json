@@ -1,6 +1,6 @@
 {
-    "count": 1293,
-    "sha256": "0bc56a3813d344bd4742a316f9b36c1487e07f53765ba9ecea30de21208e5dcc",
+    "count": 1294,
+    "sha256": "4b1261eb572e2d835df7cd69ab2d13ab024372eb7b8299aadc3c4d021868e84c",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -928,6 +928,7 @@
         "Publication",
         "Publication date fields",
         "Publication date fields have not been configured in admin settings.",
+        "Publication is controlled by the Publish on date. Clear the date to switch manually.",
         "Publication settings saved",
         "Publish date field",
         "Published",

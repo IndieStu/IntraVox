@@ -6410,6 +6410,30 @@ class PageService {
     }
 
     /**
+     * Whether a page has an active publish/expiration date (from the configured
+     * MetaVox fields). When true, that date governs publication and the manual
+     * draft/published toggle is overridden — the editor UI uses this to explain
+     * why the toggle is showing the effective state instead of the raw status.
+     *
+     * @param array      $page
+     * @param array|null $metaForFile Optional pre-fetched MetaVox fields.
+     */
+    public function hasPublicationDate(array $page, ?array $metaForFile = null): bool {
+        $publishField = $this->publicationSettings->getPublishDateField();
+        $expireField = $this->publicationSettings->getExpirationDateField();
+        if ((empty($publishField) && empty($expireField)) || !$this->isMetaVoxAvailable()) {
+            return false;
+        }
+        $meta = $metaForFile;
+        if ($meta === null) {
+            $fileId = $page['fileId'] ?? null;
+            $meta = $fileId ? ($this->getMetaVoxDataForFiles([$fileId])[$fileId] ?? []) : [];
+        }
+        return (!empty($publishField) && !empty($meta[$publishField]))
+            || (!empty($expireField) && !empty($meta[$expireField]));
+    }
+
+    /**
      * Time-aware date/time parse for publication scheduling. Unlike parseDate()
      * (which truncates to Y-m-d and made "today 03:25" count as already
      * published), this preserves the time component so a same-day schedule is

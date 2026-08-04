@@ -258,8 +258,11 @@ class ApiController extends Controller {
             }
 
             // Expose the effective publication state so the editor UI can show a
-            // "Scheduled"/"Expired" indicator (only meaningful for canWrite users).
+            // "Scheduled"/"Expired" indicator (only meaningful for canWrite users),
+            // plus whether a publish/expiration date is governing publication (so
+            // the edit-mode toggle can explain that it defers to the date).
             $page['effectivePublishState'] = $this->pageService->effectivePublishState($page);
+            $page['publicationDateActive'] = $this->pageService->hasPublicationDate($page);
 
             // Add breadcrumb to page response
             try {

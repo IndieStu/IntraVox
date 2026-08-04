@@ -78,7 +78,18 @@
 
         <!-- Edit Mode Actions (Save/Cancel) -->
         <template v-else>
-          <NcButton @click="toggleDraftStatus"
+          <!-- When a Publish-on / Expire-on date governs, the manual toggle is
+               overridden: show the effective state (read-only) with an
+               explanation so the editor isn't confused by a stale "Draft". -->
+          <span v-if="publicationDateGoverns"
+                class="publish-state-chip"
+                :class="editToggleDisplay.class"
+                :title="t('intravox', 'Publication is controlled by the Publish on date. Clear the date to switch manually.')">
+            <component :is="editToggleDisplay.icon" :size="18" />
+            {{ editToggleDisplay.label }}
+          </span>
+          <NcButton v-else
+                    @click="toggleDraftStatus"
                     :type="currentPage?.status === 'draft' ? 'warning' : 'secondary'"
                     :aria-label="currentPage?.status === 'draft' ? t('intravox', 'Draft — click to publish') : t('intravox', 'Published — click to unpublish')">
             <template #icon>
@@ -276,6 +287,7 @@ import ContentSave from 'vue-material-design-icons/ContentSave.vue';
 import Close from 'vue-material-design-icons/Close.vue';
 import Eye from 'vue-material-design-icons/Eye.vue';
 import EyeOff from 'vue-material-design-icons/EyeOff.vue';
+import ClockOutline from 'vue-material-design-icons/ClockOutline.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Information from 'vue-material-design-icons/Information.vue';
 import { defineAsyncComponent } from 'vue';
@@ -320,6 +332,7 @@ export default {
     Close,
     Eye,
     EyeOff,
+    ClockOutline,
     Pencil,
     Information,
     PageViewer,
@@ -422,6 +435,28 @@ export default {
                    tooltip: this.t('intravox', 'This page is past its expiration date and is only visible to editors.') };
         default:
           return null;
+      }
+    },
+    /**
+     * True when a Publish-on / Expire-on date is set and therefore governs
+     * publication — the manual draft/published toggle is overridden.
+     */
+    publicationDateGoverns() {
+      return !!this.currentPage?.publicationDateActive;
+    },
+    /**
+     * Read-only display for the edit-mode toggle when a date governs: shows the
+     * effective state (Scheduled / Published / Expired) instead of raw status.
+     */
+    editToggleDisplay() {
+      const state = this.currentPage?.effectivePublishState || 'published';
+      switch (state) {
+        case 'scheduled':
+          return { class: 'scheduled', icon: 'ClockOutline', label: this.t('intravox', 'Scheduled') };
+        case 'expired':
+          return { class: 'expired', icon: 'EyeOff', label: this.t('intravox', 'Expired') };
+        default:
+          return { class: 'published', icon: 'Eye', label: this.t('intravox', 'Published') };
       }
     },
     /**
@@ -1805,6 +1840,38 @@ export default {
 
 /* Expired — past expiration date (muted/neutral). */
 .draft-badge.expired {
+  background: var(--color-background-dark, #ededed);
+  color: var(--color-text-maxcontrast, #6b7280);
+  border: 1px solid var(--color-border-dark, #c9c9c9);
+}
+
+/* Read-only publication-state chip shown in edit mode when a Publish-on date
+   governs (the manual toggle is overridden). Mirrors the view-mode badge
+   colours, with a help cursor to surface the explanatory tooltip. */
+.publish-state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: var(--border-radius-pill, 16px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: help;
+}
+
+.publish-state-chip.scheduled {
+  background: var(--color-primary-element-light, #e3effb);
+  color: var(--color-primary-element-light-text, var(--color-main-text));
+  border: 1px solid var(--color-primary-element, #1a67a3);
+}
+
+.publish-state-chip.published {
+  background: var(--color-success-light, #e8f5e9);
+  color: var(--color-success-text, #2d6a2f);
+  border: 1px solid var(--color-success, #46ba61);
+}
+
+.publish-state-chip.expired {
   background: var(--color-background-dark, #ededed);
   color: var(--color-text-maxcontrast, #6b7280);
   border: 1px solid var(--color-border-dark, #c9c9c9);
