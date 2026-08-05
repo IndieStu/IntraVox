@@ -3,7 +3,10 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Service\Filter\FacetCalculator;
+use OCA\IntraVox\Service\Filter\FilterSpec;
 use OCA\IntraVox\Service\People\AccountScopePolicy;
+use OCA\IntraVox\Service\People\CohortSnapshot;
 use OCP\Accounts\IAccountManager;
 use OCP\Activity\IManager as IActivityManager;
 use OCP\ICache;
@@ -58,6 +61,14 @@ class UserService {
 
     /** Cache TTL for filter results (1 hour) */
     private const FILTER_CACHE_TTL = 3600;
+
+    /**
+     * Cache TTL for cohort snapshots (15 minutes).
+     *
+     * Deliberately shorter than FILTER_CACHE_TTL: a stale *number* beside a
+     * checkbox is far more noticeable, and less forgivable, than a stale list.
+     */
+    private const COHORT_CACHE_TTL = 900;
 
     public function __construct(
         private IUserManager $userManager,
@@ -178,6 +189,319 @@ class UserService {
             }
         }
         return $profiles;
+    }
+
+    /**
+     * Faceted query over the cohort an editor's widget config selects.
+     *
+     * The narrowing invariant lives here: $editorFilters build the cohort,
+     * $refinements are applied to that cohort afterwards. A viewer therefore
+     * cannot reach any user the widget config excludes — the data simply is
+     * not in the snapshot. See FacetCalculator for the counting rules.
+     *
+     * @param array $editorFilters Legacy or canonical filter rows from the widget config
+     * @param array $refinements   Canonical viewer refinement rows
+     * @param array $facetFields   Field names to compute facets for
+     * @param string $q            Free-text term, matched against $searchFields
+     * @param array $searchFields  Fields $q searches; defaults to display name
+     * @return array{users: array, total: int, hasMore: bool, facets: array, meta: array}
+     */
+    public function queryFaceted(
+        array $editorFilters,
+        string $operator = 'AND',
+        array $refinements = [],
+        array $facetFields = [],
+        string $q = '',
+        array $searchFields = [],
+        int $limit = self::DEFAULT_LIMIT,
+        int $offset = 0,
+        string $sortBy = 'displayName',
+        string $sortOrder = 'asc'
+    ): array {
+        $editorFilters = FilterSpec::normalizeList($editorFilters);
+        $refinements = FilterSpec::normalizeList($refinements);
+
+        // A facet on a field the editor already filters would only ever show
+        // options that yield nothing, so drop those. Same reasoning as the
+        // permission check: silently, because the client need not care.
+        $editorFields = array_map(static fn(array $f): string => $f['field'], $editorFilters);
+        $facetFields = array_values(array_filter(
+            array_map(static fn($f): string => FilterSpec::aliasField((string)$f), $facetFields),
+            static fn(string $f): bool => $f !== '' && !in_array($f, $editorFields, true)
+        ));
+
+        $snapshot = $this->buildCohortSnapshot($editorFilters, $operator, $facetFields, $searchFields, $sortBy);
+        $rows = $snapshot->toFilterRows();
+
+        // Free text first: it is part of "the set the viewer is looking at",
+        // so facets must be counted after it, not before.
+        if ($q !== '') {
+            $rows = $this->applyFreeText($rows, $q, $searchFields);
+        }
+
+        $facets = FacetCalculator::compute($rows, $facetFields, $refinements);
+
+        $matched = FacetCalculator::applyFilters($rows, $refinements);
+
+        usort($matched, static function (array $a, array $b) use ($sortBy, $sortOrder): int {
+            $result = strcasecmp((string)($a[$sortBy] ?? ''), (string)($b[$sortBy] ?? ''));
+            return $sortOrder === 'desc' ? -$result : $result;
+        });
+
+        $total = count($matched);
+        $page = array_slice($matched, $offset, $limit);
+        $pageUids = array_column($page, 'uid');
+
+        // Hydrate only the page. This is the whole point of the snapshot:
+        // full profiles (avatar, live presence) for <= $limit users instead
+        // of for the entire cohort.
+        $this->prefetchStatuses($pageUids);
+        $users = $this->getUserProfiles($pageUids);
+
+        return [
+            'users' => $users,
+            'total' => $total,
+            'hasMore' => ($offset + count($page)) < $total,
+            'facets' => $facets,
+            'meta' => [
+                'approximate' => $snapshot->approximate,
+                'scanned' => $snapshot->scanned,
+                'cap' => $snapshot->cap,
+            ],
+        ];
+    }
+
+    /**
+     * Case-insensitive substring match across the searchable fields.
+     *
+     * This is a filter over the cohort, not a second search entrance: a term
+     * can never surface a user the editor filters exclude.
+     */
+    private function applyFreeText(array $rows, string $q, array $searchFields): array {
+        $needle = mb_strtolower(trim($q));
+        if ($needle === '') {
+            return $rows;
+        }
+
+        $fields = array_map(
+            static fn($f): string => FilterSpec::aliasField((string)$f),
+            $searchFields
+        );
+        if ($fields === []) {
+            $fields = ['displayName'];
+        }
+        // Always allow matching on the name, which is what users expect a
+        // free-text box next to a people list to do.
+        if (!in_array('displayName', $fields, true)) {
+            $fields[] = 'displayName';
+        }
+
+        return array_values(array_filter($rows, static function (array $row) use ($fields, $needle): bool {
+            foreach ($fields as $field) {
+                $value = $row[$field] ?? null;
+                foreach (is_array($value) ? $value : [$value] as $candidate) {
+                    if (is_scalar($candidate) && str_contains(mb_strtolower((string)$candidate), $needle)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }));
+    }
+
+    /**
+     * Build (or reuse) the compact cohort the editor config selects.
+     */
+    private function buildCohortSnapshot(
+        array $editorFilters,
+        string $operator,
+        array $facetFields,
+        array $searchFields,
+        string $sortBy
+    ): CohortSnapshot {
+        $neededFields = array_values(array_unique(array_merge(
+            $facetFields,
+            array_map(static fn($f): string => FilterSpec::aliasField((string)$f), $searchFields),
+            array_map(static fn(array $f): string => $f['field'], $editorFilters),
+            [FilterSpec::aliasField($sortBy)]
+        )));
+
+        $cacheKey = 'cohort_v1_' . $this->cacheContext() . '_' . md5(json_encode([
+            $editorFilters, $operator, $neededFields,
+        ]));
+
+        if ($this->cache !== null) {
+            $cached = $this->cache->get($cacheKey);
+            if (is_string($cached)) {
+                $snapshot = CohortSnapshot::fromCache(json_decode($cached, true));
+                if ($snapshot !== null) {
+                    return $snapshot;
+                }
+            }
+        }
+
+        $snapshot = $this->scanCohort($editorFilters, $operator, $neededFields);
+
+        if ($this->cache !== null) {
+            // Shorter TTL than the legacy filter cache: a stale *number* next
+            // to a checkbox is far more visible than a stale list.
+            $this->cache->set($cacheKey, json_encode($snapshot->jsonSerializeForCache()), self::COHORT_CACHE_TTL);
+        }
+
+        return $snapshot;
+    }
+
+    /**
+     * Walk the candidate users and record only the needed fields.
+     */
+    private function scanCohort(array $editorFilters, string $operator, array $neededFields): CohortSnapshot {
+        $needsGroups = in_array('group', $neededFields, true) || in_array('groups', $neededFields, true);
+        $audience = $this->currentAudience();
+
+        $rows = [];
+        $scanned = 0;
+        $cap = self::MAX_FILTER_SCAN;
+
+        $collect = function (IUser $user) use (&$rows, $neededFields, $needsGroups, $audience): void {
+            $rows[] = $this->snapshotRowFor($user, $neededFields, $needsGroups, $audience);
+        };
+
+        // A group filter narrows the scan enormously, so honour it first.
+        $groupIds = $this->groupIdsFromFilters($editorFilters);
+
+        if ($groupIds !== []) {
+            $seen = [];
+            foreach ($groupIds as $groupId) {
+                $group = $this->groupManager->get($groupId);
+                if ($group === null) {
+                    continue;
+                }
+                foreach ($group->getUsers() as $user) {
+                    $uid = $user->getUID();
+                    if (isset($seen[$uid])) {
+                        continue;
+                    }
+                    $seen[$uid] = true;
+                    $scanned++;
+                    $collect($user);
+                }
+            }
+        } else {
+            $this->userManager->callForAllUsers(function (IUser $user) use (&$scanned, $cap, $collect): void {
+                if ($scanned >= $cap) {
+                    return;
+                }
+                $scanned++;
+                $collect($user);
+            });
+        }
+
+        $approximate = $groupIds === [] && $scanned >= $cap;
+
+        if ($approximate) {
+            $this->logger->warning(
+                'IntraVox: People cohort scan hit the cap of ' . $cap
+                . ' accounts; facet counts are approximate. Add a group filter for exact numbers.'
+            );
+        }
+
+        // Editor filters define the cohort. Applying them here — rather than
+        // at query time — is what makes the narrowing invariant structural:
+        // a viewer refinement operates on this set and cannot escape it.
+        $snapshotRows = [];
+        foreach ($rows as $row) {
+            $flat = $row['f'];
+            $flat['uid'] = $row['u'];
+            $flat['displayName'] = $row['n'];
+            $flat['groups'] = $row['g'];
+
+            if ($editorFilters === [] || FacetCalculator::applyFilters([$flat], $editorFilters, $operator) !== []) {
+                $snapshotRows[] = $row;
+            }
+        }
+
+        return new CohortSnapshot($snapshotRows, $approximate, $scanned, $cap);
+    }
+
+    /**
+     * Extract group ids from the editor filters, if any.
+     *
+     * @return array<int, string>
+     */
+    private function groupIdsFromFilters(array $editorFilters): array {
+        $ids = [];
+
+        foreach ($editorFilters as $filter) {
+            if (($filter['field'] ?? '') !== 'group') {
+                continue;
+            }
+            $value = $filter['value'] ?? null;
+            foreach (is_array($value) ? $value : [$value] as $candidate) {
+                if (is_scalar($candidate) && trim((string)$candidate) !== '') {
+                    $ids[] = trim((string)$candidate);
+                }
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * Build one compact snapshot row.
+     *
+     * @return array{u: string, n: string, f: array<string, mixed>, g: array<int, string>}
+     */
+    private function snapshotRowFor(IUser $user, array $neededFields, bool $needsGroups, string $audience): array {
+        $fields = [];
+
+        try {
+            $account = $this->accountManager->getAccount($user);
+
+            foreach ($account->getProperties() as $prop) {
+                if (!$this->propertyVisible($prop, $audience)) {
+                    continue;
+                }
+                $key = $this->propertyToKey($prop->getName());
+                $aliased = FilterSpec::aliasField($key);
+                if ($neededFields !== [] && !in_array($aliased, $neededFields, true) && !in_array($key, $neededFields, true)) {
+                    continue;
+                }
+                $fields[$aliased] = $prop->getValue() ?: null;
+            }
+        } catch (\Exception $e) {
+            // No account data available; the row still carries uid + name.
+        }
+
+        // IntraVox custom fields carry no scope, so they follow the same
+        // rule as in buildUserProfile(): logged-in only.
+        if ($this->config !== null && $audience === AccountScopePolicy::AUDIENCE_LOCAL) {
+            try {
+                $custom = json_decode(
+                    $this->config->getUserValue($user->getUID(), self::APP_ID, self::CUSTOM_FIELDS_KEY, '{}'),
+                    true
+                );
+                if (is_array($custom)) {
+                    foreach ($custom as $key => $value) {
+                        $aliased = FilterSpec::aliasField((string)$key);
+                        if ($neededFields !== [] && !in_array($aliased, $neededFields, true)) {
+                            continue;
+                        }
+                        if (!isset($fields[$aliased]) && $value !== null && $value !== '') {
+                            $fields[$aliased] = $value;
+                        }
+                    }
+                }
+            } catch (\Exception $e) {
+                // Ignore unreadable preferences.
+            }
+        }
+
+        return [
+            'u' => $user->getUID(),
+            'n' => $user->getDisplayName(),
+            'f' => $fields,
+            'g' => $needsGroups ? $this->getGroupsForUser($user->getUID()) : [],
+        ];
     }
 
     /**
