@@ -4,6 +4,18 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.5] - 2026-08-05 — The People filter panel keeps its options
+
+### Fixed
+
+- **The filter panel lost all its options a few minutes after the page was loaded.** The groups still appeared with their headings, but every one of them read *No matching options* — and then filled back in by itself some minutes later, without anyone changing a thing.
+
+  The widget's configuration was never the problem. The background job that refreshes People data every ten minutes runs without a logged-in session, and it rebuilt each widget's data as though an anonymous visitor had asked for it. That strips every field marked **Local** — including `role` and `organisation` — and skips IntraVox custom fields entirely, which is where fields like *Werking*, *Thema* and *Gebouw* live. The stripped result was then written over the copy meant for logged-in readers. With no values left to count, every group had nothing left to show.
+
+  This only affected instances that had switched on **Visitor filters**, and only from 1.9.4, where both the filter panel and that background job were introduced. The refresh now rebuilds each set of data for the audience it belongs to. Anonymous visitors are unaffected: they still see only what each field's visibility scope allows, so the fix does not widen what a public share can reach.
+
+  No action is needed on upgrade — the affected data is a cache and is rebuilt automatically.
+
 ## [1.9.4] - 2026-08-05 — Visitors can filter People widgets themselves
 
 ### Added
@@ -46,8 +58,6 @@ IntraVox is a Nextcloud intranet page builder.
 - **The People widget on a public share always failed.** `/api/share/{token}/people` called a method that does not exist on the share service, so every request died and returned a server error. Anyone with a People widget on a shared page saw an empty widget. It now resolves the share token correctly.
 
 - **The People widget's pagination setting was discarded on every save.** The "show pagination" option was read when rendering but never stored, so it silently reverted each time the page was saved.
-
-- **The filter panel lost all its options after a page reload.** The groups still appeared with their headings, but every one of them read *No matching options* — and then filled back in by itself some minutes later. The widget's configuration was never the problem: the background refresh job runs without a logged-in session, and it rebuilt each widget's data as though an anonymous visitor had asked for it. That strips every field marked **Local** — including `role` and `organisation`, and every IntraVox custom field — and the stripped result was then written over the copy meant for logged-in readers. With no values left to count, each group had nothing to show. The job now rebuilds each set of data for the audience it belongs to, so a refresh no longer empties the panel. Anonymous visitors are unaffected: they still see only what their scope allows.
 
 ## [1.9.3] - 2026-08-05 — Pages are findable by their MetaVox metadata
 
