@@ -30,20 +30,17 @@ class SystemFileService {
     private SetupService $setupService;
     private LoggerInterface $logger;
     private LanguageService $languageService;
-    private PageService $pageService;
 
     public function __construct(
         IRootFolder $rootFolder,
         SetupService $setupService,
         LoggerInterface $logger,
-        LanguageService $languageService,
-        PageService $pageService
+        LanguageService $languageService
     ) {
         $this->rootFolder = $rootFolder;
         $this->setupService = $setupService;
         $this->logger = $logger;
         $this->languageService = $languageService;
-        $this->pageService = $pageService;
     }
 
     /**
@@ -572,15 +569,13 @@ class SystemFileService {
                         continue;
                     }
 
-                    // Never expose unpublished pages through a public share: a
-                    // draft (or a page whose publish date has not arrived / whose
-                    // expiration has passed) must not surface in a News list for
-                    // anonymous visitors. There is no editor here to reveal them.
-                    $newsPage = [
-                        'status' => $data['status'] ?? 'published',
-                        'fileId' => ($jsonFile instanceof \OCP\Files\File) ? $jsonFile->getId() : null,
-                    ];
-                    if ($this->pageService->isHiddenFromReaders($newsPage)) {
+                    // Never expose a draft through a public share: there is no
+                    // editor here to reveal it. (Publish/expiration dates are
+                    // enforced by the share endpoints in ApiController, which do
+                    // have PageService; this keeps SystemFileService free of that
+                    // dependency — it is constructed by a manual factory in
+                    // Application.php.)
+                    if (($data['status'] ?? 'published') === 'draft') {
                         continue;
                     }
 
