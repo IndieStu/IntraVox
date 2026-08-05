@@ -133,7 +133,12 @@ Editors always see the page, with a **Scheduled** or **Expired** badge next to t
 3. Set **Publish on** to the date *and time* the page should go live — fill in **both**; MetaVox only offers its **Save** button once the field holds a complete date and time
 4. Save the metadata. The page shows **Scheduled** until that moment, then becomes visible automatically
 
-No background job is needed — the state is evaluated the moment someone looks at the page. Times are interpreted in your Nextcloud instance's timezone, and the time of day counts: a page scheduled for 15:00 today stays hidden until 15:00.
+No background job is needed — the state is evaluated the moment someone looks at the page. The time of day counts: a page scheduled for 15:00 today stays hidden until 15:00.
+
+> **Administrators — set the instance timezone.** Publish and expiration times are naive (they carry no timezone of their own), so IntraVox interprets them in the instance timezone: the `logtimezone` system setting, falling back to the viewer's Nextcloud timezone and then to the server's. Many servers run on **UTC**, which means anonymous share visitors — who have no personal timezone — would see a page appear at the wrong local time (two hours late for a CEST office). Set it once so every visitor, logged in or not, gets the same moment:
+> ```bash
+> occ config:system:set logtimezone --value=Europe/Amsterdam
+> ```
 
 **Expiration** works the same way in reverse: once the Expire on date has passed, the page is hidden from readers again and shows an **Expired** badge for editors.
 

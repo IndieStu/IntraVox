@@ -137,7 +137,12 @@ Editors zien de pagina altijd, met een **Gepland**- of **Verlopen**-badge naast 
 3. Zet **Publish on** op de datum *en tijd* waarop de pagina live moet gaan — vul **beide** in; MetaVox toont zijn **Opslaan**-knop pas als het veld een volledige datum én tijd bevat
 4. Sla de metadata op. De pagina toont **Gepland** tot dat moment en wordt daarna automatisch zichtbaar
 
-Er is geen achtergrondtaak nodig — de status wordt bepaald op het moment dat iemand de pagina bekijkt. Tijden worden geïnterpreteerd in de tijdzone van je Nextcloud-instance, en het tijdstip telt mee: een pagina die om 15:00 vandaag gepland staat, blijft verborgen tot 15:00.
+Er is geen achtergrondtaak nodig — de status wordt bepaald op het moment dat iemand de pagina bekijkt. Het tijdstip telt mee: een pagina die om 15:00 vandaag gepland staat, blijft verborgen tot 15:00.
+
+> **Beheerders — stel de tijdzone van de instance in.** Publicatie- en vervaltijden zijn "naïef" (ze dragen zelf geen tijdzone), dus IntraVox interpreteert ze in de tijdzone van de instance: de systeeminstelling `logtimezone`, met terugval op de tijdzone van de kijker en daarna die van de server. Veel servers draaien op **UTC**, waardoor anonieme share-bezoekers — die geen persoonlijke tijdzone hebben — een pagina op het verkeerde lokale moment zien verschijnen (twee uur te laat bij CEST). Stel het één keer in, dan krijgt iedere bezoeker hetzelfde moment:
+> ```bash
+> occ config:system:set logtimezone --value=Europe/Amsterdam
+> ```
 
 **Vervallen** werkt omgekeerd hetzelfde: zodra de Expire on-datum verstreken is, is de pagina weer verborgen voor lezers en zien editors een **Verlopen**-badge.
 
