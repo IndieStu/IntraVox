@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Controller;
 
+use OCA\IntraVox\Service\Filter\FacetCalculator;
+use OCA\IntraVox\Service\Filter\FilterSpec;
 use OCA\IntraVox\Service\PublicShareService;
 use OCA\IntraVox\Service\UserService;
 use OCP\Activity\IManager as IActivityManager;
@@ -24,6 +26,24 @@ use Psr\Log\LoggerInterface;
  * - Getting available groups and fields
  */
 class PeopleController extends Controller {
+    /** Reject oversized filter payloads before json_decode, as FileStoryController does. */
+    private const MAX_FILTER_JSON_BYTES = 16384;
+
+    /** Operators a viewer is allowed to send. Deliberately narrower than the
+     *  editor's vocabulary: a facet panel only ever needs set membership and
+     *  presence, and a smaller surface is a smaller thing to get wrong. */
+    private const ALLOWED_REFINE_OPS = ['equals', 'in', 'contains', 'not_empty', 'empty'];
+
+    private const MAX_REFINEMENTS = 12;
+    private const MAX_REFINE_VALUES = 64;
+    private const MAX_VALUE_LENGTH = 200;
+    private const MAX_FACETS = 12;
+    private const MAX_SEARCH_FIELDS = 8;
+    private const MAX_QUERY_LENGTH = 128;
+
+    /** Field names must look like field names. */
+    private const FIELD_PATTERN = '/^[a-z][a-z0-9_]{0,63}$/i';
+
     public function __construct(
         string $appName,
         IRequest $request,
@@ -181,12 +201,59 @@ class PeopleController extends Controller {
         string $sortBy = 'displayName',
         string $sortOrder = 'asc',
         int $limit = 50,
-        int $offset = 0
+        int $offset = 0,
+        ?string $refine = null,
+        ?string $facets = null,
+        string $q = '',
+        ?string $searchFields = null,
+        int $facetLimit = FacetCalculator::DEFAULT_FACET_LIMIT
     ): DataResponse {
         try {
             $users = [];
             $total = 0;
             $hasMore = false;
+
+            // Faceted mode: the viewer is narrowing an editor-configured
+            // cohort. Distinct from filter mode below, which is the legacy
+            // editor-only path and stays untouched.
+            $wantsFacets = ($refine !== null && $refine !== '')
+                || ($facets !== null && $facets !== '')
+                || $q !== '';
+
+            if ($wantsFacets && ($userIds === null || $userIds === '')) {
+                $editorFilters = [];
+                if ($filters !== null && $filters !== '') {
+                    $editorFilters = $this->decodeFilterJson($filters);
+                    if ($editorFilters === null) {
+                        return new DataResponse(['error' => 'Invalid filters JSON'], Http::STATUS_BAD_REQUEST);
+                    }
+                }
+
+                $refinements = [];
+                if ($refine !== null && $refine !== '') {
+                    $refinements = $this->decodeFilterJson($refine);
+                    if ($refinements === null) {
+                        return new DataResponse(['error' => 'Invalid refine JSON'], Http::STATUS_BAD_REQUEST);
+                    }
+                    $refinements = $this->sanitizeRefinements($refinements);
+                }
+
+                $result = $this->userService->queryFaceted(
+                    $editorFilters,
+                    $filterOperator,
+                    $refinements,
+                    $this->parseFieldList($facets, self::MAX_FACETS),
+                    mb_substr(trim($q), 0, self::MAX_QUERY_LENGTH),
+                    $this->parseFieldList($searchFields, self::MAX_SEARCH_FIELDS),
+                    min($limit, 100),
+                    $offset,
+                    $sortBy,
+                    $sortOrder,
+                    max(1, min($facetLimit, 100))
+                );
+
+                return new DataResponse($result);
+            }
 
             // Manual mode: get specific users
             if ($userIds !== null && $userIds !== '') {
@@ -276,7 +343,11 @@ class PeopleController extends Controller {
     ): DataResponse {
         try {
             // Validate share token
-            $shareInfo = $this->publicShareService->validateShareToken($token);
+            // NOTE: this previously called validateShareToken(), which does
+            // not exist on PublicShareService — every request to this
+            // endpoint died with a 500. getShareByToken() is the real method
+            // and matches the null check below.
+            $shareInfo = $this->publicShareService->getShareByToken($token);
             if ($shareInfo === null) {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],
@@ -284,8 +355,28 @@ class PeopleController extends Controller {
                 );
             }
 
-            // Use the same logic as getPeople
-            return $this->getPeople($userIds, $filters, $filterOperator, $sortBy, $sortOrder, $limit, $offset);
+            // Use the same logic as getPeople, with the viewer-facing
+            // parameters explicitly nulled.
+            //
+            // This is deliberate rather than incidental: a facet panel on a
+            // public share is a browsable directory of the organisation —
+            // roles, buildings, departments and their headcounts — handed to
+            // anyone holding the link. Relying on the delegate to "just not
+            // pass them on" would make that a one-refactor-away accident.
+            return $this->getPeople(
+                $userIds,
+                $filters,
+                $filterOperator,
+                $sortBy,
+                $sortOrder,
+                $limit,
+                $offset,
+                null,   // refine
+                null,   // facets
+                '',     // q
+                null,   // searchFields
+                FacetCalculator::DEFAULT_FACET_LIMIT
+            );
         } catch (\Exception $e) {
             $this->logger->error('IntraVox: Error getting people by share', [
                 'token' => substr($token, 0, 8) . '...',
@@ -298,4 +389,96 @@ class PeopleController extends Controller {
         }
     }
 
+    /**
+     * Decode a filter JSON payload, rejecting oversized or malformed input.
+     *
+     * Size is checked before decoding so a pathological payload cannot cost
+     * us a parse. Same approach as FileStoryController::files().
+     *
+     * @return array|null null when the payload is unusable
+     */
+    private function decodeFilterJson(string $json): ?array {
+        if (strlen($json) > self::MAX_FILTER_JSON_BYTES) {
+            return null;
+        }
+
+        $decoded = json_decode($json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
+
+    /**
+     * Clamp viewer refinements to something safe.
+     *
+     * Rows with an unknown operator are dropped rather than coerced: an
+     * operator we do not understand must never widen the result set.
+     */
+    private function sanitizeRefinements(array $rows): array {
+        $out = [];
+
+        foreach (FilterSpec::normalizeList($rows) as $row) {
+            if (count($out) >= self::MAX_REFINEMENTS) {
+                break;
+            }
+            if (!preg_match(self::FIELD_PATTERN, $row['field'])) {
+                continue;
+            }
+            if (!in_array($row['op'], self::ALLOWED_REFINE_OPS, true)) {
+                continue;
+            }
+
+            $value = $row['value'];
+            if (is_array($value)) {
+                $value = array_slice(array_values(array_filter(
+                    array_map(
+                        static fn($v): ?string => is_scalar($v)
+                            ? mb_substr(trim((string)$v), 0, self::MAX_VALUE_LENGTH)
+                            : null,
+                        $value
+                    ),
+                    static fn(?string $v): bool => $v !== null && $v !== ''
+                )), 0, self::MAX_REFINE_VALUES);
+
+                if ($value === []) {
+                    continue;
+                }
+            } elseif (is_scalar($value)) {
+                $value = mb_substr(trim((string)$value), 0, self::MAX_VALUE_LENGTH);
+            } elseif ($value !== null) {
+                continue;
+            }
+
+            $out[] = ['field' => $row['field'], 'op' => $row['op'], 'value' => $value];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Parse a comma-separated field list.
+     *
+     * @return array<int, string>
+     */
+    private function parseFieldList(?string $raw, int $max): array {
+        if ($raw === null || trim($raw) === '') {
+            return [];
+        }
+
+        $fields = [];
+        foreach (explode(',', $raw) as $candidate) {
+            $field = trim($candidate);
+            if ($field === '' || !preg_match(self::FIELD_PATTERN, $field)) {
+                continue;
+            }
+            $fields[] = FilterSpec::aliasField($field);
+            if (count($fields) >= $max) {
+                break;
+            }
+        }
+
+        return array_values(array_unique($fields));
+    }
 }

@@ -216,7 +216,8 @@ class UserService {
         int $limit = self::DEFAULT_LIMIT,
         int $offset = 0,
         string $sortBy = 'displayName',
-        string $sortOrder = 'asc'
+        string $sortOrder = 'asc',
+        int $facetLimit = FacetCalculator::DEFAULT_FACET_LIMIT
     ): array {
         $editorFilters = FilterSpec::normalizeList($editorFilters);
         $refinements = FilterSpec::normalizeList($refinements);
@@ -239,7 +240,7 @@ class UserService {
             $rows = $this->applyFreeText($rows, $q, $searchFields);
         }
 
-        $facets = FacetCalculator::compute($rows, $facetFields, $refinements);
+        $facets = FacetCalculator::compute($rows, $facetFields, $refinements, [], $facetLimit);
 
         $matched = FacetCalculator::applyFilters($rows, $refinements);
 

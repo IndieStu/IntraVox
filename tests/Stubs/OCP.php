@@ -365,6 +365,13 @@ namespace OCP\Share;
 
 interface IManager {}
 
+interface IShare {
+    public function getToken(): ?string;
+    public function getNode();
+    public function getShareType(): int;
+    public function getPermissions(): int;
+}
+
 namespace OCP\Accounts;
 
 interface IAccountProperty {
