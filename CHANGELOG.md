@@ -4,6 +4,28 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [Unreleased]
+
+### Security
+
+- **People widgets now respect each field's visibility setting.** IntraVox never consulted the visibility scope Nextcloud stores per account property, so every field the account manager returned was handed to whoever loaded a People widget — including the extra fields your directory syncs (LDAP/OIDC), and including anonymous visitors following a public share link. A phone number or birthdate a colleague deliberately marked **Private** was published anyway.
+
+  From this release the scope is honoured: **Private** fields reach nobody, **Local** fields reach logged-in users only, **Federated** and **Published** fields also reach public shares. The email address was a second route to the same leak — it was read straight from the user account rather than from the scoped property — and now follows the same rule. IntraVox custom fields (set through user preferences rather than Personal info) carry no scope of their own and are treated as **Local**: visible when logged in, never on a public share.
+
+  **This is a visible change, not only a fix.** Fields your users marked private will disappear from existing People widgets. Which ones depends entirely on your instance, so check before you upgrade:
+
+  ```
+  occ intravox:people:scope-report
+  ```
+
+  It prints a per-field scope breakdown and names exactly which fields become hidden, and for how many accounts. `--all` scans every account instead of the first 1000. The field most likely to surprise you is **email**: it defaults to Federated, but plenty of instances set it to Local, which removes it from public-share People widgets. Users change this themselves under **Settings → Personal → Personal info**, with the visibility picker beside each field.
+
+  The cached filter results were also shared between users regardless of what each was allowed to see. The cache key now includes both the audience and the viewer's group membership, and the old entries are abandoned rather than reused — otherwise the fix would not have taken effect until they expired.
+
+### Fixed
+
+- **The People widget on a public share always failed.** `/api/share/{token}/people` called a method that does not exist on the share service, so every request died and returned a server error. Anyone with a People widget on a shared page saw an empty widget. It now resolves the share token correctly.
+
 ## [1.9.3] - 2026-08-05 — Pages are findable by their MetaVox metadata
 
 ### Added

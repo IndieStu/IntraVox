@@ -25,6 +25,30 @@ Follow this checklist for every release to the Nextcloud App Store.
 
 ---
 
+## 0b. Account-property scopes (first release containing the People scope fix)
+
+The release that introduces `AccountScopePolicy` changes what People widgets
+show. Two things must not be skipped.
+
+- [ ] **Warn admins in the release notes**, not only in the CHANGELOG. Fields
+      users marked private disappear from existing widgets. `email` is the
+      most likely surprise: it defaults to Federated, but many instances set
+      it to Local, which removes it from public-share People widgets.
+- [ ] **Point at the report command** so admins can measure their own blast
+      radius before upgrading:
+      ```bash
+      occ intravox:people:scope-report          # samples 1000 accounts
+      occ intravox:people:scope-report --all    # every account
+      ```
+- [ ] **Do not "tidy" the people cache-key prefix back to `filter_shared_`.**
+      It was renamed to `filter_v2_<audience>_<groupHash>_` deliberately.
+      Entries written before the fix contain private fields; the rename
+      abandons them. Reverting the prefix would keep serving those entries
+      for up to an hour after the upgrade, silently undoing the security fix
+      on every warm instance.
+
+---
+
 ## 1. Code Quality & Security
 
 - [ ] Remove all debug `console.log()` statements from JavaScript (`src/`)
