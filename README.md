@@ -55,7 +55,7 @@ IntraVox brings SharePoint-style page creation to Nextcloud, enabling teams to b
 | **Video** | Embed videos from YouTube, Vimeo, PeerTube, or upload local videos |
 | **Links** | Multi-link grid widget (1-5 columns) with Material Design icons |
 | **News** | Display pages from a folder as news items with List, Grid, or Carousel layout |
-| **People** | User profiles with Card, List, or Grid layout - filter by group or select manually |
+| **People** | User profiles with Card, List, or Grid layout - filter by group or select manually, and let visitors filter the results themselves |
 | **Calendar** | Upcoming events from shared Nextcloud calendars with colored date badges and responsive grid |
 | **Divider** | Visual separator that adapts to row background color |
 | **Spacer** | Add empty space between content |
@@ -91,7 +91,13 @@ The People Widget displays Nextcloud user profiles - perfect for team pages, org
 - **Birthdate Support**: Display birthdates with a cake icon
 - **Social Links**: Twitter/X, Fediverse, and Bluesky profiles
 - **Customizable Display**: Choose which fields to show (avatar, name, email, phone, title, etc.)
+- **Visitor Filters**: Let readers narrow the list themselves — faceted filters with live counts, a search box, and shareable filtered URLs
+- **Privacy-Aware**: Honours each user's per-field visibility settings; hidden from public share links by default
 - **Nextcloud Integration**: Click avatars to view profiles, send email, or check availability
+
+![People Widget with visitor filters](https://raw.githubusercontent.com/nextcloud/intravox/main/screenshots/People-widget-filters.png)
+
+*Visitor filters: combinable facets with live counts that narrow as you choose*
 
 ![People Widget Birthday](https://raw.githubusercontent.com/nextcloud/intravox/main/screenshots/People-Birthday.png)
 
@@ -221,6 +227,8 @@ Full table editing in text widgets:
 - **Draft Page Visibility** - Draft pages are only visible to users with write permission
 - **Page Locking** - Prevents concurrent edits with automatic expiry and admin override
 - **Real-Time Permission Checks** - Changes take effect immediately
+- **Profile Field Visibility** - People widgets honour the visibility each user set per field; private fields are never shown
+- **No Staff Directory on Public Links** - People widgets are withheld from public share links by default, so sharing documents never publishes a list of colleagues
 
 ### Admin Settings
 
