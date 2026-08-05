@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: IntraVox 1.9.3.2\n"
+"Project-Id-Version: IntraVox 1.9.3.3\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-05 15:29+0000\n"
+"POT-Creation-Date: 2026-08-05 15:51+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -31,6 +31,9 @@ msgid "(optional)"
 msgstr ""
 
 msgid "(unchanged)"
+msgstr ""
+
+msgid "{count} accounts in scope — counts will be exact."
 msgstr ""
 
 msgid "{count} people reacted with {emoji}"
@@ -60,6 +63,9 @@ msgstr ""
 msgid "+ Add connection"
 msgstr ""
 
+msgid "+ Add filter field"
+msgstr ""
+
 msgid "+ Add header"
 msgstr ""
 
@@ -75,6 +81,9 @@ msgstr ""
 msgid "A network error occurred while loading the video."
 msgstr ""
 
+msgid "A side panel suits a full-width page; place it above the results in a narrow column."
+msgstr ""
+
 msgid "A subscription includes: guaranteed Nextcloud compatibility, email support, priority bug fixes, and active development."
 msgstr ""
 
@@ -85,6 +94,9 @@ msgid "About editing navigation"
 msgstr ""
 
 msgid "About the page structure"
+msgstr ""
+
+msgid "Above the results"
 msgstr ""
 
 msgid "Accent"
@@ -187,6 +199,9 @@ msgid "Added to navigation"
 msgstr ""
 
 msgid "Address"
+msgstr ""
+
+msgid "Adds a filter panel with counts. Visitors can only narrow what this widget already shows — never widen it."
 msgstr ""
 
 msgid "Admin"
@@ -415,6 +430,9 @@ msgid "Basic server configuration (database, OS, web server, language, timezone,
 msgstr ""
 
 msgid "Bearer token"
+msgstr ""
+
+msgid "Beside the results"
 msgstr ""
 
 msgid "Biography"
@@ -1410,6 +1428,9 @@ msgstr ""
 msgid "Filter values"
 msgstr ""
 
+msgid "Filterable fields"
+msgstr ""
+
 msgid "filters"
 msgstr ""
 
@@ -1417,6 +1438,9 @@ msgid "Filters"
 msgstr ""
 
 msgid "Filters ({count})"
+msgstr ""
+
+msgid "Filters are not shown on public share links, because the filter values would list your organisation structure to anyone with the link."
 msgstr ""
 
 msgid "Flat sortable list — no grouping."
@@ -1812,6 +1836,9 @@ msgstr ""
 msgid "Knowledge base"
 msgstr ""
 
+msgid "Label shown to visitors"
+msgstr ""
+
 msgid "Language"
 msgstr ""
 
@@ -1864,6 +1891,9 @@ msgid "Leave blank to search MetaVox-tagged photos across all folders — requir
 msgstr ""
 
 msgid "Left column"
+msgstr ""
+
+msgid "Let visitors filter these results"
 msgstr ""
 
 msgid "Level:"
@@ -2223,6 +2253,9 @@ msgstr ""
 msgid "No export.json found in the ZIP. Make sure you uploaded an IntraVox export (Settings → Export), not a Nextcloud Files backup or a different app's archive."
 msgstr ""
 
+msgid "No fields available to filter on."
+msgstr ""
+
 msgid "No filters available"
 msgstr ""
 
@@ -2563,6 +2596,9 @@ msgid "Pages will be hidden after this date."
 msgstr ""
 
 msgid "Pages will only be shown on or after this date."
+msgstr ""
+
+msgid "Panel position"
 msgstr ""
 
 msgid "Paragraph"
@@ -3186,6 +3222,9 @@ msgstr ""
 msgid "Show {count} photos in {location}"
 msgstr ""
 
+msgid "Show a search box"
+msgstr ""
+
 msgid "Show all ({count})"
 msgstr ""
 
@@ -3444,6 +3483,9 @@ msgstr ""
 msgid "This domain is already in the list"
 msgstr ""
 
+msgid "This instance has more than {cap} accounts. Filter counts will be approximate unless you add a group filter above."
+msgstr ""
+
 msgid "This intranet has no pages in {language} yet."
 msgstr ""
 
@@ -3496,6 +3538,9 @@ msgid "This URL has already been added"
 msgstr ""
 
 msgid "This week"
+msgstr ""
+
+msgid "This widget already filters on {fields}. Visitors cannot widen that, so those fields would only show empty options and are not offered here."
 msgstr ""
 
 msgid "This will delete all existing demo content for {language} and replace it with fresh demo data."
@@ -3760,6 +3805,9 @@ msgid "Visit support"
 msgstr ""
 
 msgid "Visit website"
+msgstr ""
+
+msgid "Visitor filters"
 msgstr ""
 
 msgid "Visitors can only VIEW this content. Editing via this link is not possible, even if the Files share allows it."

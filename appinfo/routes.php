@@ -164,6 +164,7 @@ return [
         ['name' => 'people#getGroups', 'url' => '/api/users/groups', 'verb' => 'GET'],
         ['name' => 'people#getUserFields', 'url' => '/api/users/fields', 'verb' => 'GET'],
         ['name' => 'people#getPeople', 'url' => '/api/people', 'verb' => 'GET'],
+        ['name' => 'people#facetPreflight', 'url' => '/api/people/facet-preflight', 'verb' => 'GET'],
 
         // Calendar widget API routes
         ['name' => 'calendar#getCalendars', 'url' => '/api/calendar/calendars', 'verb' => 'GET'],

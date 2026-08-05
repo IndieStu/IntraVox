@@ -287,6 +287,32 @@ class UserService {
     }
 
     /**
+     * How large this instance is relative to the scan cap.
+     *
+     * countUsers() is a cheap aggregate per backend, unlike the scan itself,
+     * so this is safe to call from an editor panel.
+     *
+     * @return array{userCount: int, cap: int, approximate: bool}
+     */
+    public function facetPreflight(): array {
+        $total = 0;
+
+        try {
+            foreach ($this->userManager->countUsers() as $count) {
+                $total += (int)$count;
+            }
+        } catch (\Throwable $e) {
+            $this->logger->debug('IntraVox: countUsers() unavailable: ' . $e->getMessage());
+        }
+
+        return [
+            'userCount' => $total,
+            'cap' => self::MAX_FILTER_SCAN,
+            'approximate' => $total > self::MAX_FILTER_SCAN,
+        ];
+    }
+
+    /**
      * Case-insensitive substring match across the searchable fields.
      *
      * This is a filter over the cohort, not a second search entrance: a term

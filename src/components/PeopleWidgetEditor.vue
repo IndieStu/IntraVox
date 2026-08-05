@@ -336,6 +336,17 @@
         </div>
       </div>
     </div>
+
+    <!-- Viewer filters -->
+    <div class="editor-section">
+      <label class="editor-label">{{ t('intravox', 'Visitor filters') }}</label>
+      <ViewerFacetEditor
+        :model-value="localWidget.viewerFilters"
+        :available-fields="availableFields"
+        :editor-filters="localWidget.selectionMode === 'filter' ? localWidget.filters : []"
+        @update:model-value="setViewerFilters"
+      />
+    </div>
   </div>
 </template>
 
@@ -344,6 +355,7 @@ import { translate, translatePlural } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import axios from '@nextcloud/axios';
 import AccountMultiplePlus from 'vue-material-design-icons/AccountMultiplePlus.vue';
+import ViewerFacetEditor from './filter/ViewerFacetEditor.vue';
 import Filter from 'vue-material-design-icons/Filter.vue';
 import ViewGrid from 'vue-material-design-icons/ViewGrid.vue';
 import ViewList from 'vue-material-design-icons/ViewList.vue';
@@ -357,6 +369,7 @@ import UserSelect from './UserSelect.vue';
 export default {
   name: 'PeopleWidgetEditor',
   components: {
+    ViewerFacetEditor,
     AccountMultiplePlus,
     Filter,
     ViewGrid,
@@ -454,6 +467,7 @@ export default {
         backgroundColor: null,
         selectionMode: 'manual',
         selectedUsers: [],
+        viewerFilters: { enabled: false, facets: [], searchFields: ['displayName', 'role'], searchEnabled: true, layout: 'sidebar' },
         filters: [],
         filterOperator: 'AND',
         layout: 'card',
@@ -487,6 +501,10 @@ export default {
     syncTitleWithRole() {
       // Keep legacy 'title' field in sync with 'role'
       this.localWidget.showFields.title = this.localWidget.showFields.role;
+      this.emitUpdate();
+    },
+    setViewerFilters(config) {
+      this.localWidget.viewerFilters = config;
       this.emitUpdate();
     },
     emitUpdate() {

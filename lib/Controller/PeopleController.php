@@ -390,6 +390,25 @@ class PeopleController extends Controller {
     }
 
     /**
+     * Tell the editor whether facet counts will be exact on this instance.
+     *
+     * Worth answering while a widget is being configured rather than letting
+     * an editor discover approximate counts in production.
+     *
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function facetPreflight(): DataResponse {
+        try {
+            $stats = $this->userService->facetPreflight();
+            return new DataResponse($stats);
+        } catch (\Exception $e) {
+            $this->logger->warning('IntraVox: facet preflight failed', ['error' => $e->getMessage()]);
+            return new DataResponse(['userCount' => 0, 'cap' => 0, 'approximate' => false]);
+        }
+    }
+
+    /**
      * Decode a filter JSON payload, rejecting oversized or malformed input.
      *
      * Size is checked before decoding so a pathological payload cannot cost
