@@ -787,6 +787,27 @@
 		<!-- Publication Tab -->
 		<div v-if="activeTab === 'publication'" class="tab-content">
 			<div class="settings-section">
+				<h2>{{ t('intravox', 'People on public share links') }}</h2>
+				<p class="settings-section-desc">
+					{{ t('intravox', 'A public share link is usually created to hand someone a set of documents. If the page also contains a People widget, sharing those documents publishes a staff directory — names and photos — to anyone holding the link, without the people on that list having agreed to it.') }}
+				</p>
+
+				<NcCheckboxRadioSwitch
+					type="switch"
+					:model-value="allowPeopleOnPublicShares"
+					@update:model-value="setAllowPeopleOnPublicShares">
+					{{ t('intravox', 'Show People widgets on public share links') }}
+				</NcCheckboxRadioSwitch>
+
+				<NcNoteCard v-if="allowPeopleOnPublicShares" type="warning">
+					{{ t('intravox', 'People widgets now render for anonymous visitors. Profile fields your users marked as private or internal stay hidden, but names and photos are visible to anyone with the link.') }}
+				</NcNoteCard>
+				<NcNoteCard v-else type="success">
+					{{ t('intravox', 'People widgets are hidden on public share links. The rest of the page is shared normally.') }}
+				</NcNoteCard>
+			</div>
+
+			<div class="settings-section">
 				<h2>{{ t('intravox', 'Publication date fields') }}</h2>
 				<p class="settings-section-desc">
 					{{ t('intravox', 'Configure MetaVox fields used for publication date filtering in the News widget.') }}
@@ -1441,6 +1462,7 @@ export default {
 	},
 	data() {
 		return {
+			allowPeopleOnPublicShares: false,
 			activeTab: 'video', // Default to video tab
 			connectionPresets: [
 				{ value: 'moodle', label: 'Moodle' },
@@ -1721,6 +1743,30 @@ export default {
 		},
 	},
 	methods: {
+		async loadPublicSharePeopleSetting() {
+			try {
+				const { data } = await axios.get(generateUrl('/apps/intravox/api/settings/public-share-people'));
+				this.allowPeopleOnPublicShares = data.allowPeopleOnPublicShares === true;
+			} catch (e) {
+				// Leave the safe default in place if the setting cannot be read.
+			}
+		},
+
+		async setAllowPeopleOnPublicShares(value) {
+			const previous = this.allowPeopleOnPublicShares;
+			this.allowPeopleOnPublicShares = value;
+			try {
+				await axios.post(
+					generateUrl('/apps/intravox/api/settings/public-share-people'),
+					{ allowPeopleOnPublicShares: value },
+				);
+			} catch (e) {
+				// Revert rather than show a toggle that does not match reality.
+				this.allowPeopleOnPublicShares = previous;
+				console.error('IntraVox: could not save public-share people setting', e);
+			}
+		},
+
 		// Tab deep-linking: set activeTab from the URL hash if it names a known tab.
 		applyTabFromHash() {
 			const hash = (window.location.hash || '').replace(/^#/, '')
@@ -2860,6 +2906,7 @@ export default {
 		},
 	},
 	mounted() {
+		this.loadPublicSharePeopleSetting();
 		// Open the tab named in the URL hash (e.g. .../settings/admin/intravox#demo)
 		// so every tab is deep-linkable. Falls back to the default tab otherwise.
 		this.applyTabFromHash()

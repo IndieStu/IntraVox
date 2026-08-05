@@ -12,6 +12,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
+use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
@@ -51,7 +52,8 @@ class PeopleController extends Controller {
         private PublicShareService $publicShareService,
         private LoggerInterface $logger,
         private ?IActivityManager $activityManager = null,
-        private ?IURLGenerator $urlGenerator = null
+        private ?IURLGenerator $urlGenerator = null,
+        private ?IConfig $config = null
     ) {
         parent::__construct($appName, $request);
     }
@@ -355,6 +357,13 @@ class PeopleController extends Controller {
                 );
             }
 
+            // Removing the widget from the shared page is the primary
+            // guard, but this endpoint is reachable on its own, so refuse
+            // here too rather than trusting the page to be the only route.
+            if (!$this->peopleAllowedOnPublicShares()) {
+                return new DataResponse(['users' => [], 'total' => 0, 'hasMore' => false]);
+            }
+
             // Use the same logic as getPeople, with the viewer-facing
             // parameters explicitly nulled.
             //
@@ -406,6 +415,16 @@ class PeopleController extends Controller {
             $this->logger->warning('IntraVox: facet preflight failed', ['error' => $e->getMessage()]);
             return new DataResponse(['userCount' => 0, 'cap' => 0, 'approximate' => false]);
         }
+    }
+
+    /**
+     * Whether an admin has allowed People data on public share links.
+     *
+     * Same default as ApiController: withheld unless deliberately enabled.
+     */
+    private function peopleAllowedOnPublicShares(): bool {
+        return $this->config !== null
+            && $this->config->getAppValue('intravox', 'public_share_allow_people', 'no') === 'yes';
     }
 
     /**

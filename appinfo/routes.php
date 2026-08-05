@@ -91,6 +91,8 @@ return [
         ['name' => 'api#setEngagementSettings', 'url' => '/api/settings/engagement', 'verb' => 'POST'],
         ['name' => 'api#getPublicationSettings', 'url' => '/api/settings/publication', 'verb' => 'GET'],
         ['name' => 'api#setPublicationSettings', 'url' => '/api/settings/publication', 'verb' => 'POST'],
+        ['name' => 'api#getPublicSharePeopleSetting', 'url' => '/api/settings/public-share-people', 'verb' => 'GET'],
+        ['name' => 'api#setPublicSharePeopleSetting', 'url' => '/api/settings/public-share-people', 'verb' => 'POST'],
 
         // Export routes
         ['name' => 'export#getExportableLanguages', 'url' => '/api/export/languages', 'verb' => 'GET'],

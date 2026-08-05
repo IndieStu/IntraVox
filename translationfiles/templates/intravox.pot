@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: IntraVox 1.9.3.6\n"
+"Project-Id-Version: IntraVox 1.9.4.1\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-05 17:20+0000\n"
+"POT-Creation-Date: 2026-08-05 17:41+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -79,6 +79,9 @@ msgid "A file with the name \"{filename}\" already exists."
 msgstr ""
 
 msgid "A network error occurred while loading the video."
+msgstr ""
+
+msgid "A public share link is usually created to hand someone a set of documents. If the page also contains a People widget, sharing those documents publishes a staff directory — names and photos — to anyone holding the link, without the people on that list having agreed to it."
 msgstr ""
 
 msgid "A side panel suits a full-width page; place it above the results in a narrow column."
@@ -2661,6 +2664,15 @@ msgstr ""
 msgid "People can post comments on pages"
 msgstr ""
 
+msgid "People on public share links"
+msgstr ""
+
+msgid "People widgets are hidden on public share links. The rest of the page is shared normally."
+msgstr ""
+
+msgid "People widgets now render for anonymous visitors. Profile fields your users marked as private or internal stay hidden, but names and photos are visible to anyone with the link."
+msgstr ""
+
 msgid "Per day"
 msgstr ""
 
@@ -3274,6 +3286,9 @@ msgid "Show only published pages"
 msgstr ""
 
 msgid "Show overview map"
+msgstr ""
+
+msgid "Show People widgets on public share links"
 msgstr ""
 
 msgid "Show photos from a folder with rich layouts"

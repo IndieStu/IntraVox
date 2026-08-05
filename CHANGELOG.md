@@ -20,6 +20,11 @@ IntraVox is a Nextcloud intranet page builder.
 
 ### Security
 
+- **People widgets no longer appear on public share links.** A public share is normally created to hand someone a set of documents. If the page also carried a People widget, the act of sharing those documents published a staff directory — names, photos and profile fields — to anyone holding the URL, without the people on that list having agreed to it or the person sharing necessarily realising the widget was there.
+
+  People widgets are now withheld from public share links by default. The rest of the page is shared exactly as before. Administrators who have a genuine reason — an external project page with a named contact, say — can allow it under **Settings → Administration → IntraVox → Publication**, but it is now a decision someone takes rather than a side effect of sharing a folder. The `/api/share/{token}/people` endpoint refuses as well, so the widget cannot be reached by calling the API directly.
+
+
 - **People widgets now respect each field's visibility setting.** IntraVox never consulted the visibility scope Nextcloud stores per account property, so every field the account manager returned was handed to whoever loaded a People widget — including the extra fields your directory syncs (LDAP/OIDC), and including anonymous visitors following a public share link. A phone number or birthdate a colleague deliberately marked **Private** was published anyway.
 
   From this release the scope is honoured: **Private** fields reach nobody, **Local** fields reach logged-in users only, **Federated** and **Published** fields also reach public shares. The email address was a second route to the same leak — it was read straight from the user account rather than from the scoped property — and now follows the same rule. IntraVox custom fields (set through user preferences rather than Personal info) carry no scope of their own and are treated as **Local**: visible when logged in, never on a public share.

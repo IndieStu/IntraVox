@@ -10,6 +10,7 @@ use OCA\IntraVox\Http\EtagBuilder;
 use OCA\IntraVox\Service\EngagementSettingsService;
 use OCA\IntraVox\Service\ImportService;
 use OCA\IntraVox\Service\PublicationSettingsService;
+use OCA\IntraVox\Service\People\PublicSharePeopleGuard;
 use OCA\IntraVox\Service\PublicShareService;
 use OCA\IntraVox\Service\TelemetryService;
 use OCA\IntraVox\Service\Import\ConfluenceHtmlImporter;
@@ -1765,6 +1766,50 @@ class ApiController extends Controller {
      * Update publication settings
      * Admin only
      */
+    /**
+     * Whether People widgets may render on public share links.
+     *
+     * @NoAdminRequired
+     * @NoCSRFRequired
+     */
+    public function getPublicSharePeopleSetting(): DataResponse {
+        return new DataResponse([
+            'allowPeopleOnPublicShares' => $this->peopleAllowedOnPublicShares(),
+        ]);
+    }
+
+    /**
+     * Allow or forbid People widgets on public share links.
+     *
+     * Off by default. A public share is normally created to hand someone
+     * documents; if the page also carries a People widget, that act publishes
+     * a staff directory to whoever holds the link. Turning this on is a
+     * deliberate decision an administrator takes, not a side effect of
+     * sharing a folder.
+     */
+    public function setPublicSharePeopleSetting(): DataResponse {
+        if (!$this->isAdmin()) {
+            return new DataResponse([
+                'success' => false,
+                'message' => 'Only administrators can change this setting',
+            ], Http::STATUS_FORBIDDEN);
+        }
+
+        $body = json_decode((string)file_get_contents('php://input'), true) ?? [];
+        $allow = ($body['allowPeopleOnPublicShares'] ?? false) === true;
+
+        $this->config->setAppValue('intravox', 'public_share_allow_people', $allow ? 'yes' : 'no');
+
+        $this->logger->info('[ApiController] People-on-public-shares setting changed', [
+            'allowed' => $allow,
+        ]);
+
+        return new DataResponse([
+            'success' => true,
+            'allowPeopleOnPublicShares' => $allow,
+        ]);
+    }
+
     public function setPublicationSettings(): DataResponse {
         // Only admins can change publication settings
         if (!$this->isAdmin()) {
@@ -2407,6 +2452,23 @@ class ApiController extends Controller {
 
             // Sanitize the response - only include safe fields for public access
             $sanitizedPage = $this->sanitizePageForPublicAccess($pageData);
+
+            // A public share is normally made to hand someone documents. If
+            // the page also holds a People widget, sharing those documents
+            // would publish a staff directory to anyone with the link —
+            // without anyone on that list having agreed to it. Removed unless
+            // an admin has deliberately allowed it instance-wide.
+            if (!$this->peopleAllowedOnPublicShares()) {
+                $guarded = PublicSharePeopleGuard::strip($sanitizedPage);
+                $sanitizedPage = $guarded['page'];
+
+                if ($guarded['removed'] > 0) {
+                    $this->logger->info('[PublicShare] Withheld People widget(s) from a public page', [
+                        'uniqueId' => $uniqueId,
+                        'removed' => $guarded['removed'],
+                    ]);
+                }
+            }
 
             // Audit: log successful public page access
             $this->logger->info('[PublicShare] Page accessed', [
@@ -3172,6 +3234,17 @@ class ApiController extends Controller {
      *
      * Only includes safe fields - removes internal metadata like uniqueId path, author info, etc.
      */
+    /**
+     * Whether an admin has allowed People widgets on public share links.
+     *
+     * Defaults to false: the safe option has to be what happens when nobody
+     * has thought about it, because the situation this guards against is
+     * precisely someone not having thought about it.
+     */
+    private function peopleAllowedOnPublicShares(): bool {
+        return $this->config->getAppValue('intravox', 'public_share_allow_people', 'no') === 'yes';
+    }
+
     private function sanitizePageForPublicAccess(array $pageData): array {
         // Whitelist approach - only include explicitly safe fields
         $safe = [

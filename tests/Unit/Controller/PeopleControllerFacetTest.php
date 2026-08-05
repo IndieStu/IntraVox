@@ -134,12 +134,17 @@ class PeopleControllerFacetTest extends TestCase {
 		$this->assertArrayNotHasKey('facets', $data, 'a public share must not return facets');
 	}
 
-	public function testPublicShareStillServesItsEditorConfiguredList(): void {
+	/**
+	 * By default a public share returns no people at all.
+	 *
+	 * A share is normally made to hand someone documents; if the page also
+	 * carries a People widget, sharing those documents would publish a staff
+	 * directory to whoever holds the link. The safe answer has to be the one
+	 * that happens when nobody configured anything.
+	 */
+	public function testPublicShareReturnsNoPeopleByDefault(): void {
 		$this->publicShareService->method('getShareByToken')->willReturn($this->createMock(\OCP\Share\IShare::class));
-		$this->userService->method('getUsersByFilters')->willReturn([
-			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
-			'total' => 1,
-		]);
+		$this->userService->expects($this->never())->method('getUsersByFilters');
 
 		$response = $this->controller->getPeopleByShare(
 			'sometoken',
@@ -148,8 +153,44 @@ class PeopleControllerFacetTest extends TestCase {
 		);
 
 		$data = $response->getData();
+		$this->assertSame(0, $data['total']);
+		$this->assertSame([], $data['users']);
+	}
+
+	public function testPublicShareServesPeopleOnlyWhenAdminOptedIn(): void {
+		$config = $this->createMock(\OCP\IConfig::class);
+		$config->method('getAppValue')
+			->with('intravox', 'public_share_allow_people', 'no')
+			->willReturn('yes');
+
+		$controller = new PeopleController(
+			'intravox',
+			$this->createMock(IRequest::class),
+			$this->userService,
+			$this->publicShareService,
+			$this->createMock(LoggerInterface::class),
+			null,
+			null,
+			$config
+		);
+
+		$this->publicShareService->method('getShareByToken')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		$this->userService->method('getUsersByFilters')->willReturn([
+			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
+			'total' => 1,
+		]);
+
+		$response = $controller->getPeopleByShare(
+			'sometoken',
+			null,
+			'[{"fieldName":"gebouw","operator":"equals","value":"Noord"}]'
+		);
+
+		$data = $response->getData();
 		$this->assertSame(1, $data['total']);
 		$this->assertCount(1, $data['users']);
+		// Even when allowed, viewer filtering stays off on a share.
+		$this->assertArrayNotHasKey('facets', $data);
 	}
 
 	public function testInvalidRefineJsonIsRejected(): void {
