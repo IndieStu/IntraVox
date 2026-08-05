@@ -17,6 +17,8 @@ The People Widget displays user profiles from your Nextcloud instance. It's perf
 - **Sorting options**: Sort by name or email
 - **Pagination**: "Show more" button when there are more people than the configured limit
 - **Nextcloud integration**: Click avatars to see profiles, email, and availability
+- **Visitor filters**: Let readers narrow the list themselves with faceted filters and live counts
+- **Privacy-aware**: Honours each user's field visibility settings; hidden from public share links by default
 - **LDAP/OIDC support**: Custom fields from LDAP or OIDC are automatically detected
 
 ## Layouts
@@ -280,6 +282,77 @@ Show users from a group with additional criteria:
 3. Set to **Match all**
 4. Result: Shows Engineering Leads only
 
+## Visitor Filters
+
+Everything above decides what the widget shows. **Visitor filters** let the people *reading* the page narrow that list themselves — without an editor having to build a page per department.
+
+![People Widget with visitor filters](../../screenshots/People-widget-filters.png)
+
+A filter panel appears beside the results with one group per field you choose. Each value carries a live count, and the counts narrow as choices are made: pick a department and the building list immediately shows only buildings where that department sits, with real numbers. Whatever a count promises, clicking it delivers exactly that many people.
+
+Active choices appear as removable chips above the results, and the selection is stored in the page URL — so a filtered view can be bookmarked or shared, and opens filtered.
+
+### Turning it on
+
+1. Edit the page and open the People widget's settings
+2. Scroll to **Visitor filters** and switch on **Let visitors filter these results**
+3. Pick the fields visitors may filter on — the first three are chosen for you
+4. Optionally rename a filter (the label is what visitors see) and drag to reorder
+
+Any profile field can be a facet, including custom LDAP/OIDC fields. The screenshot above uses three custom fields: *Werking*, *Thema* and *Gebouw*.
+
+### Settings
+
+| Setting | Description |
+|---------|-------------|
+| **Filterable fields** | Which fields become filter groups, in the order shown. Drag to reorder; rename per field. |
+| **Show a search box** | Adds a free-text search over names (and any extra fields you configure). |
+| **Panel position** | *Beside the results* suits a full-width page; *Above the results* fits a narrow column better. |
+
+### Two behaviours worth knowing
+
+**Choosing a value never empties its own group.** In the screenshot, *Woongericht welzijnswerk* and *Straatzorg* are both ticked under Werking. Had selecting the first one dropped every other value to zero, "this **or** that" could never be expressed. Other groups do narrow — that is the point — but a group never narrows itself.
+
+**A selected value stays visible even at zero.** *Straatzorg* shows `0` because nobody matches it *in combination with* the other active filters. It stays listed and stays ticked, so it can be unticked again. A value that vanished would leave a filter you could not remove.
+
+### What a visitor cannot do
+
+A visitor can only narrow what the widget already shows. If you scoped a widget to one department, no combination of filters reaches outside it — the restriction is built into how results are assembled, not applied afterwards. A field the widget already filters on is therefore not offered as a facet: it could only ever show options that yield nothing, and the editor explains why rather than silently ignoring the choice.
+
+### Large instances
+
+Filter counts are exact as long as the widget's scope stays under the scan limit (5,000 accounts by default). Above that, the editor shows a warning and counts render as `~12` rather than `12` — a partial number is always marked as partial. Adding a **Group** filter scopes the widget and makes counts exact again, and loads faster besides.
+
+## Privacy
+
+### Field visibility
+
+The widget honours the visibility each user set for their own profile fields under **Settings → Personal → Personal info**:
+
+| Visibility | Logged-in visitors | Public share links |
+|------------|--------------------|--------------------|
+| **Private** | hidden | hidden |
+| **Local** | visible | hidden |
+| **Federated** / **Published** | visible | visible |
+
+Fields your users marked private are never shown, regardless of what the widget is configured to display. IntraVox custom fields (from LDAP/OIDC sync) carry no visibility setting of their own and are treated as **Local**: available to logged-in users, never on a public share.
+
+> **Upgrading from before IntraVox 1.9.4?** Earlier versions did not check these settings, so fields marked private were shown anyway. After upgrading they disappear — which is the fix, but it is a visible change. Run `occ intravox:people:scope-report` to see exactly which fields are affected on your instance and for how many accounts.
+
+### Public share links
+
+**People widgets are hidden on public share links by default.**
+
+A public share is usually created to hand someone a set of documents. If the page also carries a People widget, sharing those documents would publish a staff directory — names and photos — to anyone holding the URL, without the people on that list having agreed to it, and often without the person sharing noticing the widget was there.
+
+The rest of the page is shared normally; only the People widget is withheld. Visitor filters never appear on a share link either, because the filter values would themselves list your organisation's structure.
+
+An administrator can allow it instance-wide under **Settings → Administration → IntraVox → Publication**:
+
+![People on public share links setting](../../screenshots/People-widget-publicshare.png)
+
+Turn this on only where there is a genuine reason — an external project page with a named contact, for instance. Field visibility still applies, so private and local-scope fields stay hidden, but names and photos become visible to anyone with the link.
+
 ## Background Colors
 
 The People Widget supports three background color options:
@@ -295,7 +368,9 @@ When using a dark background (Primary), text colors automatically adjust for pro
 ## Tips
 
 - **Performance**: Limit the number of users for better page load times, especially with many profile fields enabled
-- **Privacy**: Consider which fields to display publicly. Phone numbers and addresses are disabled by default
+- **Privacy**: Consider which fields to display publicly. Phone numbers and addresses are disabled by default, and fields users marked private are never shown
+- **Visitor filters**: Best on a dedicated directory page. Three to five facets is usually enough — more becomes a form rather than a filter
+- **Group filter first**: On a large instance, scoping the widget to a group makes filter counts exact and the page faster
 - **Groups**: Create Nextcloud groups specifically for widget display (e.g., "Leadership Team", "Support Staff")
 - **Profile completeness**: Encourage users to complete their Nextcloud profiles for richer People Widgets
 - **Layouts**: Use Grid for large teams, Cards for small featured teams, List for directories
@@ -303,7 +378,7 @@ When using a dark background (Primary), text colors automatically adjust for pro
 
 ## Requirements
 
-- IntraVox 0.9.14 or higher
+- IntraVox 0.9.14 or higher (visitor filters and the privacy behaviour described above require 1.9.4)
 - Users must have Nextcloud accounts
 - Group filtering requires users to be members of Nextcloud groups
 - Calendar app required for "Show availability" in avatar popup

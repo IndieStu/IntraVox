@@ -17,6 +17,8 @@ De People-widget toont gebruikers-profielen uit je Nextcloud-instantie. Perfect 
 - **Sorteer-opties**: sorteer op naam of e-mail
 - **Paginering**: "Toon meer"-knop wanneer er meer mensen zijn dan de geconfigureerde limiet
 - **Nextcloud-integratie**: klik op avatars om profielen, e-mail en beschikbaarheid te zien
+- **Bezoekersfilters**: laat lezers de lijst zelf verfijnen met facetten en live aantallen
+- **Privacybewust**: respecteert de zichtbaarheid die elke gebruiker per veld instelt; standaard verborgen op publieke sharelinks
 - **LDAP-/OIDC-ondersteuning**: custom velden uit LDAP of OIDC worden automatisch gedetecteerd
 
 ## Layouts
@@ -280,6 +282,77 @@ Toon gebruikers uit een groep met aanvullende criteria:
 3. Zet op **Match all**
 4. Resultaat: toont alleen Engineering-Leads
 
+## Bezoekersfilters
+
+Alles hierboven bepaalt wát de widget toont. Met **bezoekersfilters** kunnen de mensen die de pagina *lezen* die lijst zelf verfijnen — zonder dat een redacteur een pagina per afdeling hoeft te bouwen.
+
+![People-widget met bezoekersfilters](../../screenshots/People-widget-filters.png)
+
+Naast de resultaten verschijnt een filterpaneel met één groep per veld dat je kiest. Elke waarde heeft een live aantal, en die aantallen krimpen mee: kies een afdeling en de gebouwenlijst toont meteen alleen gebouwen waar die afdeling zit, met echte getallen. Wat een aantal belooft, levert een klik erop precies op.
+
+Actieve keuzes verschijnen als verwijderbare chips boven de resultaten, en de selectie staat in de URL van de pagina — een gefilterde weergave is dus te bookmarken of te delen, en opent gefilterd.
+
+### Aanzetten
+
+1. Bewerk de pagina en open de instellingen van de People-widget
+2. Ga naar **Bezoekersfilters** en zet **Laat bezoekers deze resultaten filteren** aan
+3. Kies op welke velden bezoekers mogen filteren — de eerste drie worden voor je gekozen
+4. Hernoem eventueel een filter (het label is wat bezoekers zien) en sleep om de volgorde te wijzigen
+
+Elk profielveld kan een facet worden, ook custom LDAP-/OIDC-velden. De schermafbeelding hierboven gebruikt drie custom velden: *Werking*, *Thema* en *Gebouw*.
+
+### Instellingen
+
+| Instelling | Beschrijving |
+|------------|--------------|
+| **Filterbare velden** | Welke velden filtergroepen worden, in de getoonde volgorde. Sleep om te ordenen; hernoem per veld. |
+| **Toon een zoekveld** | Voegt een vrije-tekstzoekveld toe over namen (en eventuele extra velden die je instelt). |
+| **Paneelpositie** | *Naast de resultaten* past bij een pagina over de volle breedte; *Boven de resultaten* past beter in een smalle kolom. |
+
+### Twee gedragingen die je moet kennen
+
+**Een waarde kiezen maakt de eigen groep nooit leeg.** In de schermafbeelding staan *Woongericht welzijnswerk* én *Straatzorg* aangevinkt onder Werking. Als het kiezen van de eerste elke andere waarde op nul had gezet, was "dit **of** dat" nooit uit te drukken geweest. Andere groepen krimpen wél — dat is juist de bedoeling — maar een groep beperkt zichzelf niet.
+
+**Een gekozen waarde blijft zichtbaar, ook op nul.** *Straatzorg* toont `0` omdat niemand eraan voldoet *in combinatie met* de andere actieve filters. Hij blijft staan én aangevinkt, zodat je hem weer uit kunt zetten. Een waarde die verdwijnt laat een filter achter dat je niet meer kwijtraakt.
+
+### Wat een bezoeker niet kan
+
+Een bezoeker kan alleen beperken wat de widget al toont. Heb je een widget op één afdeling ingesteld, dan komt geen enkele filtercombinatie daarbuiten — die beperking zit in de manier waarop de resultaten worden opgebouwd, niet als controle achteraf. Een veld waarop de widget zelf al filtert wordt daarom niet als facet aangeboden: dat zou alleen lege opties tonen, en de editor legt uit waarom in plaats van je keuze stil te negeren.
+
+### Grote instances
+
+Filteraantallen zijn exact zolang het bereik van de widget onder de scanlimiet blijft (standaard 5.000 accounts). Daarboven toont de editor een waarschuwing en verschijnen aantallen als `~12` in plaats van `12` — een gedeeltelijk getal wordt altijd als gedeeltelijk gemarkeerd. Een **Groep**-filter toevoegen begrenst de widget, maakt de aantallen weer exact en laadt bovendien sneller.
+
+## Privacy
+
+### Zichtbaarheid van velden
+
+De widget respecteert de zichtbaarheid die elke gebruiker zelf instelt onder **Instellingen → Persoonlijk → Persoonlijke gegevens**:
+
+| Zichtbaarheid | Ingelogde bezoekers | Publieke sharelinks |
+|---------------|---------------------|---------------------|
+| **Privé** | verborgen | verborgen |
+| **Lokaal** | zichtbaar | verborgen |
+| **Gefedereerd** / **Gepubliceerd** | zichtbaar | zichtbaar |
+
+Velden die gebruikers op privé hebben gezet worden nooit getoond, ongeacht wat de widget zou moeten weergeven. IntraVox custom velden (uit LDAP-/OIDC-synchronisatie) hebben geen eigen zichtbaarheidsinstelling en worden behandeld als **Lokaal**: beschikbaar voor ingelogde gebruikers, nooit op een publieke share.
+
+> **Upgrade je vanaf een versie vóór IntraVox 1.9.4?** Eerdere versies controleerden deze instellingen niet, dus velden die op privé stonden werden tóch getoond. Na de upgrade verdwijnen ze — dat is de fix, maar het is een zichtbare verandering. Draai `occ intravox:people:scope-report` om precies te zien welke velden dit op jouw instance raakt en voor hoeveel accounts.
+
+### Publieke sharelinks
+
+**People-widgets zijn standaard verborgen op publieke sharelinks.**
+
+Een publieke share wordt meestal gemaakt om iemand een set documenten te geven. Staat er ook een People-widget op de pagina, dan zou het delen van die documenten een personeelsgids publiceren — namen en foto's — naar iedereen met de link, zonder dat de mensen op die lijst daarmee hebben ingestemd, en vaak zonder dat de deler doorhad dat de widget er stond.
+
+De rest van de pagina wordt gewoon gedeeld; alleen de People-widget blijft weg. Bezoekersfilters verschijnen sowieso niet op een sharelink, omdat de filterwaarden zelf de structuur van je organisatie zouden prijsgeven.
+
+Een beheerder kan het instance-breed toestaan onder **Instellingen → Beheer → IntraVox → Publicatie**:
+
+![Instelling People op publieke sharelinks](../../screenshots/People-widget-publicshare.png)
+
+Zet dit alleen aan waar er een echte reden voor is — bijvoorbeeld een externe projectpagina met een genoemd aanspreekpunt. De zichtbaarheid per veld blijft gelden, dus privé- en lokale velden blijven verborgen, maar namen en foto's worden zichtbaar voor iedereen met de link.
+
 ## Achtergrond-kleuren
 
 De People-widget ondersteunt drie achtergrond-kleur-opties:
@@ -295,7 +368,9 @@ Bij gebruik van een donkere achtergrond (Primary) passen tekst-kleuren zich auto
 ## Tips
 
 - **Performance**: limiteer het aantal gebruikers voor betere laadtijden, vooral met veel profiel-velden ingeschakeld
-- **Privacy**: overweeg welke velden je publiekelijk toont. Telefoonnummers en adressen staan standaard uit
+- **Privacy**: overweeg welke velden je publiekelijk toont. Telefoonnummers en adressen staan standaard uit, en velden die gebruikers op privé zetten worden nooit getoond
+- **Bezoekersfilters**: het meest zinvol op een aparte smoelenboek-pagina. Drie tot vijf facetten is meestal genoeg — meer wordt een formulier in plaats van een filter
+- **Eerst een groepsfilter**: op een grote instance maakt het begrenzen tot een groep de filteraantallen exact en de pagina sneller
 - **Groepen**: maak Nextcloud-groepen specifiek voor widget-weergave (bv. "Leadership Team", "Support Staff")
 - **Profiel-volledigheid**: moedig gebruikers aan om hun Nextcloud-profielen aan te vullen voor rijkere People-widgets
 - **Layouts**: gebruik Grid voor grote teams, Cards voor kleine featured teams, Lijst voor directories
@@ -303,7 +378,7 @@ Bij gebruik van een donkere achtergrond (Primary) passen tekst-kleuren zich auto
 
 ## Vereisten
 
-- IntraVox 0.9.14 of hoger
+- IntraVox 0.9.14 of hoger (bezoekersfilters en het hierboven beschreven privacygedrag vereisen 1.9.4)
 - Gebruikers moeten Nextcloud-accounts hebben
 - Groep-filtering vereist dat gebruikers lid zijn van Nextcloud-groepen
 - Calendar-app vereist voor "Beschikbaarheid tonen" in avatar-popup

@@ -34,8 +34,7 @@ show. Two things must not be skipped.
       users marked private disappear from existing widgets. `email` is the
       most likely surprise: it defaults to Federated, but many instances set
       it to Local, which removes it from public-share People widgets.
-- [ ] **Point at the report command** so admins can measure their own blast
-      radius before upgrading:
+- [ ] **Mention the report command as optional diagnostics** — nothing has to be run for the upgrade to work; it only tells an admin in advance what will change
       ```bash
       occ intravox:people:scope-report          # samples 1000 accounts
       occ intravox:people:scope-report --all    # every account
