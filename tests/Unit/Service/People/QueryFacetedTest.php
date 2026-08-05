@@ -252,6 +252,54 @@ class QueryFacetedTest extends TestCase {
 		$this->assertFalse($last['hasMore']);
 	}
 
+	/**
+	 * The result set must not depend on which facets were asked for.
+	 *
+	 * Found on live data: the cohort snapshot only loaded the fields needed
+	 * for facets, search, editor filters and sorting — not the fields the
+	 * viewer was actually refining on. Refining on `organisation` while
+	 * requesting facets for `role` therefore matched nothing, because
+	 * `organisation` was never read into the snapshot.
+	 *
+	 * This matters beyond the obvious: a deep link restores refinements from
+	 * the URL before any facet is rendered, so the broken case is the normal
+	 * case for a shared link.
+	 */
+	public function testResultIsIndependentOfWhichFacetsAreRequested(): void {
+		$service = $this->makeService();
+		$refine = [self::refine('role', ['Manager'])];
+
+		$withOwnFacet = $service->queryFaceted([], 'AND', $refine, ['role', 'gebouw']);
+		$withOtherFacet = $service->queryFaceted([], 'AND', $refine, ['gebouw']);
+		$withNoFacets = $service->queryFaceted([], 'AND', $refine, []);
+
+		$this->assertSame(3, $withOwnFacet['total']);
+		$this->assertSame(
+			$withOwnFacet['total'],
+			$withOtherFacet['total'],
+			'refining on a field that is not itself a facet must still filter'
+		);
+		$this->assertSame(
+			$withOwnFacet['total'],
+			$withNoFacets['total'],
+			'refining with no facets requested at all must still filter'
+		);
+	}
+
+	/**
+	 * The deep-link case: refinements arrive from the URL, facets are asked
+	 * for separately, and the two lists need not overlap.
+	 */
+	public function testRefinementOnNonFacetedFieldStillNarrows(): void {
+		$service = $this->makeService();
+
+		$all = $service->queryFaceted([], 'AND', [], ['role']);
+		$refined = $service->queryFaceted([], 'AND', [self::refine('gebouw', ['Noord'])], ['role']);
+
+		$this->assertSame(6, $all['total']);
+		$this->assertSame(3, $refined['total'], 'gebouw refinement ignored when gebouw is not a facet');
+	}
+
 	public function testMetaReportsExactCountsForSmallInstance(): void {
 		$result = $this->makeService()->queryFaceted([], 'AND', [], ['role']);
 

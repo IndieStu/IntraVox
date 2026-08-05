@@ -231,7 +231,21 @@ class UserService {
             static fn(string $f): bool => $f !== '' && !in_array($f, $editorFields, true)
         ));
 
-        $snapshot = $this->buildCohortSnapshot($editorFilters, $operator, $facetFields, $searchFields, $sortBy);
+        // The refined fields must be loaded into the snapshot too, not just
+        // the facet fields: a viewer can refine on a field the page never
+        // renders as a facet (a deep link, a chip restored from the URL).
+        // Leaving them out made the result set depend on which facets were
+        // requested — refining on `organisation` without asking for it as a
+        // facet matched nothing at all.
+        $refinedFields = array_map(static fn(array $r): string => $r['field'], $refinements);
+
+        $snapshot = $this->buildCohortSnapshot(
+            $editorFilters,
+            $operator,
+            array_values(array_unique(array_merge($facetFields, $refinedFields))),
+            $searchFields,
+            $sortBy
+        );
         $rows = $snapshot->toFilterRows();
 
         // Free text first: it is part of "the set the viewer is looking at",
