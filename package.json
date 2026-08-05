@@ -15,8 +15,9 @@
     "ws": "^7.5.11"
   },
   "scripts": {
-    "prebuild": "node scripts/sync-version.js --check && node scripts/check-import-consistency.js && node scripts/check-l10n-sync.js",
+    "prebuild": "node scripts/sync-version.js --check && node scripts/check-import-consistency.js && node scripts/check-l10n-sync.js && node scripts/check-facet-serialization.js",
     "lint:imports": "node scripts/check-import-consistency.js",
+    "lint:facets": "node scripts/check-facet-serialization.js",
     "lint:l10n": "node scripts/check-l10n-sync.js",
     "build": "webpack",
     "build:dev": "NODE_ENV=development webpack",
