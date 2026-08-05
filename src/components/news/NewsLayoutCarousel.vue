@@ -132,7 +132,9 @@ export default {
     },
     secondaryTextStyle() {
       if (this.isDarkBackground) {
-        return { color: 'rgba(255, 255, 255, 0.8)' };
+        // Full-strength white: at 80% opacity this fell to ~3.8:1 on the
+        // translucent card, below the 4.5:1 WCAG 2.1 AA minimum for body text.
+        return { color: 'var(--color-primary-element-text)' };
       }
       return {};
     },

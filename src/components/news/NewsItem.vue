@@ -145,28 +145,41 @@ export default {
   border-color: var(--color-primary-element-light);
 }
 
+/* Stay on the LIGHT surface when hovering. --color-primary-element-hover is a
+   dark blue, which flipped the card from light to dark while the text kept its
+   dark light-surface colour (≈1.7:1 — unreadable). The light hover token keeps
+   the card stable and readable (≈11.6:1 for the title). */
 .news-item--bg-dark:hover {
-  background: var(--color-primary-element-hover);
-  border-color: var(--color-primary-element-hover);
+  background: var(--color-primary-element-light-hover);
+  border-color: var(--color-primary-element-light-hover);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
 }
 
+/* The card itself is LIGHT (--color-primary-element-light) even though the
+   container behind it is dark, so its text must use the matching light-surface
+   token. Using --color-primary-element-text here painted white on a light card
+   (≈1.2:1 contrast — effectively invisible, WCAG 2.1 AA needs 4.5:1).
+   --color-primary-element-light-text is Nextcloud's designated partner for this
+   surface and yields ≈13:1. Opacity is not used to de-emphasise text: it eats
+   contrast: --color-text-maxcontrast is the accessible way to do that. */
 .news-item--bg-dark .news-item-title {
-  color: var(--color-primary-element-text);
+  color: var(--color-primary-element-light-text);
 }
 
 .news-item--bg-dark:hover .news-item-title {
-  color: var(--color-primary-element-text);
+  color: var(--color-primary-element-light-text);
 }
 
+/* --color-text-maxcontrast only just clears AA on the resting card (4.57:1) and
+   drops below it on the hover tint (4.09:1), so use the full text colour. These
+   stay visually secondary through their smaller font size, not through a weaker
+   contrast. */
 .news-item--bg-dark .news-item-date {
-  color: var(--color-primary-element-text);
-  opacity: 0.8;
+  color: var(--color-main-text);
 }
 
 .news-item--bg-dark .news-item-excerpt {
-  color: var(--color-primary-element-text);
-  opacity: 0.8;
+  color: var(--color-main-text);
 }
 
 .news-item--compact {
@@ -230,9 +243,10 @@ export default {
   color: var(--color-primary);
 }
 
-/* Dark mode: keep white text on hover */
+/* Card on a dark container: keep the light-surface text colour on hover too.
+   (This rule comes after the one above and would otherwise override it.) */
 .news-item--bg-dark:hover .news-item-title {
-  color: var(--color-primary-element-text);
+  color: var(--color-primary-element-light-text);
 }
 
 .news-item-date {
