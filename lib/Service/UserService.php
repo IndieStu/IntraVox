@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Service\People\AccountScopePolicy;
 use OCP\Accounts\IAccountManager;
 use OCP\Activity\IManager as IActivityManager;
 use OCP\ICache;
@@ -13,6 +14,7 @@ use OCP\IGroupManager;
 use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserManager;
+use OCP\IUserSession;
 use OCP\UserStatus\IManager as IUserStatusManager;
 use Psr\Log\LoggerInterface;
 
@@ -67,11 +69,43 @@ class UserService {
         private ?IConfig $config = null,
         private ?IActivityManager $activityManager = null,
         private ?IDBConnection $db = null,
-        ?ICacheFactory $cacheFactory = null
+        ?ICacheFactory $cacheFactory = null,
+        private ?IUserSession $userSession = null,
+        private ?GroupContextService $groupContext = null
     ) {
         if ($cacheFactory !== null && $cacheFactory->isAvailable()) {
             $this->cache = $cacheFactory->createDistributed('intravox-people');
         }
+    }
+
+    /**
+     * Which audience the current request is being served to.
+     *
+     * Anonymous (public share) visitors see strictly less than logged-in
+     * users. When no session is wired up we fail closed to anonymous — the
+     * safer of the two.
+     */
+    private function currentAudience(): string {
+        if ($this->userSession !== null && $this->userSession->getUser() !== null) {
+            return AccountScopePolicy::AUDIENCE_LOCAL;
+        }
+
+        return AccountScopePolicy::AUDIENCE_ANONYMOUS;
+    }
+
+    /**
+     * Cache-key discriminator for anything derived from account properties.
+     *
+     * Two things vary what a user may see: the audience (scope gating) and
+     * their group membership (which accounts are visible at all). Both must
+     * be in the key, or one user's cached result leaks to another.
+     */
+    private function cacheContext(): string {
+        $groupHash = $this->groupContext !== null
+            ? $this->groupContext->getGroupHash()
+            : 'nogroups';
+
+        return $this->currentAudience() . '_' . $groupHash;
     }
 
     /**
@@ -249,11 +283,15 @@ class UserService {
             // Apply a hard cap to prevent OOM/timeout on large instances.
             $maxToCollect = $returnTotal ? self::MAX_FILTER_SCAN : min(($limit + $offset) * 2, self::MAX_FILTER_SCAN);
 
-            // Try cache for this filter combination
-            // Cache is shared, but results depend on which users the requesting user can see
-            // (Nextcloud account visibility settings). Cache is short-lived (1h) and shared
-            // to avoid N×5k profile builds, which is an acceptable trade-off.
-            $filterCacheKey = 'filter_shared_' . md5(json_encode($filters) . $operator . $sortBy . $sortOrder);
+            // Try cache for this filter combination.
+            // Key includes audience + group hash. The previous key was
+            // 'filter_shared_<hash>', shared across every user regardless of
+            // what they were allowed to see. Renaming the prefix is not
+            // cosmetic: it orphans every entry built before the scope gate
+            // existed, which would otherwise keep serving private fields
+            // until it aged out. Do not revert to the old prefix.
+            $filterCacheKey = 'filter_v2_' . $this->cacheContext() . '_'
+                . md5(json_encode($filters) . $operator . $sortBy . $sortOrder);
             if ($this->cache !== null) {
                 $cached = $this->cache->get($filterCacheKey);
                 if ($cached !== null) {
@@ -392,16 +430,46 @@ class UserService {
     }
 
     /**
+     * Whether an account property may be shown to the given audience.
+     *
+     * Tolerant by design: an account-property implementation that predates
+     * getScope(), or throws, is treated as v2-local — visible to logged-in
+     * users, never to anonymous share visitors.
+     *
+     * @param mixed $prop An IAccountProperty (loosely typed so older
+     *                    Nextcloud property objects don't fatal here)
+     */
+    private function propertyVisible(mixed $prop, string $audience): bool {
+        $scope = null;
+
+        if (is_object($prop) && method_exists($prop, 'getScope')) {
+            try {
+                $scope = $prop->getScope();
+            } catch (\Throwable $e) {
+                $scope = null;
+            }
+        }
+
+        return AccountScopePolicy::isVisible(
+            is_string($scope) ? $scope : null,
+            $audience
+        );
+    }
+
+    /**
      * Build user profile array from IUser
      *
      * @param IUser $user The user object
+     * @param string|null $audience Visibility audience; defaults to the
+     *                              audience of the current request.
      * @return array User profile data
      */
-    private function buildUserProfile(IUser $user): array {
+    private function buildUserProfile(IUser $user, ?string $audience = null): array {
+        $audience = $audience ?? $this->currentAudience();
+
         $profile = [
             'uid' => $user->getUID(),
             'displayName' => $user->getDisplayName(),
-            'email' => $user->getEMailAddress(),
             'avatarUrl' => $this->urlGenerator->linkToRouteAbsolute('core.avatar.getAvatar', [
                 'userId' => $user->getUID(),
                 'size' => 128,
@@ -409,6 +477,13 @@ class UserService {
             'groups' => $this->getGroupsForUser($user->getUID()),
             'status' => $this->getUserStatus($user->getUID()),
         ];
+
+        // NOTE: `email` is deliberately NOT seeded from IUser::getEMailAddress()
+        // here. That call bypasses the account-property scope entirely, so it
+        // would hand out an address the user marked private. The scoped loop
+        // below sets `email` when the scope allows it; the key is initialised
+        // to null so consumers keep seeing a stable shape.
+        $profile['email'] = null;
 
         // Get account data from IAccountManager
         try {
@@ -418,6 +493,15 @@ class UserService {
             foreach (array_keys(self::STANDARD_PROPERTIES) as $property) {
                 try {
                     $prop = $account->getProperty($property);
+
+                    // Respect the per-property visibility scope the user set
+                    // in Personal info. Without this gate a property marked
+                    // private is handed to every viewer, and on a public
+                    // share to the open internet.
+                    if (!$this->propertyVisible($prop, $audience)) {
+                        continue;
+                    }
+
                     $value = $prop->getValue();
                     // Use a simplified key name
                     $key = $this->propertyToKey($property);
@@ -434,10 +518,16 @@ class UserService {
                 }
             }
 
-            // Try to get additional properties (from LDAP/OIDC)
+            // Try to get additional properties (from LDAP/OIDC).
+            // This is where the widest leak was: these are never enumerated
+            // in STANDARD_PROPERTIES, so whatever the directory syncs lands
+            // here — including fields an admin considers internal.
             try {
                 $allProperties = $account->getProperties();
                 foreach ($allProperties as $prop) {
+                    if (!$this->propertyVisible($prop, $audience)) {
+                        continue;
+                    }
                     $name = $prop->getName();
                     $key = $this->propertyToKey($name);
                     if (!isset($profile[$key])) {
@@ -455,8 +545,12 @@ class UserService {
         }
 
         // Get IntraVox custom fields from user preferences
-        // These are stored by the intravox:add-demo-fields command or LDAP/OIDC sync
-        if ($this->config !== null) {
+        // These are stored by the intravox:add-demo-fields command or LDAP/OIDC sync.
+        //
+        // They carry no visibility scope of their own, so we treat them as
+        // v2-local: available to logged-in users, never to anonymous visitors
+        // on a public share.
+        if ($this->config !== null && $audience === AccountScopePolicy::AUDIENCE_LOCAL) {
             try {
                 $customFieldsJson = $this->config->getUserValue(
                     $user->getUID(),
@@ -784,7 +878,12 @@ class UserService {
         $sampleCount = 0;
         $detectedFields = [];
 
-        $this->userManager->callForAllUsers(function (IUser $user) use (&$sampleCount, &$detectedFields, $knownFields) {
+        // Fields are only advertised when this audience could actually see
+        // them. Listing a private field in the editor dropdown leaks its
+        // existence even if its values never render.
+        $audience = $this->currentAudience();
+
+        $this->userManager->callForAllUsers(function (IUser $user) use (&$sampleCount, &$detectedFields, $knownFields, $audience) {
             if ($sampleCount >= 5) {
                 return;
             }
@@ -794,6 +893,9 @@ class UserService {
                 $account = $this->accountManager->getAccount($user);
                 $allProperties = $account->getProperties();
                 foreach ($allProperties as $prop) {
+                    if (!$this->propertyVisible($prop, $audience)) {
+                        continue;
+                    }
                     $key = $this->propertyToKey($prop->getName());
                     if (!in_array($key, $knownFields) && !isset($detectedFields[$key])) {
                         $detectedFields[$key] = [

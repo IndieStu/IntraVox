@@ -30,6 +30,7 @@ interface IUser {
     public function getUID(): string;
     public function getDisplayName(): string;
     public function isEnabled(): bool;
+    public function getEMailAddress(): ?string;
 }
 
 interface IUserSession {
@@ -86,6 +87,15 @@ interface IL10N {
 interface IURLGenerator {
     public function imagePath(string $app, string $image): string;
     public function linkToRoute(string $routeName, array $arguments = []): string;
+    public function linkToRouteAbsolute(string $routeName, array $arguments = []): string;
+}
+
+interface IUserManager {
+    public function get(string $uid): ?IUser;
+    public function search(string $pattern, ?int $limit = null, ?int $offset = null): array;
+    public function searchDisplayName(string $pattern, ?int $limit = null, ?int $offset = null): array;
+    public function callForAllUsers(\Closure $callback, string $search = '', bool $onlySeen = false): void;
+    public function countUsers(): array;
 }
 
 namespace OCP\Files;
@@ -354,6 +364,45 @@ abstract class SimpleMigrationStep {
 namespace OCP\Share;
 
 interface IManager {}
+
+namespace OCP\Accounts;
+
+interface IAccountProperty {
+    public function getName(): string;
+    public function getValue(): string;
+    public function getScope(): string;
+}
+
+interface IAccount {
+    public function getProperty(string $property): IAccountProperty;
+    /** @return IAccountProperty[] */
+    public function getProperties(): array;
+    public function getUser(): \OCP\IUser;
+}
+
+interface IAccountManager {
+    public const PROPERTY_DISPLAYNAME = 'displayname';
+    public const PROPERTY_EMAIL = 'email';
+    public const PROPERTY_PHONE = 'phone';
+    public const PROPERTY_ADDRESS = 'address';
+    public const PROPERTY_WEBSITE = 'website';
+    public const PROPERTY_TWITTER = 'twitter';
+    public const PROPERTY_BLUESKY = 'bluesky';
+    public const PROPERTY_FEDIVERSE = 'fediverse';
+    public const PROPERTY_ORGANISATION = 'organisation';
+    public const PROPERTY_ROLE = 'role';
+    public const PROPERTY_HEADLINE = 'headline';
+    public const PROPERTY_BIOGRAPHY = 'biography';
+    public const PROPERTY_PRONOUNS = 'pronouns';
+    public const PROPERTY_BIRTHDATE = 'birthdate';
+
+    public const SCOPE_PRIVATE = 'v2-private';
+    public const SCOPE_LOCAL = 'v2-local';
+    public const SCOPE_FEDERATED = 'v2-federated';
+    public const SCOPE_PUBLISHED = 'v2-published';
+
+    public function getAccount(\OCP\IUser $user): IAccount;
+}
 
 namespace Psr\Log;
 
