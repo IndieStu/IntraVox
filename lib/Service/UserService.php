@@ -514,11 +514,23 @@ class UserService {
                 continue;
             }
 
+            // Rebuild for the audience the cohort was recorded under, not the
+            // one this process happens to be running as. The job has no
+            // session, so without this every logged-in cohort came back
+            // anonymous — Local fields stripped, custom fields absent — and
+            // was written straight over the logged-in cache key, emptying the
+            // viewer's filter panel until a real request rebuilt it.
+            $audience = (string)($recipe['audience'] ?? '');
+            if ($audience === '') {
+                continue;
+            }
+
             try {
                 $snapshot = $this->scanCohort(
                     is_array($recipe['filters'] ?? null) ? $recipe['filters'] : [],
                     (string)($recipe['operator'] ?? 'AND'),
-                    is_array($recipe['fields'] ?? null) ? $recipe['fields'] : []
+                    is_array($recipe['fields'] ?? null) ? $recipe['fields'] : [],
+                    $audience
                 );
 
                 $payload = json_encode($snapshot->jsonSerializeForCache());
@@ -587,9 +599,18 @@ class UserService {
     /**
      * Walk the candidate users and record only the needed fields.
      */
-    private function scanCohort(array $editorFilters, string $operator, array $neededFields): CohortSnapshot {
+    private function scanCohort(
+        array $editorFilters,
+        string $operator,
+        array $neededFields,
+        ?string $audience = null
+    ): CohortSnapshot {
         $needsGroups = in_array('group', $neededFields, true) || in_array('groups', $neededFields, true);
-        $audience = $this->currentAudience();
+        // The audience is a property of the cohort being built, not of the
+        // process building it. A background job has no session, so deriving it
+        // from currentAudience() there would silently rebuild a logged-in
+        // cohort as anonymous and strip every Local field from it.
+        $audience = $audience ?? $this->currentAudience();
 
         $scanned = 0;
         $cap = self::MAX_FILTER_SCAN;

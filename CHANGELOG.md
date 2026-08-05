@@ -47,6 +47,8 @@ IntraVox is a Nextcloud intranet page builder.
 
 - **The People widget's pagination setting was discarded on every save.** The "show pagination" option was read when rendering but never stored, so it silently reverted each time the page was saved.
 
+- **The filter panel lost all its options after a page reload.** The groups still appeared with their headings, but every one of them read *No matching options* — and then filled back in by itself some minutes later. The widget's configuration was never the problem: the background refresh job runs without a logged-in session, and it rebuilt each widget's data as though an anonymous visitor had asked for it. That strips every field marked **Local** — including `role` and `organisation`, and every IntraVox custom field — and the stripped result was then written over the copy meant for logged-in readers. With no values left to count, each group had nothing to show. The job now rebuilds each set of data for the audience it belongs to, so a refresh no longer empties the panel. Anonymous visitors are unaffected: they still see only what their scope allows.
+
 ## [1.9.3] - 2026-08-05 — Pages are findable by their MetaVox metadata
 
 ### Added
