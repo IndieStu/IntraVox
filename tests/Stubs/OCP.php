@@ -71,6 +71,7 @@ interface ICache {
     public function hasKey($key);
     public function remove($key);
     public function clear($prefix = '');
+    public function add($key, $value, $ttl = 0);
 }
 
 interface ICacheFactory {

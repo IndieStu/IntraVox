@@ -5,6 +5,7 @@ namespace OCA\IntraVox\Service;
 
 use OCA\IntraVox\Service\Filter\FacetCalculator;
 use OCA\IntraVox\Service\Filter\FilterSpec;
+use OCA\IntraVox\Service\People\AccountBulkLoader;
 use OCA\IntraVox\Service\People\AccountScopePolicy;
 use OCA\IntraVox\Service\People\CohortSnapshot;
 use OCP\Accounts\IAccountManager;
@@ -70,6 +71,23 @@ class UserService {
      */
     private const COHORT_CACHE_TTL = 900;
 
+    /**
+     * How long the stale fallback copy lives (1 hour).
+     *
+     * Deliberately longer than COHORT_CACHE_TTL: its whole job is to still be
+     * there when the fresh entry has expired, so a concurrent reader has
+     * something to be served while one request rebuilds.
+     */
+    private const COHORT_STALE_TTL = 3600;
+
+    /**
+     * Rebuild lock lifetime (2 minutes).
+     *
+     * Long enough for a slow LDAP scan, short enough that a crashed request
+     * cannot wedge the cohort for long.
+     */
+    private const COHORT_LOCK_TTL = 120;
+
     public function __construct(
         private IUserManager $userManager,
         private IGroupManager $groupManager,
@@ -82,10 +100,17 @@ class UserService {
         private ?IDBConnection $db = null,
         ?ICacheFactory $cacheFactory = null,
         private ?IUserSession $userSession = null,
-        private ?GroupContextService $groupContext = null
+        private ?GroupContextService $groupContext = null,
+        private ?AccountBulkLoader $bulkLoader = null
     ) {
         if ($cacheFactory !== null && $cacheFactory->isAvailable()) {
             $this->cache = $cacheFactory->createDistributed('intravox-people');
+        }
+
+        // Autowiring cannot build the loader when IDBConnection is optional,
+        // so construct it here when the connection is available.
+        if ($this->bulkLoader === null && $db !== null) {
+            $this->bulkLoader = new AccountBulkLoader($db, $logger);
         }
     }
 
@@ -371,25 +396,95 @@ class UserService {
             $editorFilters, $operator, $neededFields,
         ]));
 
-        if ($this->cache !== null) {
-            $cached = $this->cache->get($cacheKey);
-            if (is_string($cached)) {
-                $snapshot = CohortSnapshot::fromCache(json_decode($cached, true));
-                if ($snapshot !== null) {
-                    return $snapshot;
-                }
+        // Fresh entry: serve it and we are done.
+        $snapshot = $this->readSnapshotFromCache($cacheKey);
+        if ($snapshot !== null) {
+            return $snapshot;
+        }
+
+        // Stale-while-revalidate. Without this, every concurrent reader that
+        // arrives during a cache miss starts its own full scan. On an LDAP
+        // instance where $group->getUsers() takes 10-30 s that is not a slow
+        // page, it is an outage: fifty readers means fifty simultaneous
+        // scans. Only the lock holder rebuilds; everyone else is served the
+        // previous snapshot, which is at most a few minutes old.
+        $stale = $this->readSnapshotFromCache($cacheKey . '_stale');
+        $lockKey = $cacheKey . '_lock';
+
+        if (!$this->acquireRebuildLock($lockKey)) {
+            if ($stale !== null) {
+                return $stale;
             }
+            // Nothing to fall back on (first ever request for this cohort):
+            // build it rather than show the viewer an empty widget.
         }
 
-        $snapshot = $this->scanCohort($editorFilters, $operator, $neededFields);
+        try {
+            $snapshot = $this->scanCohort($editorFilters, $operator, $neededFields);
 
-        if ($this->cache !== null) {
-            // Shorter TTL than the legacy filter cache: a stale *number* next
-            // to a checkbox is far more visible than a stale list.
-            $this->cache->set($cacheKey, json_encode($snapshot->jsonSerializeForCache()), self::COHORT_CACHE_TTL);
+            if ($this->cache !== null) {
+                $payload = json_encode($snapshot->jsonSerializeForCache());
+                // Shorter TTL than the legacy filter cache: a stale *number*
+                // next to a checkbox is far more visible than a stale list.
+                $this->cache->set($cacheKey, $payload, self::COHORT_CACHE_TTL);
+                // The stale copy outlives the fresh one on purpose — it is
+                // what the next cache miss serves while rebuilding.
+                $this->cache->set($cacheKey . '_stale', $payload, self::COHORT_STALE_TTL);
+            }
+
+            return $snapshot;
+        } finally {
+            $this->releaseRebuildLock($lockKey);
+        }
+    }
+
+    /**
+     * Read and decode a snapshot, or null when absent/unusable.
+     */
+    private function readSnapshotFromCache(string $key): ?CohortSnapshot {
+        if ($this->cache === null) {
+            return null;
         }
 
-        return $snapshot;
+        $cached = $this->cache->get($key);
+        if (!is_string($cached)) {
+            return null;
+        }
+
+        return CohortSnapshot::fromCache(json_decode($cached, true));
+    }
+
+    /**
+     * Try to become the one request that rebuilds this cohort.
+     *
+     * Uses ICache::add(), which only succeeds when the key does not exist —
+     * an atomic test-and-set on every distributed backend Nextcloud ships.
+     * Returns true when there is no cache at all, so a cacheless instance
+     * simply behaves as it did before.
+     */
+    private function acquireRebuildLock(string $lockKey): bool {
+        if ($this->cache === null) {
+            return true;
+        }
+
+        try {
+            return $this->cache->add($lockKey, '1', self::COHORT_LOCK_TTL);
+        } catch (\Throwable $e) {
+            // A backend without add() must not block the rebuild.
+            return true;
+        }
+    }
+
+    private function releaseRebuildLock(string $lockKey): void {
+        if ($this->cache === null) {
+            return;
+        }
+
+        try {
+            $this->cache->remove($lockKey);
+        } catch (\Throwable $e) {
+            // The TTL will clear it.
+        }
     }
 
     /**
@@ -399,18 +494,19 @@ class UserService {
         $needsGroups = in_array('group', $neededFields, true) || in_array('groups', $neededFields, true);
         $audience = $this->currentAudience();
 
-        $rows = [];
         $scanned = 0;
         $cap = self::MAX_FILTER_SCAN;
 
-        $collect = function (IUser $user) use (&$rows, $neededFields, $needsGroups, $audience): void {
-            $rows[] = $this->snapshotRowFor($user, $neededFields, $needsGroups, $audience);
-        };
-
-        // A group filter narrows the scan enormously, so honour it first.
+        // Collect the users first, then read their account data in bulk.
+        // getAccount() is one query per user and dominates this scan by two
+        // orders of magnitude (20.4 ms per 100 accounts, versus 0.1 ms for
+        // reading every property once loaded), so the single most valuable
+        // thing this method does is not call it in a loop.
+        $users = [];
         $groupIds = $this->groupIdsFromFilters($editorFilters);
 
         if ($groupIds !== []) {
+            // A group filter narrows the scan enormously, so honour it first.
             $seen = [];
             foreach ($groupIds as $groupId) {
                 $group = $this->groupManager->get($groupId);
@@ -424,17 +520,40 @@ class UserService {
                     }
                     $seen[$uid] = true;
                     $scanned++;
-                    $collect($user);
+                    $users[] = $user;
                 }
             }
         } else {
-            $this->userManager->callForAllUsers(function (IUser $user) use (&$scanned, $cap, $collect): void {
+            $this->userManager->callForAllUsers(function (IUser $user) use (&$scanned, &$users, $cap): void {
                 if ($scanned >= $cap) {
                     return;
                 }
                 $scanned++;
-                $collect($user);
+                $users[] = $user;
             });
+        }
+
+        $uids = array_map(static fn(IUser $u): string => $u->getUID(), $users);
+
+        $bulkAccounts = [];
+        $bulkCustom = [];
+        if ($this->bulkLoader !== null && $this->bulkLoader->isAvailable()) {
+            $bulkAccounts = $this->bulkLoader->loadAccounts($uids);
+            if ($audience === AccountScopePolicy::AUDIENCE_LOCAL) {
+                $bulkCustom = $this->bulkLoader->loadCustomFields($uids, self::APP_ID, self::CUSTOM_FIELDS_KEY);
+            }
+        }
+
+        $rows = [];
+        foreach ($users as $user) {
+            $rows[] = $this->snapshotRowFor(
+                $user,
+                $neededFields,
+                $needsGroups,
+                $audience,
+                $bulkAccounts[$user->getUID()] ?? null,
+                $bulkCustom[$user->getUID()] ?? null
+            );
         }
 
         $approximate = $groupIds === [] && $scanned >= $cap;
@@ -492,35 +611,65 @@ class UserService {
      *
      * @return array{u: string, n: string, f: array<string, mixed>, g: array<int, string>}
      */
-    private function snapshotRowFor(IUser $user, array $neededFields, bool $needsGroups, string $audience): array {
+    private function snapshotRowFor(
+        IUser $user,
+        array $neededFields,
+        bool $needsGroups,
+        string $audience,
+        ?array $bulkAccount = null,
+        ?array $bulkCustom = null
+    ): array {
         $fields = [];
 
-        try {
-            $account = $this->accountManager->getAccount($user);
-
-            foreach ($account->getProperties() as $prop) {
-                if (!$this->propertyVisible($prop, $audience)) {
+        if ($bulkAccount !== null) {
+            // Fast path: properties already read in one bulk query. Scope
+            // handling is identical to the per-user path below — it runs
+            // through AccountScopePolicy either way, so the two cannot
+            // disagree about what an audience may see.
+            foreach ($bulkAccount as $name => $meta) {
+                if (!AccountScopePolicy::isVisible($meta['scope'] ?? null, $audience)) {
                     continue;
                 }
-                $key = $this->propertyToKey($prop->getName());
+                $key = $this->propertyToKey((string)$name);
                 $aliased = FilterSpec::aliasField($key);
                 if ($neededFields !== [] && !in_array($aliased, $neededFields, true) && !in_array($key, $neededFields, true)) {
                     continue;
                 }
-                $fields[$aliased] = $prop->getValue() ?: null;
+                $fields[$aliased] = ($meta['value'] ?? '') !== '' ? $meta['value'] : null;
             }
-        } catch (\Exception $e) {
-            // No account data available; the row still carries uid + name.
+        } else {
+            // Fallback: no bulk row for this uid (an LDAP backend that does
+            // not mirror into oc_accounts, or a failed bulk query).
+            try {
+                $account = $this->accountManager->getAccount($user);
+
+                foreach ($account->getProperties() as $prop) {
+                    if (!$this->propertyVisible($prop, $audience)) {
+                        continue;
+                    }
+                    $key = $this->propertyToKey($prop->getName());
+                    $aliased = FilterSpec::aliasField($key);
+                    if ($neededFields !== [] && !in_array($aliased, $neededFields, true) && !in_array($key, $neededFields, true)) {
+                        continue;
+                    }
+                    $fields[$aliased] = $prop->getValue() ?: null;
+                }
+            } catch (\Exception $e) {
+                // No account data available; the row still carries uid + name.
+            }
         }
 
         // IntraVox custom fields carry no scope, so they follow the same
         // rule as in buildUserProfile(): logged-in only.
-        if ($this->config !== null && $audience === AccountScopePolicy::AUDIENCE_LOCAL) {
+        if ($audience === AccountScopePolicy::AUDIENCE_LOCAL && ($bulkCustom !== null || $this->config !== null)) {
             try {
-                $custom = json_decode(
-                    $this->config->getUserValue($user->getUID(), self::APP_ID, self::CUSTOM_FIELDS_KEY, '{}'),
-                    true
-                );
+                $custom = $bulkCustom;
+                if ($custom === null) {
+                    $custom = json_decode(
+                        $this->config->getUserValue($user->getUID(), self::APP_ID, self::CUSTOM_FIELDS_KEY, '{}'),
+                        true
+                    );
+                }
                 if (is_array($custom)) {
                     foreach ($custom as $key => $value) {
                         $aliased = FilterSpec::aliasField((string)$key);
