@@ -53,10 +53,16 @@ class PageSearchProvider implements IProvider {
     }
 
     public function search(IUser $user, ISearchQuery $query): SearchResult {
-        $term = $query->getTerm();
+        $term = trim($query->getTerm());
 
-        // Don't search for very short queries
-        if (mb_strlen($term) < 2) {
+        // No hardcoded minimum length here on purpose. Nextcloud enforces it
+        // centrally via the `unified-search.min-search-length` app config
+        // (default 1): SearchComposer drops a too-short term before the
+        // provider is ever called, and the search bar honours the same value.
+        // An app-side minimum would silently override the admin's setting and
+        // make short but meaningful terms ("HR", "IT", CJK characters)
+        // unfindable. An empty term is all we still need to guard against.
+        if ($term === '') {
             return SearchResult::complete(
                 $this->l10n->t('IntraVox pages'),
                 []
@@ -68,33 +74,39 @@ class PageSearchProvider implements IProvider {
             $language = $this->config->getUserValue($user->getUID(), 'core', 'lang', 'en');
             $indexedResults = $this->pageIndexService->searchByTitle($term, $language, $query->getLimit());
 
-            // If we got results from the index, use those for fast response
-            if (!empty($indexedResults)) {
-                $entries = [];
-                foreach ($indexedResults as $row) {
-                    $url = $this->urlGenerator->linkToRouteAbsolute(
-                        'intravox.page.index',
-                        ['page' => $row['unique_id']]
-                    ) . '#' . $row['unique_id'];
+            // Title-index hits render first (fast path). We no longer return
+            // early here: the index only covers titles, so a term that matches
+            // a title would otherwise silently hide pages matching on content
+            // or MetaVox metadata. Full-text results are appended below, with
+            // pages already listed from the index skipped to avoid duplicates.
+            $entries = [];
+            $seenIds = [];
+            foreach ($indexedResults as $row) {
+                $url = $this->urlGenerator->linkToRouteAbsolute(
+                    'intravox.page.index',
+                    ['page' => $row['unique_id']]
+                ) . '#' . $row['unique_id'];
 
-                    $thumbnailUrl = $this->urlGenerator->imagePath('intravox', 'app-search.svg');
-                    $entries[] = new SearchResultEntry(
-                        $thumbnailUrl,
-                        $row['title'],
-                        $this->l10n->t('IntraVox page'),
-                        $url,
-                        '',
-                        true
-                    );
-                }
-                return SearchResult::complete($this->l10n->t('IntraVox pages'), $entries);
+                $thumbnailUrl = $this->urlGenerator->imagePath('intravox', 'app-search.svg');
+                $entries[] = new SearchResultEntry(
+                    $thumbnailUrl,
+                    $row['title'],
+                    $this->l10n->t('IntraVox page'),
+                    $url,
+                    '',
+                    true
+                );
+                $seenIds[$row['unique_id']] = true;
             }
 
-            // Fallback to full-text search (slower, reads all JSON files)
+            // Full-text search (slower, reads all JSON files) — also the only
+            // path that matches MetaVox metadata.
             $results = $this->pageService->searchPages($term);
-            $entries = [];
 
             foreach ($results as $result) {
+                if (isset($seenIds[$result['uniqueId'] ?? ''])) {
+                    continue;
+                }
                 // Create IntraVox app URL (not Files URL)
                 // Build URL manually to ensure it goes to the app, not Files
                 $pageIdentifier = $result['uniqueId'] ?? $result['id'];
@@ -140,6 +152,11 @@ class PageSearchProvider implements IProvider {
                             break;
                         case 'video':
                             $subline = $this->l10n->t('Video') . ': ' . $this->truncate($matchText, 90);
+                            break;
+                        case 'metadata':
+                            // Already formatted as MetaVox formats its own
+                            // sublines ("Label: value • ..."), so show it as-is.
+                            $subline = $this->truncate($matchText, 100);
                             break;
                         default:
                             $subline = $this->truncate($matchText, 100);

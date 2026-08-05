@@ -4,6 +4,18 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.3] - 2026-08-05 — Pages are findable by their MetaVox metadata
+
+### Added
+
+- **Search now finds pages by their MetaVox metadata.** A page tagged `City: Liège` or `Primary driver: HENK` was invisible to IntraVox search unless the term also appeared in its title or content — the metadata lives beside the file, not inside the page. Those pages now show up under **IntraVox pages**, with a subline in MetaVox's own format (`Label: value`, joined with ` • `, matching field first, up to three fields) so the same document reads identically in both providers' results. Fields the user may not view are left out, so a restricted metadata field cannot surface here.
+
+### Changed
+
+- **Search results no longer stop at the title index.** The title index was consulted first and returned immediately on a hit, which silently suppressed pages that matched only on content or metadata whenever some other page happened to match on title. Index hits still render first (they are the fastest path); full-text and metadata matches are now appended after them, with duplicates removed.
+
+- **The minimum search length follows the server setting instead of the app.** IntraVox enforced its own two-character minimum, overriding the admin's `unified-search.min-search-length` (Nextcloud's default is 1). Nextcloud already rejects too-short terms centrally, before a provider is ever called, so the app-side check only served to make short but meaningful terms — `HR`, `IT`, CJK characters — unfindable regardless of how the instance was configured. No bundled Nextcloud app defines its own minimum.
+
 ## [1.9.2] - 2026-08-04 — Scheduled publishing, section anchors and working public folder shares
 
 ### Added

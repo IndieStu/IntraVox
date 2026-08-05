@@ -58,6 +58,12 @@ class PageService {
     private SetupService $setupService;
     private IConfig $config;
     private IDBConnection $db;
+    /** @var array<string, string>|null Request-lifetime cache of MetaVox field labels */
+    private ?array $metaVoxFieldLabelsCache = null;
+    /** @var array<string, bool> Request-lifetime cache of per-field view permissions */
+    private array $metaVoxFieldViewCache = [];
+    /** @var array<int, int> file_id => groupfolder_id, filled by getMetaVoxDataForFiles */
+    private array $metaVoxGroupfolderByFile = [];
     private LoggerInterface $logger;
     private IEventDispatcher $eventDispatcher;
     private PublicationSettingsService $publicationSettings;
@@ -1274,6 +1280,8 @@ class PageService {
             $data = json_decode($content, true);
 
             if ($data && isset($data['uniqueId'])) {
+                // fileId lets callers (search) join MetaVox metadata onto the page.
+                $data['fileId'] = $homeFile->getId();
                 $pages[] = $this->sanitizePage($data);
             }
         } catch (NotFoundException $e) {
@@ -1319,6 +1327,8 @@ class PageService {
                     $data = json_decode($content, true);
 
                     if ($data && isset($data['uniqueId'])) {
+                        // fileId lets callers (search) join MetaVox metadata onto the page.
+                        $data['fileId'] = $jsonFile->getId();
                         $pages[] = $this->sanitizePage($data);
                     }
                 } catch (\Exception $e) {
@@ -5325,6 +5335,15 @@ class PageService {
         // Get all pages with full content in a single traversal
         $pagesWithContent = $this->listPagesWithContent();
 
+        // MetaVox metadata is stored alongside the file, not inside the page
+        // JSON, so a page tagged "Stad: Luik" is invisible to a content-only
+        // search. Batch-load it for every page in one query (no N+1) and treat
+        // it as an additional match source below.
+        $metaVoxData = $this->getMetaVoxDataForFiles(
+            array_values(array_filter(array_column($pagesWithContent, 'fileId')))
+        );
+        $metaVoxLabels = empty($metaVoxData) ? [] : $this->getMetaVoxFieldLabels();
+
         foreach ($pagesWithContent as $pageData) {
             $matches = [];
             $score = 0;
@@ -5384,6 +5403,28 @@ class PageService {
                         'text' => $match['text']
                     ];
                 }
+            }
+
+            // Search MetaVox metadata (Stad, Thema, ...). Scored between title
+            // (10) and plain content so a metadata hit ranks meaningfully but
+            // never outranks the page actually being named after the term.
+            $fileId = $pageData['fileId'] ?? null;
+            $pageMeta = $fileId !== null ? ($metaVoxData[$fileId] ?? []) : [];
+            $metaMatches = $this->searchMetaVoxValues(
+                $pageMeta,
+                $query,
+                $metaVoxLabels,
+                $fileId !== null ? ($this->metaVoxGroupfolderByFile[$fileId] ?? null) : null
+            );
+            if (!empty($metaMatches)) {
+                $score += 7;
+                // The subline mirrors MetaVox's own format so results read the
+                // same in both providers: "Label: value" joined with " • ",
+                // matching field first, capped at 3 fields.
+                $matches[] = [
+                    'type' => 'metadata',
+                    'text' => $metaMatches['subline'],
+                ];
             }
 
             // If we have matches, add to results
@@ -6599,7 +6640,7 @@ class PageService {
         try {
             // Query the metavox_file_gf_meta table directly
             $qb = $this->db->getQueryBuilder();
-            $qb->select('file_id', 'field_name', 'field_value')
+            $qb->select('file_id', 'field_name', 'field_value', 'groupfolder_id')
                 ->from('metavox_file_gf_meta')
                 ->where($qb->expr()->in('file_id', $qb->createNamedParameter($fileIds, \Doctrine\DBAL\Connection::PARAM_INT_ARRAY)));
 
@@ -6607,7 +6648,9 @@ class PageService {
             $rows = $result->fetchAll();
             $result->closeCursor();
 
-            // Organize by file ID
+            // Organize by file ID. The shape stays field_name => value (callers
+            // like applyMetaVoxFilters rely on it); the owning groupfolder is
+            // recorded separately so per-field view permissions can be scoped.
             $metaData = [];
             foreach ($rows as $row) {
                 $fileId = (int)$row['file_id'];
@@ -6618,6 +6661,7 @@ class PageService {
                     $metaData[$fileId] = [];
                 }
                 $metaData[$fileId][$fieldName] = $fieldValue;
+                $this->metaVoxGroupfolderByFile[$fileId] = (int)$row['groupfolder_id'];
             }
 
             return $metaData;
@@ -6629,6 +6673,139 @@ class PageService {
             ]);
             return [];
         }
+    }
+
+    /**
+     * Map field_name => field_label for MetaVox fields, so search sublines show
+     * the human label ("Stad") rather than the raw column name ("stad").
+     * Cached for the request; falls back to an empty map when MetaVox is absent,
+     * in which case callers use the raw field name.
+     *
+     * @return array<string, string>
+     */
+    private function getMetaVoxFieldLabels(): array {
+        if ($this->metaVoxFieldLabelsCache !== null) {
+            return $this->metaVoxFieldLabelsCache;
+        }
+
+        $this->metaVoxFieldLabelsCache = [];
+
+        if (!$this->isMetaVoxAvailable()) {
+            return $this->metaVoxFieldLabelsCache;
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('field_name', 'field_label')
+                ->from('metavox_gf_fields');
+
+            $result = $qb->executeQuery();
+            while ($row = $result->fetch()) {
+                $this->metaVoxFieldLabelsCache[$row['field_name']] = $row['field_label'];
+            }
+            $result->closeCursor();
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to load MetaVox field labels', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->metaVoxFieldLabelsCache;
+    }
+
+    /**
+     * Search a page's MetaVox metadata for the query and build a subline.
+     *
+     * The subline format deliberately mirrors MetaVox's own search provider
+     * (MetadataSearchProvider::formatMetadataSubline): "Label: value" parts
+     * joined with " • ", the matching field first, capped at three fields — so
+     * the same document reads identically in both providers' results.
+     *
+     * Fields the user may not view are skipped, so a restricted MetaVox field
+     * cannot leak through an IntraVox search result.
+     *
+     * @param array<string, mixed> $meta   field_name => value for one file
+     * @param string $query                lowercased search term
+     * @param array<string, string> $labels field_name => field_label
+     * @param int|null $groupfolderId      folder owning the file, for permission scoping
+     * @return array{subline: string}|null null when nothing matched
+     */
+    private function searchMetaVoxValues(array $meta, string $query, array $labels, ?int $groupfolderId = null): ?array {
+        if (empty($meta) || $query === '') {
+            return null;
+        }
+
+        $matching = [];
+        $other = [];
+        $found = false;
+
+        foreach ($meta as $fieldName => $value) {
+            // Multiselect values are stored JSON-encoded; flatten to a string so
+            // both the match test and the subline read naturally.
+            if (is_string($value) && str_starts_with($value, '[')) {
+                $decoded = json_decode($value, true);
+                if (is_array($decoded)) {
+                    $value = implode(', ', array_filter($decoded, 'is_scalar'));
+                }
+            }
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $value = (string)$value;
+            if ($value === '') {
+                continue;
+            }
+            if (!$this->canViewMetaVoxField($fieldName, $groupfolderId)) {
+                continue;
+            }
+
+            $part = ($labels[$fieldName] ?? $fieldName) . ': ' . $value;
+            if (mb_stripos($value, $query) !== false) {
+                $matching[] = $part;
+                $found = true;
+            } else {
+                $other[] = $part;
+            }
+        }
+
+        if (!$found) {
+            return null;
+        }
+
+        $parts = array_merge($matching, $other);
+        return ['subline' => implode(' • ', array_slice($parts, 0, 3))];
+    }
+
+    /**
+     * Whether the current user may view a MetaVox field. Delegates to MetaVox's
+     * own PermissionService (resolved lazily — MetaVox is an optional app).
+     *
+     * On any failure we return false: hiding a field costs a subline entry,
+     * showing one the user may not see would leak metadata.
+     */
+    private function canViewMetaVoxField(string $fieldName, ?int $groupfolderId = null): bool {
+        $cacheKey = $fieldName . ':' . ($groupfolderId ?? 'null');
+        if (isset($this->metaVoxFieldViewCache[$cacheKey])) {
+            return $this->metaVoxFieldViewCache[$cacheKey];
+        }
+
+        $allowed = false;
+        try {
+            if ($this->userId !== '') {
+                $permissionService = \OC::$server->get(\OCA\MetaVox\Service\PermissionService::class);
+                $allowed = $permissionService->hasPermission(
+                    $this->userId,
+                    \OCA\MetaVox\Service\PermissionService::PERM_VIEW_METADATA,
+                    $groupfolderId,
+                    $fieldName
+                );
+            }
+        } catch (\Throwable $e) {
+            $allowed = false;
+        }
+
+        $this->metaVoxFieldViewCache[$cacheKey] = $allowed;
+        return $allowed;
     }
 
     /**
