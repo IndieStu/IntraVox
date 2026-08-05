@@ -88,6 +88,60 @@ Anonymous visitors can only navigate between pages within the share scope. They 
 
 ---
 
+## Custom URL (Your Own Domain)
+
+By default a public share lives under a long Nextcloud URL, for example:
+
+```
+https://nextcloud.example.com/apps/intravox/s/aHxqEjrdf4smg8f
+```
+
+You can serve exactly the same page under a short, branded URL of your own — such as `https://intravox.example.com/` — that **stays in the address bar** while visitors browse. In the screenshot below, the IntraVox documentation is served under its own `intravox.…` subdomain instead of the Nextcloud host:
+
+![An IntraVox share served under its own custom subdomain](../../screenshots/public-other-url.png)
+
+*The same public share, reachable under a short custom domain. The address bar shows the custom domain, not the long Nextcloud URL, and it stays there while navigating sub-pages.*
+
+This works because IntraVox's public view uses only **relative URLs** — no Nextcloud hostname is hard-coded. That means it can be served transparently under any (sub)domain via a reverse proxy. **No IntraVox configuration or code change is needed** — it is purely a Nextcloud + reverse-proxy setup.
+
+> A reverse proxy (not a redirect) is what keeps the pretty URL in the address bar. A plain 301/302 redirect would bounce the visitor to the long Nextcloud URL — a reverse proxy serves the content *underneath* the pretty URL instead.
+
+### For Editors — pick the page that should open first
+
+The share URL always opens the **first page in the share** (the top of the share's page tree). If you want your custom domain root (`https://intravox.example.com/`) to open one specific page, **share the folder of that page** rather than a page higher up the tree. The page whose folder you shared then becomes the "home page" of the share, so it opens by default with no extra query needed.
+
+This is the same **Share Scope** rule from above: sharing `Departments/marketing/` makes the *Marketing* page the entry point of that share; sharing the language root makes the language home page the entry point.
+
+### For Administrators — set up the reverse proxy
+
+Point the custom (sub)domain at the same Nextcloud backend and let the reverse proxy serve the share at the root. Using **Nginx Proxy Manager** as an example:
+
+1. **DNS** — create an A/AAAA record for `intravox.example.com` pointing at the server.
+2. **Nextcloud trusted domains** — add the new host, otherwise Nextcloud rejects the request as an untrusted domain:
+   ```bash
+   occ config:system:set trusted_domains 2 --value=intravox.example.com
+   ```
+   Do **not** change `overwrite.cli.url` / `overwritehost` / `overwriteprotocol` — those belong to your main Nextcloud host; only add an extra trusted domain.
+3. **Reverse-proxy host** — create a proxy host for `intravox.example.com` forwarding to the **same Nextcloud backend** (host + port) as your main site, with a Let's Encrypt certificate and Force SSL.
+4. **Serve the share at the root** — in the proxy host's advanced/custom config, make the bare root internally proxy to the share URL (an *internal* `proxy_pass`, so the address bar stays on your domain):
+   ```nginx
+   location = / {
+       proxy_pass http://<nextcloud-backend>:80/apps/intravox/s/<shareToken>;
+
+       proxy_set_header Host              $host;
+       proxy_set_header X-Real-IP         $remote_addr;
+       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+   Every other path (assets, API, media, sub-page navigation) falls through to the proxy's main `location /` and works unchanged, because IntraVox uses relative URLs. Replace `<shareToken>` with the token from your public link (the part after `/s/`).
+
+> **Requirements:** link sharing must be enabled (see [Prerequisites](#prerequisites)), the page must be **published** (drafts are never public), and the proxy must pass through all sub-requests — API, media, assets, the session cookie (for password-protected shares), and websockets. A subdomain gives the cleanest result (its own cookie scope, no path rewriting).
+
+> **Alternative — no root rewrite:** if you don't need the bare root to open the page, you can skip step 4 entirely and just share the full share URL under the pretty host: `https://intravox.example.com/apps/intravox/s/<shareToken>`. Every new document is then simply a new Nextcloud share — no proxy change and no new certificate needed.
+
+---
+
 ## Password-Protected Shares
 
 If you set a password on a share link in the Files app, IntraVox fully respects this. Both the share dialog and the visitor experience reflect the password requirement.
@@ -158,6 +212,7 @@ The following features are **not available** for anonymous visitors:
 - Page settings
 - Creating or deleting pages
 - Access to pages outside the share scope
+- Pages that are not published: drafts, pages with a future **Publish on** date and pages past their **Expire on** date are excluded from the share — from the page itself as well as from the navigation menu and the page tree (see [Scheduled publishing](editor.md#scheduled-publishing-publish-on--expire-on))
 
 ---
 
@@ -194,6 +249,7 @@ This is useful for auditing which content is currently accessible without login.
 | Enable/disable link sharing | Administration > Sharing settings |
 | Create a share link | Files app > IntraVox folder > Share |
 | Copy the public URL | IntraVox page > Share button > Copy public link |
+| Serve a share under your own domain | Reverse proxy + Nextcloud trusted domain (see [Custom URL](#custom-url-your-own-domain)) |
 | Manage share settings | IntraVox page > Share button > Manage share in Files |
 | See all active shares | IntraVox Admin Settings > Sharing tab |
 | Set/change password | Files app > Share settings |

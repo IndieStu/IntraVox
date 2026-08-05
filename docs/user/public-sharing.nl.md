@@ -88,6 +88,60 @@ Anonieme bezoekers kunnen alleen tussen pagina's binnen de share-scope navigeren
 
 ---
 
+## Eigen URL (je eigen domein)
+
+Standaard staat een publieke share onder een lange Nextcloud-URL, bijvoorbeeld:
+
+```
+https://nextcloud.example.com/apps/intravox/s/aHxqEjrdf4smg8f
+```
+
+Je kunt exact dezelfde pagina serveren onder een korte, eigen URL — zoals `https://intravox.example.com/` — die **in de adresbalk blijft staan** terwijl bezoekers rondklikken. In de schermafbeelding hieronder wordt de IntraVox-documentatie geserveerd onder een eigen `intravox.…`-subdomein in plaats van de Nextcloud-host:
+
+![Een IntraVox-share geserveerd onder een eigen subdomein](../../screenshots/public-other-url.png)
+
+*Dezelfde publieke share, bereikbaar onder een kort eigen domein. De adresbalk toont het eigen domein, niet de lange Nextcloud-URL, en blijft daar staan bij het navigeren naar sub-pagina's.*
+
+Dit werkt omdat de publieke weergave van IntraVox uitsluitend **relatieve URLs** gebruikt — er is geen Nextcloud-hostnaam hardcoded. Daardoor kan de share transparant onder elk (sub)domein worden geserveerd via een reverse proxy. **Er is geen IntraVox-configuratie of code-wijziging nodig** — het is puur een Nextcloud + reverse-proxy-opzet.
+
+> Een reverse proxy (geen redirect) is wat de mooie URL in de adresbalk houdt. Een gewone 301/302-redirect zou de bezoeker doorsturen naar de lange Nextcloud-URL — een reverse proxy serveert de content juist *ónder* de mooie URL.
+
+### Voor editors — kies welke pagina als eerste opent
+
+De share-URL opent altijd de **eerste pagina in de share** (de bovenkant van de pagina-boom van de share). Wil je dat de root van je eigen domein (`https://intravox.example.com/`) één specifieke pagina opent, **deel dan de folder van die pagina** in plaats van iets hogerop in de boom. De pagina waarvan je de folder deelt wordt dan de "home-pagina" van de share, en opent dus standaard zonder extra query.
+
+Dit is dezelfde **share-scope**-regel als hierboven: het delen van `Afdelingen/marketing/` maakt de *Marketing*-pagina het startpunt van die share; het delen van de taal-root maakt de taal-homepagina het startpunt.
+
+### Voor beheerders — de reverse proxy opzetten
+
+Wijs het eigen (sub)domein naar dezelfde Nextcloud-backend en laat de reverse proxy de share op de root serveren. Met **Nginx Proxy Manager** als voorbeeld:
+
+1. **DNS** — maak een A/AAAA-record voor `intravox.example.com` dat naar de server wijst.
+2. **Nextcloud trusted domains** — voeg de nieuwe host toe, anders weigert Nextcloud het verzoek als een untrusted domain:
+   ```bash
+   occ config:system:set trusted_domains 2 --value=intravox.example.com
+   ```
+   Raak `overwrite.cli.url` / `overwritehost` / `overwriteprotocol` **niet** aan — die horen bij je hoofd-Nextcloud-host; voeg alleen een extra trusted domain toe.
+3. **Reverse-proxy-host** — maak een proxy-host voor `intravox.example.com` die doorstuurt naar **dezelfde Nextcloud-backend** (host + poort) als je hoofdsite, met een Let's Encrypt-certificaat en Force SSL.
+4. **Share op de root serveren** — laat in de advanced/custom-config van de proxy-host de kale root intern doorproxyen naar de share-URL (een *interne* `proxy_pass`, zodat de adresbalk op je domein blijft):
+   ```nginx
+   location = / {
+       proxy_pass http://<nextcloud-backend>:80/apps/intravox/s/<shareToken>;
+
+       proxy_set_header Host              $host;
+       proxy_set_header X-Real-IP         $remote_addr;
+       proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto $scheme;
+   }
+   ```
+   Elk ander pad (assets, API, media, sub-pagina-navigatie) valt door naar de hoofd-`location /` van de proxy en werkt ongewijzigd, omdat IntraVox relatieve URLs gebruikt. Vervang `<shareToken>` door het token uit je publieke link (het deel na `/s/`).
+
+> **Vereisten:** link-sharing moet aan staan (zie [Vereisten](#vereisten)), de pagina moet **gepubliceerd** zijn (drafts zijn nooit publiek), en de proxy moet alle sub-requests doorlaten — API, media, assets, de sessie-cookie (voor wachtwoord-beschermde shares) en websockets. Een subdomein geeft het schoonste resultaat (eigen cookie-scope, geen path-rewriting).
+
+> **Alternatief — geen root-rewrite:** heb je de kale root niet nodig, sla stap 4 dan over en deel gewoon de volledige share-URL onder de mooie host: `https://intravox.example.com/apps/intravox/s/<shareToken>`. Elk nieuw document is dan simpelweg een nieuwe Nextcloud-share — geen proxy-wijziging en geen nieuw certificaat nodig.
+
+---
+
 ## Wachtwoord-beschermde shares
 
 Stel je een wachtwoord in op een share-link in de Files-app, dan respecteert IntraVox dat volledig. Zowel het share-dialoog als de bezoeker-experience reflecteren de wachtwoord-eis.
@@ -158,6 +212,7 @@ De volgende features zijn **niet** beschikbaar voor anonieme bezoekers:
 - Pagina-instellingen
 - Pagina's aanmaken of verwijderen
 - Toegang tot pagina's buiten de share-scope
+- Pagina's die niet gepubliceerd zijn: concepten, pagina's met een toekomstige **Publish on**-datum en pagina's voorbij hun **Expire on**-datum vallen buiten de share — zowel de pagina zelf als het navigatiemenu en de paginaboom (zie [Geplande publicatie](editor.nl.md#geplande-publicatie-publish-on--expire-on))
 
 ---
 
@@ -194,6 +249,7 @@ Handig voor audit van welke content nu toegankelijk is zonder login.
 | Link-delen aan/uit | Beheer → Delen-instellingen |
 | Share-link maken | Files-app → IntraVox-folder → Delen |
 | Publieke URL kopiëren | IntraVox-pagina → Share-knop → Kopieer publieke link |
+| Share onder je eigen domein serveren | Reverse proxy + Nextcloud trusted domain (zie [Eigen URL](#eigen-url-je-eigen-domein)) |
 | Share-instellingen beheren | IntraVox-pagina → Share-knop → Beheer in Files |
 | Alle actieve shares zien | IntraVox-beheerinstellingen → Delen-tab |
 | Wachtwoord instellen/wijzigen | Files-app → Share-settings |
