@@ -5946,12 +5946,14 @@ class PageService {
                         $newsItem = [
                             'uniqueId' => $data['uniqueId'],
                             'title' => $data['title'],
+                            'status' => $data['status'] ?? 'published',
                             'excerpt' => $excerpt,
                             'image' => $imageData ? $imageData['src'] : null,
                             'imagePath' => $imagePath,
                             'modified' => $sourcePageData['file']->getMTime(),
                             'modifiedFormatted' => $this->formatDateLocalized($sourcePageData['file']->getMTime(), $language),
                             'path' => $sourcePageData['folder']->getPath(),
+                            'fileId' => $sourcePageData['file']->getId(),
                         ];
 
                         // Add to beginning of pages array (it's the "parent" page)
@@ -5968,8 +5970,10 @@ class PageService {
             $pages = $this->applyMetaVoxFilters($pages, $filters, $filterOperator);
         }
 
-        // Apply publication date filter if enabled and MetaVox is available
-        if ($filterPublished && $this->isMetaVoxAvailable()) {
+        // Apply the publication filter when the widget asks for published pages
+        // only. Not gated on MetaVox: the manual draft/published status must be
+        // honoured even when no publication date fields are configured.
+        if ($filterPublished) {
             $pages = $this->applyPublicationDateFilter($pages);
         }
 
@@ -6080,6 +6084,9 @@ class PageService {
                     $pages[] = [
                         'uniqueId' => $data['uniqueId'],
                         'title' => $data['title'],
+                        // Needed by the publication gate: without it every item
+                        // looked "published" and drafts leaked into News lists.
+                        'status' => $data['status'] ?? 'published',
                         'excerpt' => $excerpt,
                         'image' => $imageData ? $imageData['src'] : null,
                         'imagePath' => $imagePath,
@@ -6292,32 +6299,22 @@ class PageService {
      * @return array Filtered pages that are currently published
      */
     private function applyPublicationDateFilter(array $pages): array {
-        $publishDateField = $this->publicationSettings->getPublishDateField();
-        $expirationDateField = $this->publicationSettings->getExpirationDateField();
-
-        // If no fields configured, return all pages
-        if (empty($publishDateField) && empty($expirationDateField)) {
-            return $pages;
-        }
-
-        $fileIds = array_filter(array_column($pages, 'fileId'));
-        if (empty($fileIds)) {
-            return $pages;
-        }
-
         // Delegate to the shared, time-aware publication gate so a News list uses
         // exactly the same definition of "published" as the rest of the app
-        // (fixes the previous date-only comparison where "today 03:25" already
-        // counted as published). A page is kept only when it is effectively
-        // published right now.
-        $metaVoxData = $this->getMetaVoxDataForFiles($fileIds);
+        // (this also fixes the earlier date-only comparison where "today 03:25"
+        // already counted as published). A page is kept only when it is
+        // effectively published right now — which includes hiding manual drafts,
+        // even when no publication date fields are configured or MetaVox is
+        // absent. Previously this returned early in those cases, so "show only
+        // published pages" let drafts through.
+        $metaVoxData = $this->publicationMetaForFiles(array_column($pages, 'fileId'));
 
         return array_values(array_filter($pages, function($page) use ($metaVoxData) {
             $fileId = $page['fileId'] ?? null;
-            if (!$fileId) {
-                return true; // No fileId = include page (can't filter without metadata)
-            }
-            $meta = $metaVoxData[$fileId] ?? [];
+            // Without a fileId we cannot look up dates, but the page's own
+            // draft/published status is still authoritative — don't let a draft
+            // through just because its metadata is unavailable.
+            $meta = $fileId ? ($metaVoxData[$fileId] ?? []) : [];
             return $this->effectivePublishState($page, $meta) === 'published';
         }));
     }

@@ -30,17 +30,20 @@ class SystemFileService {
     private SetupService $setupService;
     private LoggerInterface $logger;
     private LanguageService $languageService;
+    private PageService $pageService;
 
     public function __construct(
         IRootFolder $rootFolder,
         SetupService $setupService,
         LoggerInterface $logger,
-        LanguageService $languageService
+        LanguageService $languageService,
+        PageService $pageService
     ) {
         $this->rootFolder = $rootFolder;
         $this->setupService = $setupService;
         $this->logger = $logger;
         $this->languageService = $languageService;
+        $this->pageService = $pageService;
     }
 
     /**
@@ -566,6 +569,18 @@ class SystemFileService {
                         || $relativePath === $shareScopeNormalized;
 
                     if (!$isInScope) {
+                        continue;
+                    }
+
+                    // Never expose unpublished pages through a public share: a
+                    // draft (or a page whose publish date has not arrived / whose
+                    // expiration has passed) must not surface in a News list for
+                    // anonymous visitors. There is no editor here to reveal them.
+                    $newsPage = [
+                        'status' => $data['status'] ?? 'published',
+                        'fileId' => ($jsonFile instanceof \OCP\Files\File) ? $jsonFile->getId() : null,
+                    ];
+                    if ($this->pageService->isHiddenFromReaders($newsPage)) {
                         continue;
                     }
 
