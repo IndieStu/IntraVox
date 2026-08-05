@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: IntraVox 1.9.3.3\n"
+"Project-Id-Version: IntraVox 1.9.3.6\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-05 15:51+0000\n"
+"POT-Creation-Date: 2026-08-05 17:20+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -127,6 +127,9 @@ msgid "Add a filter to start"
 msgstr ""
 
 msgid "Add a grid of links with icons"
+msgstr ""
+
+msgid "Add a group filter above"
 msgstr ""
 
 msgid "Add a heading"
@@ -3483,7 +3486,7 @@ msgstr ""
 msgid "This domain is already in the list"
 msgstr ""
 
-msgid "This instance has more than {cap} accounts. Filter counts will be approximate unless you add a group filter above."
+msgid "This instance has {total} accounts, more than the {cap} this widget scans. Filter counts will be approximate and shown as \"~12\"."
 msgstr ""
 
 msgid "This intranet has no pages in {language} yet."
@@ -3543,6 +3546,9 @@ msgstr ""
 msgid "This widget already filters on {fields}. Visitors cannot widen that, so those fields would only show empty options and are not offered here."
 msgstr ""
 
+msgid "This widget already has a group filter, so its own results are scoped — but the group is larger than the scan limit."
+msgstr ""
+
 msgid "This will delete all existing demo content for {language} and replace it with fresh demo data."
 msgstr ""
 
@@ -3589,6 +3595,9 @@ msgid "To enable anonymous access to IntraVox pages, an administrator must first
 msgstr ""
 
 msgid "To make this page accessible without login, create a public share link in the Files app."
+msgstr ""
+
+msgid "to scope this widget to one or more groups. Counts then become exact, and the widget loads faster."
 msgstr ""
 
 msgid "Today"

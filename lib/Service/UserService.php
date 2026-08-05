@@ -88,6 +88,11 @@ class UserService {
      */
     private const COHORT_LOCK_TTL = 120;
 
+    /** Registry of recently-built cohort recipes, for the warmup job. */
+    private const COHORT_REGISTRY_KEY = 'cohort_registry_v1';
+    private const COHORT_REGISTRY_TTL = 86400;
+    private const COHORT_REGISTRY_MAX = 50;
+
     public function __construct(
         private IUserManager $userManager,
         private IGroupManager $groupManager,
@@ -421,6 +426,7 @@ class UserService {
 
         try {
             $snapshot = $this->scanCohort($editorFilters, $operator, $neededFields);
+            $this->rememberCohortRecipe($cacheKey, $editorFilters, $operator, $neededFields);
 
             if ($this->cache !== null) {
                 $payload = json_encode($snapshot->jsonSerializeForCache());
@@ -436,6 +442,97 @@ class UserService {
         } finally {
             $this->releaseRebuildLock($lockKey);
         }
+    }
+
+    /**
+     * Remember how a cohort was built, so a background job can rebuild it
+     * before anyone waits for it.
+     *
+     * Only the recipe is stored, never the result: the snapshot itself lives
+     * under its own key with its own TTL, and duplicating it here would mean
+     * two copies that can disagree.
+     */
+    private function rememberCohortRecipe(string $cacheKey, array $editorFilters, string $operator, array $neededFields): void {
+        if ($this->cache === null) {
+            return;
+        }
+
+        try {
+            $known = json_decode((string)$this->cache->get(self::COHORT_REGISTRY_KEY), true);
+            $known = is_array($known) ? $known : [];
+
+            $known[$cacheKey] = [
+                'filters' => $editorFilters,
+                'operator' => $operator,
+                'fields' => $neededFields,
+                'audience' => $this->currentAudience(),
+                'groupHash' => $this->groupContext !== null ? $this->groupContext->getGroupHash() : 'nogroups',
+            ];
+
+            // Bounded: keep the most recent entries only, so a busy instance
+            // cannot grow this without limit.
+            if (count($known) > self::COHORT_REGISTRY_MAX) {
+                $known = array_slice($known, -self::COHORT_REGISTRY_MAX, null, true);
+            }
+
+            $this->cache->set(self::COHORT_REGISTRY_KEY, json_encode($known), self::COHORT_REGISTRY_TTL);
+        } catch (\Throwable $e) {
+            // Warmup is an optimisation; never let it break a real request.
+        }
+    }
+
+    /**
+     * Rebuild recently-used cohorts. Called by PeopleCohortWarmupJob.
+     *
+     * Only rebuilds cohorts whose fresh entry has expired, so a run that
+     * finds everything warm costs one cache read.
+     *
+     * @return array{considered: int, rebuilt: int}
+     */
+    public function warmCohorts(): array {
+        if ($this->cache === null) {
+            return ['considered' => 0, 'rebuilt' => 0];
+        }
+
+        $known = json_decode((string)$this->cache->get(self::COHORT_REGISTRY_KEY), true);
+        if (!is_array($known)) {
+            return ['considered' => 0, 'rebuilt' => 0];
+        }
+
+        $rebuilt = 0;
+
+        foreach ($known as $cacheKey => $recipe) {
+            if (!is_array($recipe)) {
+                continue;
+            }
+            // Still fresh: nothing to do.
+            if ($this->readSnapshotFromCache((string)$cacheKey) !== null) {
+                continue;
+            }
+            // Someone is already rebuilding it.
+            if (!$this->acquireRebuildLock($cacheKey . '_lock')) {
+                continue;
+            }
+
+            try {
+                $snapshot = $this->scanCohort(
+                    is_array($recipe['filters'] ?? null) ? $recipe['filters'] : [],
+                    (string)($recipe['operator'] ?? 'AND'),
+                    is_array($recipe['fields'] ?? null) ? $recipe['fields'] : []
+                );
+
+                $payload = json_encode($snapshot->jsonSerializeForCache());
+                $this->cache->set((string)$cacheKey, $payload, self::COHORT_CACHE_TTL);
+                $this->cache->set($cacheKey . '_stale', $payload, self::COHORT_STALE_TTL);
+                $rebuilt++;
+            } catch (\Throwable $e) {
+                $this->logger->warning('IntraVox: cohort warmup failed: ' . $e->getMessage());
+            } finally {
+                $this->releaseRebuildLock($cacheKey . '_lock');
+            }
+        }
+
+        return ['considered' => count($known), 'rebuilt' => $rebuilt];
     }
 
     /**

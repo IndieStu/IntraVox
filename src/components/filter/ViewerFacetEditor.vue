@@ -14,7 +14,16 @@
 
 		<template v-if="config.enabled">
 			<NcNoteCard v-if="preflight.approximate" type="warning" class="vfe__note">
-				{{ t('intravox', 'This instance has more than {cap} accounts. Filter counts will be approximate unless you add a group filter above.', { cap: preflight.cap }) }}
+				<p>
+					{{ t('intravox', 'This instance has {total} accounts, more than the {cap} this widget scans. Filter counts will be approximate and shown as "~12".', { total: preflight.userCount, cap: preflight.cap }) }}
+				</p>
+				<p v-if="!hasGroupFilter">
+					<strong>{{ t('intravox', 'Add a group filter above') }}</strong>
+					{{ t('intravox', 'to scope this widget to one or more groups. Counts then become exact, and the widget loads faster.') }}
+				</p>
+				<p v-else>
+					{{ t('intravox', 'This widget already has a group filter, so its own results are scoped — but the group is larger than the scan limit.') }}
+				</p>
 			</NcNoteCard>
 			<NcNoteCard v-else-if="preflight.userCount > 0" type="success" class="vfe__note">
 				{{ t('intravox', '{count} accounts in scope — counts will be exact.', { count: preflight.userCount }) }}
@@ -189,6 +198,17 @@ export default {
 				.map(f => f?.fieldName || f?.field)
 				.filter(Boolean)
 				.map(f => this.labelForField(f))
+		},
+
+		/**
+		 * Whether the widget is already scoped to one or more groups.
+		 *
+		 * A group-scoped cohort skips callForAllUsers() entirely, which is
+		 * what makes exact counts affordable past the scan cap — so the
+		 * advice differs depending on whether one is already set.
+		 */
+		hasGroupFilter() {
+			return this.editorFilters.some(f => (f?.fieldName || f?.field) === 'group')
 		},
 
 		conflictingFieldNames() {

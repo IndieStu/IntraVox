@@ -4,7 +4,19 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [Unreleased]
+## [1.9.4] - 2026-08-05 — Visitors can filter People widgets themselves
+
+### Added
+
+- **People widgets can now be filtered by the people reading them.** Until now only the editor could decide who a widget showed; a reader got a fixed list. Switch on **Visitor filters** in the widget editor and the widget grows a filter panel: one group per field you choose, each value with a live count, plus an optional search box and removable chips for what is currently selected.
+
+  The counts are the point. They are calculated over the actual result set, and they narrow as you choose — pick a department and the building list immediately shows only buildings where that department sits, with real numbers. Picking a value never empties its own group, so "Noord **or** Zuid" is expressible; that is what makes it a filter panel rather than a series of dropdowns. Whatever a count promises, clicking it delivers exactly that many people.
+
+  A visitor can only ever narrow what the widget already shows. If you scoped a widget to one department, no filter combination reaches outside it — the restriction is built into how the results are assembled, not bolted on afterwards.
+
+  Selections live in the page URL, so a filtered view can be shared or bookmarked and opens filtered. On a phone the panel folds into a **Filters (3)** button. Filters do not appear on public share links: the values would amount to a browsable directory of your organisation for anyone holding the URL.
+
+- **`occ intravox:people:scope-report`** — prints which profile fields will become invisible under the visibility fix below, and for how many accounts. Run it before upgrading; `--all` scans every account instead of sampling.
 
 ### Security
 
@@ -12,19 +24,23 @@ IntraVox is a Nextcloud intranet page builder.
 
   From this release the scope is honoured: **Private** fields reach nobody, **Local** fields reach logged-in users only, **Federated** and **Published** fields also reach public shares. The email address was a second route to the same leak — it was read straight from the user account rather than from the scoped property — and now follows the same rule. IntraVox custom fields (set through user preferences rather than Personal info) carry no scope of their own and are treated as **Local**: visible when logged in, never on a public share.
 
-  **This is a visible change, not only a fix.** Fields your users marked private will disappear from existing People widgets. Which ones depends entirely on your instance, so check before you upgrade:
-
-  ```
-  occ intravox:people:scope-report
-  ```
-
-  It prints a per-field scope breakdown and names exactly which fields become hidden, and for how many accounts. `--all` scans every account instead of the first 1000. The field most likely to surprise you is **email**: it defaults to Federated, but plenty of instances set it to Local, which removes it from public-share People widgets. Users change this themselves under **Settings → Personal → Personal info**, with the visibility picker beside each field.
+  **This is a visible change, not only a fix.** Fields your users marked private will disappear from existing People widgets. Which ones depends entirely on your instance, so check before you upgrade with `occ intravox:people:scope-report`. The field most likely to surprise you is **email**: it defaults to Federated, but plenty of instances set it to Local, which removes it from public-share People widgets. Users change this themselves under **Settings → Personal → Personal info**, with the visibility picker beside each field.
 
   The cached filter results were also shared between users regardless of what each was allowed to see. The cache key now includes both the audience and the viewer's group membership, and the old entries are abandoned rather than reused — otherwise the fix would not have taken effect until they expired.
+
+### Performance
+
+- **People widgets read account data in one query instead of one per user.** Profile data now comes from a single database read rather than a separate call for every account. Measured cold on a 106-account instance, the widget's scan drops from 35–45 ms to around 14 ms; the account read itself falls from 20.4 ms to 1.4 ms per hundred accounts. The remaining time is Nextcloud's own account enumeration, which an app cannot bypass. Instances with tens of thousands of users benefit proportionally.
+
+- **Concurrent visitors no longer each trigger their own rebuild.** When a widget's cached data expired, every visitor arriving at that moment started a full scan of their own. On an LDAP-backed instance, where reading a large group can take half a minute, fifty simultaneous readers meant fifty simultaneous scans. Now one request refreshes while the others are served the previous data, which is at most a few minutes old.
+
+- **A background job refreshes recently-used People widgets** every ten minutes, so in normal use no visitor waits for a rebuild at all. It only touches data that has actually expired, so an idle instance costs nothing.
 
 ### Fixed
 
 - **The People widget on a public share always failed.** `/api/share/{token}/people` called a method that does not exist on the share service, so every request died and returned a server error. Anyone with a People widget on a shared page saw an empty widget. It now resolves the share token correctly.
+
+- **The People widget's pagination setting was discarded on every save.** The "show pagination" option was read when rendering but never stored, so it silently reverted each time the page was saved.
 
 ## [1.9.3] - 2026-08-05 — Pages are findable by their MetaVox metadata
 
