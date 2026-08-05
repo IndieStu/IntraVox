@@ -133,6 +133,7 @@ OC.L10N.register(
     "Rename" : "Nomini o'zgartirish",
     "Done" : "Bajarildi",
     "Clear search" : "Qidiruvni tozalash",
+    "Group" : "Guruh",
     "Days" : "Kunlar",
     "Contact" : "Aloqa",
     "Address" : "Manzil",
