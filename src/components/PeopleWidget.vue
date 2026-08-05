@@ -4,6 +4,93 @@
       {{ widget.title }}
     </h3>
 
+    <!-- Faceted mode: panel + chips wrapped around the same result body. -->
+    <FilterableWidgetShell
+      v-if="viewerFiltersEnabled"
+      :layout="filterLayout"
+      :active-count="activeRefinementCount">
+      <template #panel>
+        <FilterPanel
+          :facets="facets"
+          :facet-labels="facetLabels"
+          :facet-config="widget.viewerFilters.facets"
+          :search-term="searchTerm"
+          :search-enabled="searchEnabled"
+          :loading="loading"
+          :approximate="approximate"
+          :cap-count="capCount"
+          :active-count="activeRefinementCount"
+          @toggle-value="toggleRefinement"
+          @update:search-term="setSearchTerm"
+          @clear-all="clearAllRefinements" />
+      </template>
+
+      <template #chips>
+        <FilterChips
+          :refinements="refinements"
+          :facet-labels="facetLabels"
+          :search-term="searchTerm"
+          @remove="removeRefinement"
+          @remove-search="setSearchTerm('')"
+          @clear-all="clearAllRefinements" />
+      </template>
+
+      <template #results>
+      <div v-if="loading && users.length === 0" class="people-loading">
+        <NcLoadingIcon :size="32" />
+        <span>{{ t('intravox', 'Loading …') }}</span>
+      </div>
+
+      <div v-else-if="error" class="people-error">
+        <AlertCircle :size="24" />
+        <span>{{ error }}</span>
+      </div>
+
+      <div v-else-if="users.length === 0" class="people-empty">
+        <AccountGroup :size="32" />
+        <p>{{ t('intravox', 'No people found') }}</p>
+        <small v-if="hasActiveRefinements">
+          {{ t('intravox', 'No one matches the selected filters') }}
+        </small>
+        <small v-else-if="widget.selectionMode === 'manual'">
+          {{ t('intravox', 'Select people in edit mode') }}
+        </small>
+        <small v-else>
+          {{ t('intravox', 'No users match the current filters') }}
+        </small>
+      </div>
+
+      <template v-else>
+        <component
+          :is="layoutComponent"
+          :users="users"
+          :widget="widget"
+          :row-background-color="effectiveBackgroundColor"
+        />
+
+        <!-- Pagination footer -->
+        <div v-if="showPaginationFooter" class="people-footer" :class="{ 'dark-background': isDarkBackground }" :style="footerStyle">
+          <span class="people-count">
+            {{ t('intravox', 'Showing {shown} of {total} people', { shown: users.length, total: total }) }}
+          </span>
+          <NcButton
+            v-if="hasMore"
+            :type="isDarkBackground ? 'primary' : 'secondary'"
+            :disabled="loadingMore"
+            @click="loadMore"
+          >
+            <template #icon>
+              <NcLoadingIcon v-if="loadingMore" :size="20" />
+            </template>
+            {{ loadingMore ? t('intravox', 'Loading …') : t('intravox', 'Show more') }}
+          </NcButton>
+        </div>
+      </template>
+      </template>
+    </FilterableWidgetShell>
+
+    <!-- Unfiltered mode: the pre-existing markup, unchanged. -->
+    <template v-else>
     <div v-if="loading && users.length === 0" class="people-loading">
       <NcLoadingIcon :size="32" />
       <span>{{ t('intravox', 'Loading …') }}</span>
@@ -51,6 +138,7 @@
         </NcButton>
       </div>
     </template>
+    </template>
   </div>
 </template>
 
@@ -64,10 +152,19 @@ import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import PeopleLayoutCard from './people/PeopleLayoutCard.vue';
 import PeopleLayoutList from './people/PeopleLayoutList.vue';
 import PeopleLayoutGrid from './people/PeopleLayoutGrid.vue';
+import FilterableWidgetShell from './filter/FilterableWidgetShell.vue';
+import FilterPanel from './filter/FilterPanel.vue';
+import FilterChips from './filter/FilterChips.vue';
+import facetedWidget from '../mixins/facetedWidget.js';
+import { runFacetedQuery } from '../services/FacetQueryService.js';
 
 export default {
   name: 'PeopleWidget',
+  mixins: [facetedWidget],
   components: {
+    FilterableWidgetShell,
+    FilterPanel,
+    FilterChips,
     NcLoadingIcon,
     NcButton,
     AlertCircle,
@@ -175,12 +272,32 @@ export default {
           this.users = [];
           this.total = 0;
           this.hasMore = false;
+          if (this.viewerFiltersEnabled) {
+            this.runFacetedFetch({
+              refinements: this.refinements,
+              q: this.searchTerm,
+              facets: this.facetFieldNames,
+            });
+            return;
+          }
           this.fetchPeople();
         }, 300);
       },
     },
   },
   mounted() {
+    if (this.viewerFiltersEnabled) {
+      // Restore any refinements the URL carries BEFORE the first fetch, so a
+      // shared link renders its filtered result directly instead of flashing
+      // the unfiltered list first.
+      this.restoreRefinementsFromUrl();
+      this.runFacetedFetch({
+        refinements: this.refinements,
+        q: this.searchTerm,
+        facets: this.facetFieldNames,
+      });
+      return;
+    }
     this.fetchPeople();
   },
   beforeUnmount() {
@@ -190,6 +307,61 @@ export default {
     t(app, text, vars) {
       return translate(app, text, vars);
     },
+    /**
+     * Fetch with viewer refinements applied.
+     *
+     * Separate from fetchPeople() on purpose: when viewer filtering is off,
+     * the widget must take exactly the code path it always did.
+     */
+    async runFacetedFetch({ refinements, q, facets }) {
+      this.loading = true;
+      this.error = null;
+
+      // Cancel any request still in flight, so a fast clicker cannot have an
+      // earlier response overwrite a later one.
+      this._facetAbort?.abort();
+      this._facetAbort = new AbortController();
+
+      try {
+        const baseParams = {
+          sortBy: this.widget.sortBy || 'displayName',
+          sortOrder: this.widget.sortOrder || 'asc',
+          limit: this.widget.limit || 50,
+          offset: 0,
+          filterOperator: this.widget.filterOperator || 'AND',
+        };
+
+        if (this.widget.selectionMode === 'filter' && this.widget.filters?.length > 0) {
+          baseParams.filters = this.widget.filters;
+        }
+        if (this.searchFieldNames.length > 0) {
+          baseParams.searchFields = this.searchFieldNames.join(',');
+        }
+
+        const result = await runFacetedQuery({
+          endpoint: '/api/people',
+          baseParams,
+          refinements,
+          q,
+          facets,
+          signal: this._facetAbort.signal,
+        });
+
+        this.users = result.items;
+        this.total = result.total;
+        this.hasMore = result.hasMore;
+        this.applyFacetResponse(result);
+      } catch (e) {
+        if (axios.isCancel?.(e) || e?.name === 'CanceledError' || e?.name === 'AbortError') {
+          return;
+        }
+        console.error('IntraVox: faceted people query failed', e);
+        this.error = this.t('intravox', 'Could not load people');
+      } finally {
+        this.loading = false;
+      }
+    },
+
     async fetchPeople(offset = 0) {
       if (offset === 0) {
         this.loading = true;

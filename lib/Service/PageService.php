@@ -2906,6 +2906,78 @@ class PageService {
     /**
      * Sanitize widget data
      */
+    /**
+     * Sanitize a widget's viewer-side facet configuration.
+     *
+     * One helper shared by every faceted widget type. Four copies is how
+     * they drift, and a key that is not enumerated here disappears on the
+     * first save with no error at all — the same failure mode that quietly
+     * ate `showPagination`.
+     *
+     * @param mixed $raw
+     * @param string $fieldPattern regex a facet field name must match
+     */
+    private function sanitizeViewerFilters($raw, string $fieldPattern): array {
+        $default = [
+            'enabled' => false,
+            'facets' => [],
+            'searchFields' => [],
+            'searchEnabled' => true,
+            'layout' => 'sidebar',
+        ];
+
+        if (!is_array($raw)) {
+            return $default;
+        }
+
+        $facets = [];
+        if (isset($raw['facets']) && is_array($raw['facets'])) {
+            foreach ($raw['facets'] as $entry) {
+                if (count($facets) >= 12) {
+                    break;
+                }
+
+                // Accept both a bare field name and a full config object.
+                $field = is_array($entry) ? (string)($entry['field'] ?? '') : (string)$entry;
+                $field = trim($field);
+                if ($field === '' || !preg_match($fieldPattern, $field)) {
+                    continue;
+                }
+
+                $limit = is_array($entry) ? (int)($entry['limit'] ?? 8) : 8;
+                $limit = max(5, min($limit, 100));
+
+                $facets[] = [
+                    'field' => $field,
+                    'label' => is_array($entry) ? $this->sanitizeText((string)($entry['label'] ?? '')) : '',
+                    'limit' => $limit,
+                    'collapsed' => is_array($entry) && ($entry['collapsed'] ?? false) === true,
+                ];
+            }
+        }
+
+        $searchFields = [];
+        if (isset($raw['searchFields']) && is_array($raw['searchFields'])) {
+            foreach ($raw['searchFields'] as $entry) {
+                if (count($searchFields) >= 8) {
+                    break;
+                }
+                $field = trim((string)$entry);
+                if ($field !== '' && preg_match($fieldPattern, $field)) {
+                    $searchFields[] = $field;
+                }
+            }
+        }
+
+        return [
+            'enabled' => ($raw['enabled'] ?? false) === true,
+            'facets' => $facets,
+            'searchFields' => array_values(array_unique($searchFields)),
+            'searchEnabled' => ($raw['searchEnabled'] ?? true) !== false,
+            'layout' => ($raw['layout'] ?? 'sidebar') === 'top' ? 'top' : 'sidebar',
+        ];
+    }
+
     private function sanitizeWidget(array $widget): ?array {
         if (!isset($widget['type']) || !in_array($widget['type'], self::ALLOWED_WIDGET_TYPES)) {
             return null;
@@ -3276,6 +3348,16 @@ class PageService {
                     'socialLinks' => (bool)($widget['showFields']['socialLinks'] ?? false),
                     'customFields' => (bool)($widget['showFields']['customFields'] ?? false),
                 ];
+
+                // Pagination toggle. Read by PeopleWidget.vue but never
+                // persisted here, so it silently reset on every save.
+                $sanitized['showPagination'] = ($widget['showPagination'] ?? true) !== false;
+
+                // Viewer-side facet configuration
+                $sanitized['viewerFilters'] = $this->sanitizeViewerFilters(
+                    $widget['viewerFilters'] ?? null,
+                    '/^[a-z][a-z0-9_]{0,63}$/i'
+                );
 
                 // Background color
                 if (isset($widget['backgroundColor'])) {

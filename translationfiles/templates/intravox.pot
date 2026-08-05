@@ -4,9 +4,9 @@
 #
 msgid ""
 msgstr ""
-"Project-Id-Version: IntraVox 1.9.2\n"
+"Project-Id-Version: IntraVox 1.9.3.2\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-05 05:43+0000\n"
+"POT-Creation-Date: 2026-08-05 15:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -525,6 +525,12 @@ msgstr ""
 msgid "Clean start failed"
 msgstr ""
 
+msgid "Clear"
+msgstr ""
+
+msgid "Clear all"
+msgstr ""
+
 msgid "Clear search"
 msgstr ""
 
@@ -718,6 +724,9 @@ msgid "Could not load page: {error}"
 msgstr ""
 
 msgid "Could not load pages: {error}"
+msgstr ""
+
+msgid "Could not load people"
 msgstr ""
 
 msgid "Could not load version: {error}"
@@ -1386,6 +1395,12 @@ msgstr ""
 msgid "Filter operator"
 msgstr ""
 
+msgid "Filter options …"
+msgstr ""
+
+msgid "Filter options in {facet}"
+msgstr ""
+
 msgid "Filter pages based on publication and expiration dates configured in admin settings."
 msgstr ""
 
@@ -1399,6 +1414,9 @@ msgid "filters"
 msgstr ""
 
 msgid "Filters"
+msgstr ""
+
+msgid "Filters ({count})"
 msgstr ""
 
 msgid "Flat sortable list — no grouping."
@@ -2205,6 +2223,9 @@ msgstr ""
 msgid "No export.json found in the ZIP. Make sure you uploaded an IntraVox export (Settings → Export), not a Nextcloud Files backup or a different app's archive."
 msgstr ""
 
+msgid "No filters available"
+msgstr ""
+
 msgid "No filters. Click \"Add filter\" to filter by author, project, status or any other MetaVox field."
 msgstr ""
 
@@ -2241,6 +2262,9 @@ msgstr ""
 msgid "No location data"
 msgstr ""
 
+msgid "No matching options"
+msgstr ""
+
 msgid "No media files in this page yet"
 msgstr ""
 
@@ -2251,6 +2275,9 @@ msgid "No navigation items yet. Click \"Add Item\" to create one."
 msgstr ""
 
 msgid "No news items found"
+msgstr ""
+
+msgid "No one matches the selected filters"
 msgstr ""
 
 msgid "No orphaned data found"
@@ -2853,6 +2880,9 @@ msgstr ""
 msgid "Remove filter"
 msgstr ""
 
+msgid "Remove filter {label}"
+msgstr ""
+
 msgid "Remove header row"
 msgstr ""
 
@@ -2989,6 +3019,12 @@ msgid "Scope"
 msgstr ""
 
 msgid "Search …"
+msgstr ""
+
+msgid "Search by name"
+msgstr ""
+
+msgid "Search by name …"
 msgstr ""
 
 msgid "Search pages"
@@ -3150,6 +3186,9 @@ msgstr ""
 msgid "Show {count} photos in {location}"
 msgstr ""
 
+msgid "Show all ({count})"
+msgstr ""
+
 msgid "Show captions"
 msgstr ""
 
@@ -3198,6 +3237,9 @@ msgstr ""
 msgid "Show photos from a folder with rich layouts"
 msgstr ""
 
+msgid "Show results"
+msgstr ""
+
 msgid "Show source"
 msgstr ""
 
@@ -3217,6 +3259,9 @@ msgid "Showing first {n} documents. Use filters or a more specific folder."
 msgstr ""
 
 msgid "Showing first {n} photos. Use filters or a more specific folder to narrow the selection."
+msgstr ""
+
+msgid "Showing results from the first {cap} accounts. Counts may be incomplete — add a group filter in the widget settings for exact numbers."
 msgstr ""
 
 msgid "Simple"
