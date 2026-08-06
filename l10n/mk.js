@@ -213,6 +213,7 @@ OC.L10N.register(
     "Link:" : "Линк:",
     "Local file" : "Локална датотека",
     "Muted" : "Занемен",
+    "Clear" : "Исчисти",
     "_%n minute ago_::_%n minutes ago_" : ["пред %n минута","пред %n минути"],
     "_%n hour ago_::_%n hours ago_" : ["пред %n час","пред %n часа"],
     "_%n day ago_::_%n days ago_" : ["пред %n ден","пред %n дена"],

@@ -176,6 +176,7 @@ OC.L10N.register(
     "Image:" : "Imàgine:",
     "Size:" : "Mannària:",
     "Link:" : "Ligòngiu:",
+    "Clear" : "Lìmpia",
     "_%n minute ago_::_%n minutes ago_" : ["%n minutos a immoe","%n minutos a immoe"],
     "_%n hour ago_::_%n hours ago_" : ["%n oras a immoe","%n oras a immoe"],
     "_%n day ago_::_%n days ago_" : ["%n dies a oe","%n dies a oe"],

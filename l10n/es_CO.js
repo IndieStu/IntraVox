@@ -119,6 +119,7 @@ OC.L10N.register(
     "Size:" : "Tamaño:",
     "Link:" : "Enlace:",
     "Local file" : "Archivo local",
+    "Clear" : "Limpiar",
     "just now" : "justo ahora",
     "_%n minute ago_::_%n minutes ago_" : ["Hace %n minuto","Hace %n minutos","Hace %n minutos"],
     "_%n hour ago_::_%n hours ago_" : ["Hace %n hora","Hace %n horas","Hace %n horas"],

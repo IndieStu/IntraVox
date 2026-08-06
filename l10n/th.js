@@ -120,6 +120,7 @@ OC.L10N.register(
     "Domain" : "โดเมน",
     "Size:" : "ขนาด:",
     "Local file" : "ไฟล์ต้นทาง",
+    "Clear" : "ล้าง",
     "_%n minute ago_::_%n minutes ago_" : ["%n นาทีที่ผ่านมา"],
     "_%n hour ago_::_%n hours ago_" : ["%n ชั่วโมงที่ผ่านมา"],
     "_%n day ago_::_%n days ago_" : ["%n วันที่ผ่านมา"],

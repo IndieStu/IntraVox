@@ -173,6 +173,8 @@ OC.L10N.register(
     "Rename" : "Перайменаваць",
     "Done" : "Гатова",
     "Clear search" : "Ачысціць пошук",
+    "Group" : "Група",
+    "Organisation" : "Арганізацыя",
     "Role" : "Роля",
     "Avatar" : "Аватар",
     "Pronouns" : "Займеннікі",
