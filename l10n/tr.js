@@ -204,6 +204,7 @@ OC.L10N.register(
     "Admin" : "Yönetici",
     "Organization" : "Kuruluş",
     "News" : "Haberler",
+    "Announcement" : "Duyuru",
     "Forum" : "Forum",
     "Design" : "Tasarım",
     "Code" : "Kod",

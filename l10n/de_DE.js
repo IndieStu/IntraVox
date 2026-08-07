@@ -1274,6 +1274,7 @@ OC.L10N.register(
     "Show photos from a folder with rich layouts" : "Fotos aus einem Ordner mit umfangreichen Layouts anzeigen",
     "File story" : "Dateistory",
     "Show documents from a folder with timeline, list, or grouped layouts" : "Dokumente aus einem Ordner mit Zeitleisten-, Listen- oder gruppierten Layouts anzeigen",
+    "Clear all" : "Alle löschen",
     "Clear" : "Leeren",
     "Search by name …" : "Suche nach Namen …",
     "Filters ({count})" : "Filter ({count})",

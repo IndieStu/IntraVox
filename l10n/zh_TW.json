@@ -119,6 +119,7 @@
     "Title" : "標題",
     "Show image" : "顯示圖片",
     "Preview" : "預覽",
+    "No folder selected" : "未選取資料夾",
     "Failed to load documents" : "載入文件失敗",
     "Retry" : "重試",
     "Open {name}" : "開啟 {name}",
