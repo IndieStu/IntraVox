@@ -123,6 +123,7 @@ interface Node {
     public function getName(): string;
     public function getPath(): string;
     public function getType(): int;
+    public function getId(): int;
     public function getPermissions(): int;
     public function isUpdateable(): bool;
     public function isCreatable(): bool;
@@ -138,6 +139,8 @@ interface Folder extends Node {
     public function getDirectoryListing(): array;
     public function nodeExists(string $path): bool;
     public function get(string $path);
+    public function newFolder(string $path);
+    public function newFile(string $path, $content = null);
 }
 
 class NotFoundException extends \Exception {}

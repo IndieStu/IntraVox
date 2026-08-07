@@ -33,6 +33,15 @@
           {{ publishStatusBadge.label }}
         </span>
 
+        <!-- Content-language indicator. Shown in BOTH view and edit mode, but
+             only when the page is NOT in the viewer's own language — an
+             exception marker, not a permanent status field. -->
+        <span v-if="pageLanguageBadge"
+              class="draft-badge language-badge"
+              :title="pageLanguageBadge.tooltip">
+          {{ pageLanguageBadge.label }}
+        </span>
+
         <!-- Share Button (only visible when NC share exists) -->
         <ShareButton v-if="!isEditMode && currentPage?.uniqueId"
                      :page-unique-id="currentPage.uniqueId"
@@ -448,6 +457,46 @@ export default {
         default:
           return null;
       }
+    },
+    /**
+     * Which language folder the current page lives in — shown ONLY when that
+     * differs from the reader's own interface language.
+     *
+     * A badge that is always on screen stops being read: on an intranet whose
+     * pages are mostly in the viewer's own language it would sit there saying
+     * "English" on every English page, which carries no information. It is an
+     * exception marker, not a status field — it appears exactly when the page
+     * you are on is not in the language you would expect, which is also the
+     * only case where "editing this saves back to another language" is worth
+     * knowing.
+     *
+     * Uses the page's OWN language (derived server-side from its folder path),
+     * never `currentLanguage`: that is the Nextcloud interface language, which
+     * is exactly what this badge exists to contrast against.
+     *
+     * Like the publication badge it is only shown to users who can write, since
+     * it is authoring information rather than something a reader acts on.
+     */
+    pageLanguageBadge() {
+      if (!this.canEditCurrentPage) {
+        return null;
+      }
+      const code = this.currentPage?.language;
+      if (!code) {
+        return null;
+      }
+      // The interface language, normalised to a base code ('de_DE' -> 'de') to
+      // match how content folders are named.
+      const uiLang = (this.currentLanguage || '').split(/[-_]/)[0];
+      if (!uiLang || uiLang === code) {
+        return null;
+      }
+      const names = this.languageContentStatus?.languageNames || {};
+      const label = names[code] || code.toUpperCase();
+      return {
+        label,
+        tooltip: this.t('intravox', 'This page is in {language}, not your own language. Editing it saves back to {language}.', { language: label }),
+      };
     },
     /**
      * One-line explanation of why the page is currently hidden from readers,
@@ -1894,6 +1943,18 @@ export default {
   background: var(--color-background-dark, #ededed);
   color: var(--color-text-maxcontrast, #6b7280);
   border: 1px solid var(--color-border-dark, #c9c9c9);
+}
+
+/* Content language — only rendered when the page is NOT in the viewer's own
+   language, so it always signals an exception and can carry the same amber as
+   Draft. Not uppercased: it holds a language NAME ("Nederlands"), not a status
+   word. */
+.language-badge {
+  background: var(--color-warning-light, #fff3cd);
+  color: var(--color-warning-text, #6d5003);
+  border: 1px solid var(--color-warning, #ffc107);
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* Read-only publication-state chip shown in edit mode when a Publish-on date

@@ -53,6 +53,8 @@ De Opslaan- en Annuleren-knoppen blijven vast bovenaan de pagina tijdens scrolle
 
 *De toolbar blijft zichtbaar bovenaan tijdens het scrollen door een lange pagina in edit-modus*
 
+> **Een pagina in een andere taal bewerken.** Heeft je intranet inhoud in meerdere talen, dan kun je elke pagina bewerken die je kunt openen — het opslaan gaat terug naar de taal waar de pagina bij hoort. Je hoeft dus nooit eerst je persoonlijke Nextcloud-taalinstelling te wijzigen. Nieuwe pagina's volgen de structuur waarin je werkt: een subpagina komt in de taal van de ouderpagina, en een pagina op hoofdniveau in de taal die je op dat moment bekijkt. Zie [Taalbeheer](../admin/language-management.nl.md#in-welke-taal-schrijven-redacteuren).
+
 ### Pagina-locking
 
 Wanneer je een pagina begint te bewerken, lockt IntraVox hem automatisch om te voorkomen dat andere gebruikers tegelijk wijzigingen maken. Andere gebruikers zien wie aan het bewerken is en kunnen pas in edit-modus na jouw opslaan, annuleren, of na het verlopen van de lock.

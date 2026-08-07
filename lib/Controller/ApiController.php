@@ -6,6 +6,7 @@ namespace OCA\IntraVox\Controller;
 use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
 use OCA\IntraVox\Exception\ForbiddenException;
+use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Http\EtagBuilder;
 use OCA\IntraVox\Service\EngagementSettingsService;
 use OCA\IntraVox\Service\ImportService;
@@ -386,6 +387,14 @@ class ApiController extends Controller {
                 ['error' => $e->getMessage()],
                 Http::STATUS_FORBIDDEN
             );
+        } catch (PageNotFoundException $e) {
+            $this->logger->warning('[updatePage] PageNotFoundException: ' . $e->getMessage(), [
+                'pageId' => $id,
+            ]);
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_NOT_FOUND
+            );
         } catch (\InvalidArgumentException $e) {
             $this->logger->error('[updatePage] InvalidArgumentException: ' . $e->getMessage(), [
                 'pageId' => $id,
@@ -426,6 +435,11 @@ class ApiController extends Controller {
 
             $this->pageService->deletePage($id);
             return new DataResponse(['success' => true]);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_NOT_FOUND
+            );
         } catch (\InvalidArgumentException $e) {
             // Client-preventable conditions (home page / configured homepage).
             return new DataResponse(

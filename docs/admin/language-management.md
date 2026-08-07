@@ -29,7 +29,40 @@ A user's Nextcloud **display language** decides which content they see. When the
 
 So on an English-only intranet, a user whose display language is German simply sees the English pages — no notice. If you set the recommended language to Dutch and have Dutch content, those same users see the Dutch intranet instead.
 
-> **The recommended language is a viewing fallback only.** An editor always authors and saves pages in their **own** language — creating a page never redirects the write into the recommended language.
+> **The recommended language is a viewing fallback only.** It never changes what an editor is allowed to edit — see [Which language do editors write in?](#which-language-do-editors-write-in) below.
+
+## Which language do editors write in?
+
+Since 1.9.6 the rule is one sentence: **you write where you are looking.** The structure an editor is working in decides the language folder — not their personal Nextcloud display language.
+
+| Action | Where it lands |
+|---|---|
+| Editing, renaming or deleting an existing page | The language folder the page **already lives in** |
+| Creating a **sub-page** | The language folder of its **parent** |
+| Creating a **root-level page** | The language the editor is **currently viewing** (own language → recommended → English) |
+| Nothing to derive it from | The editor's own display language, as before |
+
+This matters most for mixed teams. An editor whose Nextcloud is set to German can open an English page, edit it, and save — the page stays in `en/` where it belongs. They do **not** have to change their personal language setting first, and the language setting in the admin panel is not involved either.
+
+The two language settings stay firmly separated, and neither of them decides where content is written:
+
+- **A user's Nextcloud display language** (Personal settings → Language) controls the interface and which content they are shown by default.
+- **The recommended language** (this admin panel) is the viewing fallback for users whose language has no content.
+
+Before 1.9.6 the write side used the editor's display language on its own. That produced two bugs: a page you could open was sometimes impossible to save ([#90](https://github.com/nextcloud/IntraVox/issues/90)), and creating a sub-page under a foreign-language parent silently built an empty mirror folder tree in the editor's own language, with the new page detached from the structure it was made in. Both are fixed.
+
+> **Permissions are unchanged.** Following a page into another language folder never grants access: the Team Folder's normal rights still apply, so an editor without write access to a folder gets a plain "not allowed" instead of a save that appears to work.
+
+### Seeing which language you are working in
+
+Because the structure decides the language, editors need to notice when they are somewhere unexpected. A badge next to the page title appears when the page you are on is **not in your own language** — in both view and edit mode.
+
+- It shows the language of the **page**, not your interface language. A German editor opening an English page sees "English".
+- It appears **only when the two differ**. On a page in your own language there is no badge, so it always means something when you see one — it never becomes background furniture you stop reading.
+- It is shown only to users who can **edit** the page, exactly like the Draft badge: it is authoring information, not something a reader acts on.
+- On a single-language intranet it therefore never appears at all.
+
+The badge is an indicator only — it is not a language switcher. To work in another language, navigate to that language's pages.
 
 English cannot be removed: it's the guaranteed final fallback and the Transifex source language. The **Recommended language** dropdown only offers languages that actually have content (plus English), so you can't point the fallback at an empty language.
 

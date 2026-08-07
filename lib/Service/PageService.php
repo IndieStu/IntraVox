@@ -7,6 +7,7 @@ use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
 use OCA\IntraVox\Event\PageDeletedEvent;
 use OCA\IntraVox\Exception\ForbiddenException;
+use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Service\GroupContextService;
 use OCA\IntraVox\Service\News\NewsContentExtractor;
 use OCA\IntraVox\Service\Path\PagePathHelper;
@@ -738,6 +739,107 @@ class PageService {
     }
 
     /**
+     * Which language content folder does $folder sit in?
+     *
+     * Walks up from $folder to the IntraVox root and returns the top-level
+     * segment when it is a language code. Used to record where a page really
+     * landed rather than assuming the author's own language.
+     *
+     * @return string|null the language code, or null when $folder is outside
+     *   the IntraVox tree or is the tree root itself.
+     */
+    private function languageOfFolder(\OCP\Files\Folder $folder): ?string {
+        $basePath = rtrim($this->getIntraVoxFolder()->getPath(), '/');
+        $path = rtrim($folder->getPath(), '/');
+        if ($path === $basePath || strpos($path, $basePath . '/') !== 0) {
+            return null;
+        }
+        $rest = substr($path, strlen($basePath) + 1);
+        $first = explode('/', $rest)[0];
+        return preg_match('/^[a-z]{2,3}$/', $first) ? $first : null;
+    }
+
+    /**
+     * Locate a page by uniqueId across every language folder that exists on
+     * disk, starting with $primaryFolder.
+     *
+     * Reading and writing used to resolve the language folder differently:
+     * getPage() searched the *effective* language (recommended-language
+     * fallback, #75) and then every other language folder, while the write
+     * paths searched only the folder for the user's own display language. Any
+     * page that IntraVox could render but that lived outside the user's own
+     * language folder was therefore impossible to save — the save failed with
+     * "Page not found" on a page that was visibly on screen (issue #90).
+     *
+     * Both sides now locate pages through here. This decides only WHERE AN
+     * EXISTING PAGE LIVES, never where a NEW page is created: creation still
+     * targets the user's own language folder via getLanguageFolder(). Callers
+     * that write remain responsible for permissions — the file returned here
+     * is still subject to the isUpdateable() check on the caller's side.
+     *
+     * @param \OCP\Files\Folder $primaryFolder Folder to search first.
+     * @param string $uniqueId The page-… uniqueId to locate.
+     * @return array|null findPageByUniqueId() result, or null when unknown.
+     */
+    private function locatePageAnyLanguage(\OCP\Files\Folder $primaryFolder, string $uniqueId): ?array {
+        return $this->locateAcrossLanguages(
+            $primaryFolder,
+            fn(\OCP\Files\Folder $f) => $this->findPageByUniqueId($f, $uniqueId)
+        );
+    }
+
+    /**
+     * Same cross-language walk for a legacy slug id (e.g. "about"), so a slug
+     * link resolves wherever the page lives — matching uniqueId links.
+     * Only reached after the primary folder came up empty.
+     */
+    private function locatePageBySlugAnyLanguage(\OCP\Files\Folder $primaryFolder, string $id): ?array {
+        return $this->locateAcrossLanguages(
+            $primaryFolder,
+            fn(\OCP\Files\Folder $f) => $this->findPageById($f, $id)
+        );
+    }
+
+    /**
+     * Run $find against $primaryFolder first, then against every other language
+     * folder on disk. Shared by the uniqueId and slug locators.
+     *
+     * @param callable(\OCP\Files\Folder): ?array $find
+     */
+    private function locateAcrossLanguages(\OCP\Files\Folder $primaryFolder, callable $find): ?array {
+        $result = $find($primaryFolder);
+        if ($result !== null) {
+            return $result;
+        }
+
+        // Scan the remaining language folders that actually exist on disk,
+        // rather than an opt-in list, so content in any language (e.g. 'da')
+        // stays reachable. Skip the folder we just searched — comparing paths
+        // rather than language codes, so the folder that was really searched is
+        // the one that is really skipped.
+        $baseFolder = $this->getIntraVoxFolder();
+        $searchedPath = $primaryFolder->getPath();
+
+        foreach ($this->getCachedDirectoryListing($baseFolder) as $item) {
+            if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER
+                || !($item instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            // Language folders are two/three-letter base codes.
+            if (!preg_match('/^[a-z]{2,3}$/', $item->getName())
+                || $item->getPath() === $searchedPath) {
+                continue;
+            }
+            $result = $find($item);
+            if ($result !== null) {
+                return $result;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Get language folder by language code
      */
     private function getLanguageFolderByCode(string $lang) {
@@ -765,8 +867,11 @@ class PageService {
      *
      * IMPORTANT: Uses the user's mounted folder view to respect GroupFolder ACL
      * This is essential for non-admin users to access the IntraVox folder
+     *
+     * `protected` (like getLanguageFolder) only to give unit tests a seam for
+     * the mounted-folder lookup; no runtime behaviour depends on it.
      */
-    private function getIntraVoxFolder() {
+    protected function getIntraVoxFolder() {
         if (!$this->userId) {
             throw new \Exception('User not logged in');
         }
@@ -1358,9 +1463,11 @@ class PageService {
         // Save original ID before sanitization
         $originalId = $id;
 
-        // Check for uniqueId pattern BEFORE sanitization
+        // Check for uniqueId pattern BEFORE sanitization. The cross-language
+        // scan inside locatePageAnyLanguage() lets feed links and shared links
+        // resolve regardless of which language folder holds the page.
         if (strpos($originalId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $originalId);
+            $result = $this->locatePageAnyLanguage($folder, $originalId);
             if (!$result) {
                 $this->logger->warning('IntraVox: Not found by uniqueId', ['uniqueId' => $originalId]);
             }
@@ -1370,32 +1477,11 @@ class PageService {
         if ($result === null) {
             $id = $this->sanitizeId($originalId);
             $result = $this->findPageById($folder, $id);
-        }
-
-        // Cross-language fallback: search other language folders that actually
-        // exist on disk. This enables feed links and shared links to work across
-        // languages. VoxCloud model: scan real language folders rather than an
-        // opt-in list, so content in any language (e.g. 'da') is reachable.
-        if ($result === null && strpos($originalId, 'page-') === 0) {
-            $baseFolder = $this->getIntraVoxFolder();
-            $currentLang = $this->getUserLanguage();
-
-            foreach ($this->getCachedDirectoryListing($baseFolder) as $item) {
-                if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER) {
-                    continue;
-                }
-                $lang = $item->getName();
-                // Language folders are two-letter base codes; skip the one we
-                // already searched and any non-language folder.
-                if (!preg_match('/^[a-z]{2,3}$/', $lang) || $lang === $currentLang) {
-                    continue;
-                }
-                if ($item instanceof \OCP\Files\Folder) {
-                    $result = $this->findPageByUniqueId($item, $originalId);
-                    if ($result !== null) {
-                        break;
-                    }
-                }
+            // Slug links get the same cross-language treatment as uniqueId
+            // links, so which kind of link a reader follows never decides
+            // whether the page resolves.
+            if ($result === null) {
+                $result = $this->locatePageBySlugAnyLanguage($folder, $id);
             }
         }
 
@@ -1843,14 +1929,35 @@ class PageService {
     /**
      * Get or create folder path recursively
      * Example: "nl/departments/marketing/campaigns" will create all intermediate folders
+     *
+     * A sub-page belongs in its PARENT's language folder, not in the author's
+     * own. When the path names a language, that language wins: an English
+     * editor adding a page under a German parent writes into de/, exactly where
+     * the parent lives. Previously the language segment was stripped and the
+     * remainder re-created under the author's own language, which fabricated an
+     * empty mirror tree (de/departments/marketing/) whose parent pages did not
+     * exist there — the created page vanished from the context it was made in.
      */
     private function getOrCreateFolderPath(string $path): \OCP\Files\Folder {
         $pathParts = explode('/', trim($path, '/'));
-        $currentFolder = $this->getLanguageFolder();
 
-        // Remove language part since we already start from language folder
+        // A leading language segment selects the content folder to build in.
+        // Fall back to the author's own language folder when the path carries
+        // no language (legacy callers) or when that language has no folder yet.
+        $currentFolder = null;
         if (count($pathParts) > 0 && $this->languageService->isLanguageAvailable($pathParts[0])) {
-            array_shift($pathParts);
+            $langCode = array_shift($pathParts);
+            try {
+                $candidate = $this->getIntraVoxFolder()->get($langCode);
+                if ($candidate instanceof \OCP\Files\Folder) {
+                    $currentFolder = $candidate;
+                }
+            } catch (NotFoundException $e) {
+                // No folder for that language — fall through to the author's own.
+            }
+        }
+        if ($currentFolder === null) {
+            $currentFolder = $this->getLanguageFolder();
         }
 
         // Create each folder in path if it doesn't exist
@@ -1887,8 +1994,12 @@ class PageService {
             // Get or create parent folder path
             $targetFolder = $this->getOrCreateFolderPath($parentPath);
         } else {
-            // No parent = create at language root
-            $targetFolder = $this->getLanguageFolder();
+            // No parent = create at the root of the language being VIEWED, so a
+            // new page lands in the structure the author is actually working in
+            // rather than in their profile language. getReadLanguageFolder()
+            // resolves own language → recommended → en, and falls back to the
+            // author's own folder when nothing else resolves.
+            $targetFolder = $this->getReadLanguageFolder();
         }
 
         // Preflight: creating a page writes a file (and a folder) into $targetFolder.
@@ -1952,9 +2063,11 @@ class PageService {
             }
         }
 
-        // Update page metadata index (non-blocking — page was already saved)
+        // Update page metadata index (non-blocking — page was already saved).
+        // Index the language the page actually LANDED in, which is not always
+        // the author's own (a sub-page follows its parent's language).
         try {
-            $language = $this->getUserLanguage();
+            $language = $this->languageOfFolder($targetFolder) ?? $this->getUserLanguage();
             $path = $parentPath ?? $language;
             $this->pageIndexService->indexPage($data, $language, $path, $file->getId());
         } catch (\Exception $e) {
@@ -2115,10 +2228,12 @@ class PageService {
         $languageFolder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxx) BEFORE sanitization
+        // Check for uniqueId pattern (page-xxx) BEFORE sanitization. Editing an
+        // existing page writes back to wherever that page actually lives, which
+        // is not necessarily the current user's own language folder (issue #90);
+        // the isUpdateable() preflight below still gates the write.
         if (strpos($originalId, 'page-') === 0) {
-            // Search by uniqueId
-            $result = $this->findPageByUniqueId($languageFolder, $originalId);
+            $result = $this->locatePageAnyLanguage($languageFolder, $originalId);
         }
 
         // Fallback to legacy ID lookup if not found by uniqueId
@@ -2132,7 +2247,7 @@ class PageService {
         }
 
         if ($result === null) {
-            throw new \InvalidArgumentException('Page not found: ' . $originalId);
+            throw new PageNotFoundException('Page not found: ' . $originalId);
         }
 
         // Get the file
@@ -2217,13 +2332,16 @@ class PageService {
         }
 
         // Resolve by uniqueId (page-…) first, then fall back to legacy folder id.
+        // Deletion follows the page across language folders, so a page the user
+        // can see is also a page the user can delete (issue #90); the caller's
+        // permission check still decides whether the delete is allowed.
         $languageFolder = $this->getLanguageFolder();
         $result = strpos($id, 'page-') === 0
-            ? $this->findPageByUniqueId($languageFolder, $id)
+            ? $this->locatePageAnyLanguage($languageFolder, $id)
             : $this->findPageById($languageFolder, $this->sanitizeId($id));
 
         if ($result === null) {
-            throw new \Exception('Page not found');
+            throw new PageNotFoundException('Page not found: ' . $id);
         }
 
         // Normalize $id to the folder name for downstream index/event use.
@@ -4047,9 +4165,11 @@ class PageService {
         $folder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxxx) like getPage() does
+        // Check for uniqueId pattern (page-xxxx) like getPage() does. Follows
+        // the page across language folders so an operation on a page the user
+        // can see never fails with "Page not found" (issue #90).
         if (strpos($pageId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $pageId);
+            $result = $this->locatePageAnyLanguage($folder, $pageId);
         }
 
         // Fall back to legacy ID lookup
@@ -4208,9 +4328,11 @@ class PageService {
         $folder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxxx) like getPage() does
+        // Check for uniqueId pattern (page-xxxx) like getPage() does. Follows
+        // the page across language folders so an operation on a page the user
+        // can see never fails with "Page not found" (issue #90).
         if (strpos($pageId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $pageId);
+            $result = $this->locatePageAnyLanguage($folder, $pageId);
         }
 
         // Fall back to legacy ID lookup
@@ -4410,9 +4532,11 @@ class PageService {
         $folder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxxx)
+        // Check for uniqueId pattern (page-xxxx). Follows the page across
+        // language folders so an operation on a page the user can see never
+        // fails with "Page not found" (issue #90).
         if (strpos($pageId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $pageId);
+            $result = $this->locatePageAnyLanguage($folder, $pageId);
         }
 
         // Fall back to legacy ID lookup
@@ -4506,9 +4630,11 @@ class PageService {
         $folder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxxx)
+        // Check for uniqueId pattern (page-xxxx). Follows the page across
+        // language folders so an operation on a page the user can see never
+        // fails with "Page not found" (issue #90).
         if (strpos($pageId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $pageId);
+            $result = $this->locatePageAnyLanguage($folder, $pageId);
         }
 
         // Fall back to legacy ID lookup
@@ -5043,9 +5169,11 @@ class PageService {
         $folder = $this->getLanguageFolder();
         $result = null;
 
-        // Check for uniqueId pattern (page-xxxx) like getPage() does
+        // Check for uniqueId pattern (page-xxxx) like getPage() does. Follows
+        // the page across language folders so an operation on a page the user
+        // can see never fails with "Page not found" (issue #90).
         if (strpos($pageId, 'page-') === 0) {
-            $result = $this->findPageByUniqueId($folder, $pageId);
+            $result = $this->locatePageAnyLanguage($folder, $pageId);
         }
 
         // Fall back to legacy ID lookup

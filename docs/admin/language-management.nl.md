@@ -29,7 +29,40 @@ De Nextcloud-**weergavetaal** van een gebruiker bepaalt welke inhoud die ziet. A
 
 Op een intranet met alleen Engelse inhoud ziet een gebruiker met weergavetaal Duits dus gewoon de Engelse pagina's — geen melding. Stel je de aanbevolen taal in op Nederlands en is er Nederlandse inhoud, dan zien diezelfde gebruikers het Nederlandse intranet.
 
-> **De aanbevolen taal is alleen een weergave-fallback.** Een redacteur maakt en bewaart pagina's altijd in de **eigen** taal — een pagina aanmaken leidt de schrijfactie nooit om naar de aanbevolen taal.
+> **De aanbevolen taal is alleen een weergave-fallback.** Die verandert nooit wat een redacteur mag bewerken — zie [In welke taal schrijven redacteuren?](#in-welke-taal-schrijven-redacteuren) hieronder.
+
+## In welke taal schrijven redacteuren?
+
+Sinds 1.9.6 is de regel één zin: **je schrijft waar je kijkt.** De structuur waarin een redacteur werkt bepaalt de taalmap — niet de persoonlijke weergavetaal in Nextcloud.
+
+| Actie | Waar het terechtkomt |
+|---|---|
+| Een bestaande pagina bewerken, hernoemen of verwijderen | De taalmap waar de pagina **al staat** |
+| Een **subpagina** aanmaken | De taalmap van de **ouderpagina** |
+| Een **pagina op hoofdniveau** aanmaken | De taal die de redacteur op dat moment **bekijkt** (eigen taal → aanbevolen → Engels) |
+| Niets om het uit af te leiden | De eigen weergavetaal van de redacteur, zoals voorheen |
+
+Dit is vooral van belang voor gemengde teams. Een redacteur met Nextcloud op Duits kan een Engelse pagina openen, bewerken en opslaan — de pagina blijft in `en/` staan, waar hij hoort. Die redacteur hoeft dus **niet** eerst de persoonlijke taalinstelling te wijzigen, en de taalinstelling in het beheerpaneel speelt er evenmin een rol in.
+
+De twee taalinstellingen blijven strikt gescheiden, en geen van beide bepaalt waar inhoud wordt weggeschreven:
+
+- **De weergavetaal van een gebruiker** (Persoonlijke instellingen → Taal) bepaalt de interface en welke inhoud diegene standaard te zien krijgt.
+- **De aanbevolen taal** (dit beheerpaneel) is de weergave-fallback voor gebruikers wier taal geen inhoud heeft.
+
+Vóór 1.9.6 gebruikte de schrijfkant alleen de weergavetaal van de redacteur. Dat leverde twee bugs op: een pagina die je kon openen was soms niet op te slaan ([#90](https://github.com/nextcloud/IntraVox/issues/90)), en een subpagina aanmaken onder een ouderpagina in een andere taal bouwde stilzwijgend een lege spiegelstructuur in de eigen taal van de redacteur, met de nieuwe pagina losgekoppeld van de structuur waarin die was gemaakt. Beide zijn verholpen.
+
+> **Rechten blijven ongewijzigd.** Een pagina volgen naar een andere taalmap geeft nooit extra toegang: de normale rechten van de Team Folder blijven gelden, dus een redacteur zonder schrijfrechten krijgt een duidelijke melding in plaats van een opslagactie die lijkt te lukken.
+
+### Zien in welke taal je werkt
+
+Omdat de structuur de taal bepaalt, moeten redacteuren merken wanneer ze ergens onverwachts zitten. Naast de paginatitel verschijnt een label wanneer de pagina waarop je bent **niet in je eigen taal** is — zowel in lees- als in bewerkmodus.
+
+- Het toont de taal van de **pagina**, niet je interfacetaal. Een Duitse redacteur die een Engelse pagina opent, ziet "Engels".
+- Het verschijnt **alleen als die twee verschillen**. Op een pagina in je eigen taal is er geen label, dus als je er een ziet betekent het altijd iets — het verwordt nooit tot meubilair dat je niet meer leest.
+- Het is alleen zichtbaar voor gebruikers die de pagina mogen **bewerken**, net als het Concept-label: het is informatie voor makers, niet iets waar een lezer iets mee moet.
+- Op een eentalig intranet verschijnt het dus nooit.
+
+Het label is uitsluitend een indicator — geen taalwisselaar. Wil je in een andere taal werken, navigeer dan naar de pagina's van die taal.
 
 Engels kan niet worden verwijderd: het is de gegarandeerde laatste fallback en de Transifex-brontaal. De dropdown **Aanbevolen taal** biedt alleen talen aan die echt inhoud hebben (plus Engels), zodat je de fallback niet op een lege taal kunt zetten.
 

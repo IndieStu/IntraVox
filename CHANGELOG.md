@@ -4,6 +4,34 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.6] - 2026-08-07 — Pages save in whatever language they were written
+
+### Added
+
+- **Editors are told when a page is not in their own language.** A badge next to the page title appears when the page you are on belongs to a different language than your own — in both view and edit mode. It names the language of the *page*, not of your interface: a German editor opening an English page sees "English", and knows that editing it saves back into English.
+
+  It shows up only when the two differ, so it never becomes a permanent label you stop reading; on a page in your own language, and on any single-language intranet, there is no badge at all. Like the Draft badge it is only shown to people who can edit the page.
+
+  It is an indicator, not a switcher: to work in another language, navigate to that language's pages.
+
+### Fixed
+
+- **Editing a page failed with "Saving failed: Request failed with status code 400" and "Unable to save the page: Page not found".** The page was on screen, it opened in the editor, and the save then insisted it did not exist. ([#90](https://github.com/nextcloud/IntraVox/issues/90))
+
+  Reading a page and saving one looked in different places. Opening a page searched the language you are shown — your own language, and failing that the recommended language or English — and then looked through every other language folder besides. Saving searched only the folder matching your own Nextcloud display language, and gave up there. Any page written in one language and opened by someone using another was therefore readable but impossible to save, along with its version history, its metadata and its delete action.
+
+  Nothing was wrong with the page or with the Team Folder holding it. Editing an existing page now writes back to wherever that page actually lives, so anything you can open, you can also save. Creating a *new* page is unchanged: it still lands in your own language folder. Permissions are unchanged too — a read-only member still gets a clear "not allowed" rather than a save that appears to work.
+
+  A page that genuinely does not exist now answers with a plain 404 instead of the contradictory "400 / not found" pair that made this so puzzling to report.
+
+- **A sub-page created under a parent in another language ended up detached from it.** Adding a sub-page to a German parent while your own Nextcloud language was English filed it under English instead — and built an empty `de/departments/…` mirror of the folder structure on the way, whose parent pages did not exist there. The new page disappeared from the very structure it was created in.
+
+  Page creation now follows the structure you are working in rather than your personal language setting. A sub-page joins its parent's language; a top-level page is created in the language you are currently viewing; and only when there is nothing to derive it from does IntraVox fall back to your own language, as before.
+
+  Together with the save fix above, the rule for editors is now a single sentence: **you write where you are looking.** Which language your Nextcloud interface is in no longer decides which content you can work on, and the admin panel's recommended language remains what it always was — a viewing fallback, never a write target.
+
+- **Links to a page in another language resolved inconsistently.** A link carrying a page's unique id found the page wherever it lived, but an older-style link built from the page name only searched your own language folder — so the same page could open, show a different language's page, or fail, depending on which kind of link you happened to follow. Both kinds now resolve the same way.
+
 ## [1.9.5] - 2026-08-05 — The People filter panel keeps its options
 
 ### Fixed

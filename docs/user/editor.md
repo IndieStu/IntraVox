@@ -52,6 +52,8 @@ The Save and Cancel buttons stay fixed at the top of the page when you scroll do
 
 *The toolbar stays visible at the top while scrolling through a long page in edit mode*
 
+> **Editing a page in another language.** If your intranet has content in several languages, you can edit any page you can open — it saves back to the language it belongs to. You never need to change your personal Nextcloud language setting first. New pages follow the structure you are working in: a sub-page joins its parent's language, and a top-level page is created in the language you are currently viewing. See [Language Management](../admin/language-management.md#which-language-do-editors-write-in).
+
 ### Page Locking
 
 When you start editing a page, IntraVox automatically locks it to prevent other users from making changes at the same time. Other users see who is editing and cannot enter edit mode until you save, cancel, or the lock expires.

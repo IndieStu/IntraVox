@@ -1,6 +1,6 @@
 {
-    "count": 1337,
-    "sha256": "8d7ad4c5556a504f445de083e6f1b29e0c5621ac24212c037feaf568e1da7b0a",
+    "count": 1338,
+    "sha256": "e8893e644fb1051337bb4126888491321b42c9320f1a61b624cfdd0f5a27b7a5",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -1190,6 +1190,7 @@
         "This month",
         "This page has expired: its expiration date has passed, so it is hidden from readers. Change or clear the expiration date to make it visible again.",
         "This page is a draft: hidden from readers everywhere in IntraVox until you publish it.",
+        "This page is in {language}, not your own language. Editing it saves back to {language}.",
         "This page is not available or the share link has expired.",
         "This page is not shared publicly",
         "This page is scheduled: it has a publish date in the future, so it stays hidden from readers until that moment and then appears automatically. The publish date overrides the Draft/Published button — clear the date to switch manually again.",
