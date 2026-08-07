@@ -196,6 +196,7 @@ OC.L10N.register(
     "Link:" : "קישור:",
     "Open in new tab" : "פתיחה בלשונית חדשה",
     "Local file" : "קובץ מקומי",
+    "Clear" : "פינוי",
     "just now" : "כרגע",
     "_%n minute ago_::_%n minutes ago_" : ["לפני דקה","לפני 2 דקות","לפני %n דקות","לפני %n דקות"],
     "_%n hour ago_::_%n hours ago_" : ["לפני שעה","לפני שעתיים","לפני %n שעות"],

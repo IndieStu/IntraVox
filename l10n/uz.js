@@ -149,6 +149,7 @@ OC.L10N.register(
     "Total" : "Jami",
     "Size:" : "Hajmi:",
     "External URL" : "Tashqi URL",
+    "Clear" : "Toza",
     "Edit" : "Tahrirlash",
     "Reply" : "Javob bering",
     "Write a comment …" : "Fikr yozing…",

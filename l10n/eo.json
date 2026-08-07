@@ -134,6 +134,7 @@
     "Size:" : "Grando:",
     "Link:" : "Ligilo:",
     "Local file" : "Loka dosiero",
+    "Clear" : "Viŝi",
     "just now" : "ĵus",
     "_%n minute ago_::_%n minutes ago_" : ["antaŭ %n minuto","antaŭ %n minutoj"],
     "_%n hour ago_::_%n hours ago_" : ["antaŭ %n horo","antaŭ %n horoj"],

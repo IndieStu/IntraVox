@@ -233,6 +233,8 @@ OC.L10N.register(
     "Width in pixels" : "Breidd í mynddílum",
     "Link:" : "Tengill:",
     "Local file" : "Skrá á tölvunni",
+    "Clear all" : "Clear all",
+    "Clear" : "Hreinsa",
     "Previous slide" : "Fyrri skyggna",
     "Next slide" : "Næsta skyggna",
     "just now" : "Í þessum töluðu orðum",

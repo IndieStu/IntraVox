@@ -113,6 +113,7 @@ OC.L10N.register(
     "Domain" : "დომენი",
     "Size:" : "ზომა:",
     "Link:" : "ბმული:",
+    "Clear" : "გასუფთავება",
     "just now" : "ამ წამს",
     "_%n minute ago_::_%n minutes ago_" : ["%n წუთის წინ","%n წუთის წინ"],
     "_%n hour ago_::_%n hours ago_" : ["%n საათის წინ","%n საათის წინ"],

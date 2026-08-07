@@ -65,6 +65,7 @@ OC.L10N.register(
     "Current" : "Mövcud",
     "Rename" : "Adı dəyiş",
     "Done" : "Edildi",
+    "Group" : "Qrup",
     "Start slideshow" : "Slayd şouya başlayın",
     "Slideshow speed" : "Slayd şounun sürəti",
     "Description" : "Açıqlanma",

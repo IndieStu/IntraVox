@@ -179,6 +179,8 @@ OC.L10N.register(
     "Size:" : "Kích thước:",
     "Link:" : "Liên kết:",
     "Local file" : "Tệp cục bộ",
+    "Clear all" : "Xóa tât cả",
+    "Clear" : "Xóa",
     "_%n minute ago_::_%n minutes ago_" : ["%n phút trước"],
     "_%n hour ago_::_%n hours ago_" : ["%n giờ trước"],
     "Edit" : "Chỉnh sửa",

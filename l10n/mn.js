@@ -235,6 +235,8 @@ OC.L10N.register(
     "Link:" : "Холбоос:",
     "Open in new tab" : "Шинэ таб дээр нээх",
     "Muted" : "Хаагдсан",
+    "Clear" : "Цэвэрлэх",
+    "Show results" : "Үр дүн харуулах",
     "Previous slide" : "Өмнөх слайд",
     "Next slide" : "Дараагийн слайд",
     "_%n minute ago_::_%n minutes ago_" : ["%n минутын өмнө","%n минутын өмнө"],

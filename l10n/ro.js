@@ -171,6 +171,8 @@ OC.L10N.register(
     "Width in pixels" : "Lățimea în pixeli",
     "Local file" : "Fișier local",
     "Muted" : "Sunet oprit",
+    "Clear" : "Șterge ",
+    "Show results" : "Afișează rezultatele",
     "_%n minute ago_::_%n minutes ago_" : ["%n minut în urmă","%n minute în urmă","%n minute în urmă"],
     "_%n hour ago_::_%n hours ago_" : ["%n oră în urmă","%n ore în urmă","%n ore în urmă"],
     "_%n day ago_::_%n days ago_" : ["%n zi în rumă","Acum %n zile","Acum %n zile"],

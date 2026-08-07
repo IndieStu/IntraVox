@@ -183,6 +183,7 @@ OC.L10N.register(
     "Link:" : "Link:",
     "Local file" : "Local file",
     "Muted" : "Muted",
+    "Clear" : "Clear",
     "_%n minute ago_::_%n minutes ago_" : ["%n minute ago","%n minutes ago"],
     "_%n hour ago_::_%n hours ago_" : ["%n hour ago","%n hours ago"],
     "_%n day ago_::_%n days ago_" : ["%n day ago","%n days ago"],

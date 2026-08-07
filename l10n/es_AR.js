@@ -147,6 +147,7 @@ OC.L10N.register(
     "Link:" : "Link:",
     "External URL" : "Enlace externo",
     "Local file" : "Archivo local",
+    "Clear" : "Borrar",
     "_%n minute ago_::_%n minutes ago_" : ["Hace %n minuto","Hace %n minutos","Hace %n minutos"],
     "_%n hour ago_::_%n hours ago_" : ["Hace %n hora","Hace %n horas","Hace %n horas"],
     "_%n day ago_::_%n days ago_" : ["hace %n día","hace %n días","hace %n días"],

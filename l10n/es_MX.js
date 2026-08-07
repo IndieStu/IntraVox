@@ -209,6 +209,8 @@ OC.L10N.register(
     "Link:" : "Enlace:",
     "External URL" : "URL externo",
     "Local file" : "Archivo local",
+    "Clear" : "Limpiar",
+    "Show results" : "Mostrar resultados",
     "Previous slide" : "Diapositiva anterior",
     "Next slide" : "Diapositiva siguiente",
     "just now" : "justo ahora",
