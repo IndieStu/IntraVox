@@ -128,11 +128,22 @@ interface Node {
     public function isUpdateable(): bool;
     public function isCreatable(): bool;
     public function isDeletable(): bool;
+    public function getMTime(): int;
+    public function getSize();
 }
 
+/**
+ * Nextcloud spells the MIME getter both ways across its interfaces
+ * (getMimetype() on FileInfo, getMimeType() on Node) and the media paths call
+ * each spelling. PHP method names are case-insensitive, so the single
+ * declaration below satisfies both call sites — declaring the second spelling
+ * as well is a redeclaration fatal, not an overload.
+ */
 interface File extends Node {
     public function getContent(): string;
     public function putContent($data): void;
+    public function getMimetype(): string;
+    public function fopen(string $mode);
 }
 
 interface Folder extends Node {

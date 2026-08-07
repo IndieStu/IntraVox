@@ -538,6 +538,14 @@ class ApiController extends Controller {
 
             $filename = $this->pageService->uploadMedia($pageId, $file);
             return new DataResponse(['filename' => $filename], Http::STATUS_CREATED);
+        } catch (PageNotFoundException $e) {
+            $this->logger->warning('[uploadMedia] PageNotFoundException: ' . $e->getMessage(), [
+                'pageId' => $pageId,
+            ]);
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_NOT_FOUND
+            );
         } catch (\InvalidArgumentException $e) {
             return new DataResponse(
                 ['error' => $e->getMessage()],
@@ -615,6 +623,16 @@ class ApiController extends Controller {
 
             return new DataResponse($result, Http::STATUS_CREATED);
 
+        } catch (PageNotFoundException $e) {
+            // Was an unlogged 500 with a bare "Page not found" body, which is
+            // why issue #92 came in with no Nextcloud log entries at all.
+            $this->logger->warning('[uploadMediaWithName] PageNotFoundException: ' . $e->getMessage(), [
+                'pageId' => $pageId,
+            ]);
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_NOT_FOUND
+            );
         } catch (\InvalidArgumentException $e) {
             return new DataResponse(
                 ['error' => $e->getMessage()],

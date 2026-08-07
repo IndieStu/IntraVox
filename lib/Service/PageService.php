@@ -722,8 +722,11 @@ class PageService {
      * back to the plain write-target folder (getLanguageFolder), so callers get
      * a valid — possibly empty — folder rather than an exception; the fallback
      * notice decides separately whether to blank the page.
+     *
+     * `protected` (like getLanguageFolder/getIntraVoxFolder) only to give unit
+     * tests a seam for language resolution; no runtime behaviour depends on it.
      */
-    private function getReadLanguageFolder(): \OCP\Files\Folder {
+    protected function getReadLanguageFolder(): \OCP\Files\Folder {
         $lang = $this->resolveEffectiveLanguage();
         if ($lang !== null) {
             try {
@@ -837,6 +840,108 @@ class PageService {
         }
 
         return null;
+    }
+
+    /**
+     * Locate a page for a MEDIA operation, and report which language folder it
+     * turned out to live in.
+     *
+     * Media resolution used to start from a language folder chosen for the
+     * USER — getLanguageFolder() (the profile language) on the write paths,
+     * getReadLanguageFolder() (own → recommended → en, #75) on the list path —
+     * and then look for the page only there. Both are the wrong question. A
+     * page's media lives next to the page, so the only folder that matters is
+     * the one holding the page itself.
+     *
+     * When the two disagreed, every media operation failed on a page that was
+     * plainly on screen: uploads threw "Page not found" while the very same
+     * request had already passed its permission check through the
+     * cross-language getPage(), listings came back empty so the Shared Library
+     * showed names without previews, and thumbnails 404'd (issue #92). This is
+     * the same read/write asymmetry #90 fixed for pages, applied to the media
+     * cluster that #90 did not reach.
+     *
+     * Returns the language folder alongside the page so callers can resolve
+     * `_media` / `_resources` for the HOME page and for the resources library
+     * in that same language, instead of falling back to the user's own.
+     *
+     * @param string $pageId uniqueId (page-…) or legacy slug id.
+     * @return array{result: array, languageFolder: \OCP\Files\Folder}|null
+     *   null when the page exists in no language folder at all.
+     */
+    private function locatePageForMedia(string $pageId): ?array {
+        $primary = $this->getReadLanguageFolder();
+
+        $find = function (\OCP\Files\Folder $folder) use ($pageId): ?array {
+            if (strpos($pageId, 'page-') === 0) {
+                $byUniqueId = $this->findPageByUniqueId($folder, $pageId);
+                if ($byUniqueId !== null) {
+                    return $byUniqueId;
+                }
+            }
+            // Legacy slug ids (and uniqueIds that predate the page- prefix)
+            // stay resolvable, matching the fallback the callers already had.
+            return $this->findPageById($folder, $this->sanitizeId($pageId));
+        };
+
+        $result = $this->locateAcrossLanguages($primary, $find);
+        if ($result === null) {
+            return null;
+        }
+
+        return [
+            'result' => $result,
+            'languageFolder' => $this->languageFolderOfPageResult($result) ?? $primary,
+        ];
+    }
+
+    /**
+     * The language content folder that a findPageByUniqueId()/findPageById()
+     * result sits in, derived from the page folder's own path.
+     *
+     * Walks up from the page folder to the language folder rather than trusting
+     * the folder the search STARTED from — after a cross-language hit those are
+     * not the same, and it is the page's own language that owns its media.
+     *
+     * @return \OCP\Files\Folder|null null when the path cannot be resolved, in
+     *   which case callers fall back to the folder they searched from.
+     */
+    private function languageFolderOfPageResult(array $result): ?\OCP\Files\Folder {
+        $folder = $result['folder'] ?? null;
+        if (!($folder instanceof \OCP\Files\Folder)) {
+            return null;
+        }
+
+        // The home page's "folder" IS the language folder; deeper pages sit
+        // somewhere below it. languageOfFolder() names the language either way.
+        $language = $this->languageOfFolder($folder);
+        if ($language === null) {
+            return null;
+        }
+
+        try {
+            $candidate = $this->getIntraVoxFolder()->get($language);
+            return $candidate instanceof \OCP\Files\Folder ? $candidate : null;
+        } catch (NotFoundException $e) {
+            return null;
+        }
+    }
+
+    /**
+     * $parent->get($name) as a Folder, or null when it is missing or is a file.
+     * Saves the repeated try/catch around optional `_media` / `_resources`
+     * lookups on paths that treat "absent" as an ordinary outcome.
+     */
+    private function folderOrNull(?\OCP\Files\Folder $parent, string $name): ?\OCP\Files\Folder {
+        if ($parent === null) {
+            return null;
+        }
+        try {
+            $node = $parent->get($name);
+            return $node instanceof \OCP\Files\Folder ? $node : null;
+        } catch (NotFoundException $e) {
+            return null;
+        }
     }
 
     /**
@@ -2605,17 +2710,14 @@ class PageService {
         $prefix = $isVideo ? 'vid_' : 'img_';
         $filename = uniqid($prefix, true) . '.' . $extension;
 
-        $languageFolder = $this->getLanguageFolder();
-
-        // Find the page by uniqueId (pageId is actually the uniqueId from the frontend)
-        $result = $this->findPageByUniqueId($languageFolder, $pageId);
-        if ($result === null) {
-            // Fallback: try finding by folder name for backwards compatibility
-            $result = $this->findPageById($languageFolder, $pageId);
-            if ($result === null) {
-                throw new \Exception('Page not found');
-            }
+        // Media belongs to the page, so resolve the page across every language
+        // folder and upload into the language it actually lives in (issue #92).
+        $located = $this->locatePageForMedia($pageId);
+        if ($located === null) {
+            throw new PageNotFoundException('Page not found: ' . $pageId);
         }
+        $result = $located['result'];
+        $languageFolder = $located['languageFolder'];
 
         // Get media folder for this page
         if ($result['isHome'] ?? false) {
@@ -2658,7 +2760,10 @@ class PageService {
         $originalPageId = $pageId;
         $filename = basename($filename); // Prevent directory traversal
 
-        $languageFolder = $this->getLanguageFolder();
+        // The language whose content this user is shown, which is where the
+        // home page and the cache fast-path below look first. A page in another
+        // language is picked up by the cross-language miss path further down.
+        $languageFolder = $this->getReadLanguageFolder();
 
         try {
             // Handle home page with original pageId
@@ -2718,6 +2823,19 @@ class PageService {
             // If cache miss, search using ORIGINAL pageId
             if ($mediaFolder === null) {
                 $mediaFolder = $this->findMediaFolderForPage($languageFolder, $originalPageId);
+            }
+
+            // Still nothing: the page may simply live in another language than
+            // the one this user reads, which used to 404 every image on it
+            // (#92). Only reached on a genuine miss, so the common case keeps
+            // the single-folder walk above and pays nothing for this.
+            if ($mediaFolder === null) {
+                $located = $this->locatePageForMedia($originalPageId);
+                if ($located !== null) {
+                    $mediaFolder = ($located['result']['isHome'] ?? false)
+                        ? $this->folderOrNull($located['languageFolder'], '_media')
+                        : $this->folderOrNull($located['result']['folder'] ?? null, '_media');
+                }
             }
 
             if ($mediaFolder === null) {
@@ -5747,8 +5865,18 @@ class PageService {
      */
     public function checkMediaExists(string $pageId, string $filename, string $targetFolder): bool {
         try {
-            $languageFolder = $this->getLanguageFolder();
             $filename = basename($filename); // Prevent directory traversal
+
+            // Must resolve the page exactly as the upload does, or the
+            // duplicate check inspects a different folder than the one written
+            // to — silently answering "no duplicate" and overwriting nothing,
+            // or prompting about a file the upload will not touch (#92).
+            $located = $this->locatePageForMedia($pageId);
+            if ($located === null) {
+                return false;
+            }
+            $result = $located['result'];
+            $languageFolder = $located['languageFolder'];
 
             if ($targetFolder === 'resources') {
                 // Check in _resources folder
@@ -5760,17 +5888,6 @@ class PageService {
                     return false;
                 }
             } else {
-                // Check in page/_media folder
-                $pageId = $this->sanitizeId($pageId);
-
-                // Find the page
-                $result = $this->findPageByUniqueId($languageFolder, $pageId);
-                if ($result === null) {
-                    $result = $this->findPageById($languageFolder, $pageId);
-                    if ($result === null) {
-                        return false;
-                    }
-                }
 
                 // Get media folder
                 if ($result['isHome'] ?? false) {
@@ -5871,29 +5988,25 @@ class PageService {
             throw new \Exception('File already exists');
         }
 
-        $languageFolder = $this->getLanguageFolder();
+        // Resolve the page first: both branches want the language folder the
+        // page really lives in, not the uploader's own profile language (#92).
+        $located = $this->locatePageForMedia($pageId);
+        if ($located === null) {
+            throw new PageNotFoundException('Page not found: ' . $pageId);
+        }
+        $result = $located['result'];
+        $languageFolder = $located['languageFolder'];
 
         // Get target folder based on targetFolder parameter
         if ($targetFolder === 'resources') {
-            // Upload to _resources folder
+            // Upload to _resources folder — the shared library of the page's
+            // own language, so the asset lands where that page can serve it.
             try {
                 $uploadFolder = $languageFolder->get('_resources');
             } catch (NotFoundException $e) {
                 $uploadFolder = $languageFolder->newFolder('_resources');
             }
         } else {
-            // Upload to page/_media folder
-            $pageId = $this->sanitizeId($pageId);
-
-            // Find the page
-            $result = $this->findPageByUniqueId($languageFolder, $pageId);
-            if ($result === null) {
-                $result = $this->findPageById($languageFolder, $pageId);
-                if ($result === null) {
-                    throw new \Exception('Page not found');
-                }
-            }
-
             // Get media folder for this page
             if ($result['isHome'] ?? false) {
                 // Home media is in root/_media/
@@ -5945,7 +6058,17 @@ class PageService {
      */
     public function getMediaList(string $pageId, string $folderType, string $subPath = ''): array {
         try {
-            $languageFolder = $this->getReadLanguageFolder();
+            // List from the page's own language folder. getReadLanguageFolder()
+            // answers "what should this USER see", which for the Shared Library
+            // of a specific page is the wrong question: it listed one language's
+            // _resources while the widget resolved images from another, so the
+            // picker showed names whose previews always 404'd (#92).
+            $located = $this->locatePageForMedia($pageId);
+            if ($located === null) {
+                return [];
+            }
+            $languageFolder = $located['languageFolder'];
+            $result = $located['result'];
             $mediaFiles = [];
 
             if ($folderType === 'resources') {
@@ -5990,17 +6113,8 @@ class PageService {
                     return [];
                 }
             } else {
-                // List files in page/_media folder
-                $pageId = $this->sanitizeId($pageId);
-
-                // Find the page
-                $result = $this->findPageByUniqueId($languageFolder, $pageId);
-                if ($result === null) {
-                    $result = $this->findPageById($languageFolder, $pageId);
-                    if ($result === null) {
-                        return [];
-                    }
-                }
+                // List files in page/_media folder — $result was already
+                // resolved cross-language above.
 
                 // Get media folder
                 if ($result['isHome'] ?? false) {
@@ -6053,15 +6167,53 @@ class PageService {
      */
     public function getResourcesMediaFile(string $path) {
         // Path is already sanitized by ApiController::sanitizePath()
-        $languageFolder = $this->getLanguageFolder();
+        //
+        // This route carries no pageId, so the page's language cannot be
+        // resolved the way the other media paths do. Look in the language the
+        // user reads first, then in the remaining language folders: a shared
+        // asset referenced from a page in another language is still a legitimate
+        // request, and answering 404 blanked those images (#92).
+        $readFolder = $this->getReadLanguageFolder();
 
+        $file = $this->findResourceIn($readFolder, $path);
+        if ($file !== null) {
+            return $file;
+        }
+
+        $baseFolder = $this->getIntraVoxFolder();
+        $searchedPath = $readFolder->getPath();
+
+        foreach ($this->getCachedDirectoryListing($baseFolder) as $item) {
+            if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER
+                || !($item instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            if (!preg_match('/^[a-z]{2,3}$/', $item->getName())
+                || $item->getPath() === $searchedPath) {
+                continue;
+            }
+            $file = $this->findResourceIn($item, $path);
+            if ($file !== null) {
+                return $file;
+            }
+        }
+
+        throw new NotFoundException('Media file not found: ' . $path);
+    }
+
+    /**
+     * Resolve $path inside one language folder's `_resources`, or null.
+     * Kept separate so the cross-language walk above reads as a walk.
+     */
+    private function findResourceIn(\OCP\Files\Folder $languageFolder, string $path): ?\OCP\Files\Node {
+        $resourcesFolder = $this->folderOrNull($languageFolder, '_resources');
+        if ($resourcesFolder === null) {
+            return null;
+        }
         try {
-            $resourcesFolder = $languageFolder->get('_resources');
-
-            // Navigate to file (supports subfolder paths)
             return $resourcesFolder->get($path);
         } catch (NotFoundException $e) {
-            throw new NotFoundException('Media file not found: ' . $path);
+            return null;
         }
     }
 

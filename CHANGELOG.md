@@ -4,6 +4,20 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.7] - 2026-08-07 — Photos upload to pages in any language
+
+### Fixed
+
+- **Uploading a photo failed with "Upload failed: page not found", on a page that was open in front of you.** Adding a Photo widget and choosing an image appeared to work, and then saving the page reported that the page did not exist. Images placed in the resource folder through Files showed up in the Shared Library as a filename and a size with no preview, and stayed blank when selected. Saving the page first made no difference. ([#92](https://github.com/nextcloud/IntraVox/issues/92))
+
+  This is the same read/write split that [#90](https://github.com/nextcloud/IntraVox/issues/90) fixed for pages in 1.9.6, in the one place that fix did not reach: media. A page's images live next to the page, but IntraVox looked for them in a language folder chosen for *you* — your Nextcloud display language when uploading, the language you are shown when listing. Whenever those differed from the language the page itself is written in, every media operation searched the wrong folder: uploads reported the page missing, the Shared Library came back empty so previews had nothing to load, and thumbnails answered 404.
+
+  The permission check on the very same request had already found the page correctly, which is why the failure looked so contradictory — permission granted, then "page not found" for the upload that followed.
+
+  Media now resolves through the page it belongs to, so an upload lands beside its own page whichever language that page is in, and the Shared Library lists the library that page actually uses. Uploading to a page that genuinely does not exist answers a plain 404 and writes a log line, instead of the silent 500 that left this issue with no Nextcloud log entries to go on.
+
+  This affected every media widget — Photo, Photo Story, File Story and Gallery — not only the Photo widget.
+
 ## [1.9.6] - 2026-08-07 — Pages save in whatever language they were written
 
 ### Added
