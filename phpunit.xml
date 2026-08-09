@@ -15,6 +15,15 @@
         <testsuite name="Integration">
             <directory>./tests/Integration</directory>
         </testsuite>
+        <!--
+          Benchmarks are measurements, not pass/fail tests, and they print a
+          table to STDERR. Kept out of the default run (and out of CI) so they
+          never gate a release; run them explicitly by passing the Benchmark
+          testsuite on the command line.
+        -->
+        <testsuite name="Benchmark">
+            <directory suffix="Benchmark.php">./tests/Benchmark</directory>
+        </testsuite>
     </testsuites>
     <!--
       No coverage report block here on purpose: it would make every run try to
