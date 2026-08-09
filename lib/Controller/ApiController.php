@@ -5,6 +5,7 @@ namespace OCA\IntraVox\Controller;
 
 use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
+use OCA\IntraVox\Exception\CrossLanguageMoveException;
 use OCA\IntraVox\Exception\ForbiddenException;
 use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Http\EtagBuilder;
@@ -1323,6 +1324,14 @@ class ApiController extends Controller {
 
             $this->pageService->movePage($pageId, is_string($targetParentId) ? $targetParentId : '');
             return new DataResponse(['success' => true]);
+        } catch (CrossLanguageMoveException $e) {
+            // A refusal the user can act on, not a server fault: 409 Conflict
+            // carries the explanatory message straight to the toast.
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_CONFLICT);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (ForbiddenException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
         } catch (\InvalidArgumentException $e) {
             return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
         } catch (\Exception $e) {

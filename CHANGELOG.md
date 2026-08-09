@@ -4,6 +4,24 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [1.9.8] - 2026-08-09 — Moving, copying and version tools work across languages
+
+### Fixed
+
+- **Moving a page could silently move it into another language.** Since pages became findable across language folders (1.9.6), a move to the top level sent the page to the root of *your own* language rather than its own — so an editor working in German could drag an English page to the top level and relocate that page, with everything nested under it, into the German intranet. Nothing warned, nothing was logged, and there was no undo. In a bulk move this applied to every selected page at once.
+
+  A move now stays inside the language the page is written in, and a move that would cross that boundary is refused with a message naming both languages instead of being carried out. Language folders are independent content trees — moving a page between them is a relocation between intranets, not a translation.
+
+  Moving a page also checks permissions before it starts. It previously relied on the filesystem to object partway through, which surfaced as an unexplained server error.
+
+- **Copying a top-level page put the copy in the wrong language.** Copying a root-level English page while your own language was German created the copy in the German tree. Copies now stay in the language of the page they were copied from.
+
+- **Templates and copies of a page in another language lost their images.** "Save as template" and copy-page looked for the page's media in your own language folder, found nothing, and carried on silently — producing a template or copy with no images and no warning.
+
+- **Version history tools failed on pages in another language.** "Compare with current" and naming a version reported `Page not found`. Both also failed on any page addressed by its modern unique id, regardless of language.
+
+- **The page cache diagnostic reported healthy pages as missing.** Pages in another language came back as "Page folder not found", which is a misleading signal when troubleshooting.
+
 ## [1.9.7] - 2026-08-07 — Photos upload to pages in any language
 
 ### Fixed

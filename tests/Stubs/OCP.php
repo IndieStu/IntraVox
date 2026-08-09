@@ -130,6 +130,7 @@ interface Node {
     public function isDeletable(): bool;
     public function getMTime(): int;
     public function getSize();
+    public function move(string $targetPath);
 }
 
 /**

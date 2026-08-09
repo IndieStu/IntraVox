@@ -6,6 +6,7 @@ namespace OCA\IntraVox\Service;
 use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
 use OCA\IntraVox\Event\PageDeletedEvent;
+use OCA\IntraVox\Exception\CrossLanguageMoveException;
 use OCA\IntraVox\Exception\ForbiddenException;
 use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Service\GroupContextService;
@@ -928,6 +929,57 @@ class PageService {
     }
 
     /**
+     * Locate an existing page by uniqueId OR legacy slug, across every language
+     * folder. The plain "find this page, wherever and however it is addressed"
+     * lookup.
+     *
+     * Several operations each open-coded a subset of this and got a different
+     * subset wrong: some tried the uniqueId branch but not the slug branch,
+     * some (updateVersionLabel, getCurrentPageContent) had no uniqueId branch at
+     * all and so failed on every modern page-… id, and none of them looked
+     * outside the caller's own language. Routing them through one helper is what
+     * stops that drift.
+     *
+     * Read-only resolution: callers that write still check permissions on the
+     * node they get back.
+     *
+     * @return array|null findPageByUniqueId()/findPageById() result, or null.
+     */
+    private function locatePageForOperation(string $pageId): ?array {
+        $folder = $this->getReadLanguageFolder();
+
+        if (strpos($pageId, 'page-') === 0) {
+            $byUniqueId = $this->locatePageAnyLanguage($folder, $pageId);
+            if ($byUniqueId !== null) {
+                return $byUniqueId;
+            }
+        }
+
+        return $this->locatePageBySlugAnyLanguage($folder, $this->sanitizeId($pageId));
+    }
+
+    /**
+     * Human-readable name for a language code ('en' -> 'English'), for messages
+     * a user reads. Falls back to the uppercased code when the name is unknown,
+     * so an exotic content folder still produces "EO" rather than nothing.
+     *
+     * Reuses LanguageService::getAvailableLanguages(), the same source the
+     * admin Languages tab and the fallback notice display.
+     */
+    private function languageDisplayName(string $code): string {
+        try {
+            foreach ($this->languageService->getAvailableLanguages() as $lang) {
+                if (($lang['code'] ?? '') === $code) {
+                    return $lang['name'] ?? strtoupper($code);
+                }
+            }
+        } catch (\Throwable $e) {
+            // Naming is cosmetic; never let it break the operation's real error.
+        }
+        return strtoupper($code);
+    }
+
+    /**
      * $parent->get($name) as a Folder, or null when it is missing or is a file.
      * Saves the repeated try/catch around optional `_media` / `_resources`
      * lookups on paths that treat "absent" as an ordinary outcome.
@@ -1797,46 +1849,6 @@ class PageService {
     }
 
     /**
-     * Check if a page has child pages
-     */
-    private function hasChildren(string $pageId): bool {
-        $result = $this->findPageById($this->getLanguageFolder(), $pageId);
-
-        if (!$result) {
-            return false;
-        }
-
-        $folder = $result['folder'];
-
-        try {
-            foreach ($this->getCachedDirectoryListing($folder) as $item) {
-                if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER) {
-                    continue;
-                }
-
-                // Skip special folders
-                if (in_array($item->getName(), ['_media', 'images', 'files'])) {
-                    continue;
-                }
-
-                // Check if folder contains a page.json
-                try {
-                    $jsonFile = $item->get($item->getName() . '.json');
-                    if ($jsonFile) {
-                        return true; // Found at least one child page
-                    }
-                } catch (\Exception $e) {
-                    // No page.json in this folder, continue
-                }
-            }
-        } catch (\Exception $e) {
-            // Error reading folder
-        }
-
-        return false;
-    }
-
-    /**
      * Determine page type based on path and structure
      *
      * @return string 'department'|'container'|'page'
@@ -2559,13 +2571,25 @@ class PageService {
 
         $languageFolder = $this->getLanguageFolder();
 
-        // Locate the source page folder.
+        // Locate the source page folder, following it across language folders
+        // like every other operation on an existing page (#90). This is safe
+        // ONLY because the destination is anchored to the source's own language
+        // below and the language guard backs it up: resolving the source
+        // cross-language while leaving the destination on the user's language
+        // is what would relocate content between languages.
         $source = strpos($pageId, 'page-') === 0
-            ? $this->findPageByUniqueId($languageFolder, $pageId)
-            : $this->findPageById($languageFolder, $this->sanitizeId($pageId));
+            ? $this->locatePageAnyLanguage($languageFolder, $pageId)
+            : $this->locatePageBySlugAnyLanguage($languageFolder, $this->sanitizeId($pageId));
         if (!$source || !isset($source['folder'])) {
-            throw new \Exception('Page not found: ' . $pageId);
+            throw new PageNotFoundException('Page not found: ' . $pageId);
         }
+
+        // The page's OWN language folder governs this move, not the user's.
+        // Everything below (the root destination, the depth check, the language
+        // guard) is anchored here so a move can never leave the tree the page
+        // lives in. Falls back to the user's folder only when the language
+        // cannot be derived, which keeps single-language installs unchanged.
+        $sourceLanguageFolder = $this->languageFolderOfPageResult($source) ?? $languageFolder;
 
         // The configured homepage cannot be moved — reassign it first
         // (issue: configurable homepage).
@@ -2583,17 +2607,39 @@ class PageService {
 
         // Resolve the destination parent folder (root or a page's own folder).
         if ($targetParentId === '' ) {
-            $targetParentFolder = $languageFolder;
+            // Root of the page's OWN language, never the user's. Using the
+            // user's folder here would physically relocate the page (and its
+            // whole subtree) into another language the moment the source
+            // resolved cross-language — silently, with no undo.
+            $targetParentFolder = $sourceLanguageFolder;
         } else {
+            // Search from the source's language first: a move within one tree
+            // is the normal case, and it keeps the parent lookup consistent
+            // with the source rather than with the user's profile language.
             $targetResult = strpos($targetParentId, 'page-') === 0
-                ? $this->findPageByUniqueId($languageFolder, $targetParentId)
-                : $this->findPageById($languageFolder, $this->sanitizeId($targetParentId));
+                ? $this->locatePageAnyLanguage($sourceLanguageFolder, $targetParentId)
+                : $this->findPageById($sourceLanguageFolder, $this->sanitizeId($targetParentId));
             if (!$targetResult || !isset($targetResult['folder'])) {
-                throw new \Exception('Target parent page not found: ' . $targetParentId);
+                throw new PageNotFoundException('Target parent page not found: ' . $targetParentId);
             }
             $targetParentFolder = $targetResult['folder'];
         }
         $targetParentPath = $targetParentFolder->getPath();
+
+        // Language guard — the backstop for everything above. Even if a future
+        // change miscomputes the destination, a move that would cross language
+        // folders is refused rather than performed. Language folders are
+        // independent content trees, so this is a relocation between intranets,
+        // not a translation.
+        $sourceLanguage = $this->languageOfFolder($sourceFolder);
+        $targetLanguage = $this->languageOfFolder($targetParentFolder);
+        if ($sourceLanguage !== null && $targetLanguage !== null && $sourceLanguage !== $targetLanguage) {
+            throw new CrossLanguageMoveException(sprintf(
+                'This page is in %s and cannot be moved into the %s structure. Pages stay in the language they were written in.',
+                $this->languageDisplayName($sourceLanguage),
+                $this->languageDisplayName($targetLanguage)
+            ));
+        }
 
         // Cycle guard: refuse moving into itself or one of its own descendants,
         // which would detach (and lose) the subtree.
@@ -2610,6 +2656,19 @@ class PageService {
         // Respect the configured max nesting depth at the destination.
         $targetRelPath = $this->getRelativePathFromRoot($targetParentFolder);
         $this->validateDepth($targetRelPath);
+
+        // Permission preflight. movePage() had none at all: it called move()
+        // and relied on the filesystem to throw, which surfaces as an opaque
+        // 500 and leaves any partial state unguarded. Mirrors the checks in
+        // createPageAtPath() (isCreatable) and updatePage() (isUpdateable).
+        // A move both removes from the source and creates at the destination,
+        // so both sides are checked.
+        if (!$sourceFolder->isDeletable()) {
+            throw new ForbiddenException('You do not have permission to move this page');
+        }
+        if (!$targetParentFolder->isCreatable()) {
+            throw new ForbiddenException('You do not have permission to move a page here');
+        }
 
         // Resolve a non-colliding folder name at the destination (mirror createPage).
         $baseName = $sourceFolder->getName();
@@ -5189,9 +5248,14 @@ class PageService {
                 }
             }
 
-            // For regular pages, check if the page folder exists in cache
+            // For regular pages, check if the page folder exists in cache.
+            // Resolve the page itself rather than assuming a folder of that name
+            // sits in the caller's own language: this diagnostic reported
+            // "Page folder not found" for perfectly healthy pages that simply
+            // live in another language, which is a misleading support signal.
             try {
-                $pageFolder = $folder->get($pageId);
+                $located = $this->locatePageForOperation($pageId);
+                $pageFolder = $located['folder'] ?? $folder->get($pageId);
                 $storage = $pageFolder->getStorage();
                 $cache = $storage->getCache();
 
@@ -5243,11 +5307,13 @@ class PageService {
      * Uses IVersionManager with backend access for label updates.
      */
     public function updateVersionLabel(string $pageId, int $timestamp, ?string $label): void {
-        // Verify page exists
-        $result = $this->findPageById($this->getLanguageFolder(), $pageId);
+        // Verify page exists. Had neither a uniqueId branch nor a cross-language
+        // fallback, so labelling a version failed on any page-… id and on any
+        // page outside the caller's own language (#90).
+        $result = $this->locatePageForOperation($pageId);
 
         if (!$result) {
-            throw new \Exception('Page not found: ' . $pageId);
+            throw new PageNotFoundException('Page not found: ' . $pageId);
         }
 
         $file = $result['file'];
@@ -5343,10 +5409,13 @@ class PageService {
      * Get current page content for comparison
      */
     public function getCurrentPageContent(string $pageId): array {
-        $result = $this->findPageById($this->getLanguageFolder(), $pageId);
+        // Same shape as updateVersionLabel(): no uniqueId branch and no
+        // cross-language fallback, so the "compare with current" panel in the
+        // version history broke on page-… ids and on foreign-language pages.
+        $result = $this->locatePageForOperation($pageId);
 
         if (!$result) {
-            throw new \Exception('Page not found: ' . $pageId);
+            throw new PageNotFoundException('Page not found: ' . $pageId);
         }
 
         $file = $result['file'];
@@ -7276,8 +7345,12 @@ class PageService {
         }
 
         try {
-            $langFolder = $this->getLanguageFolder();
-            $result = $this->findPageByUniqueId($langFolder, $uniqueId);
+            // Follow the page across language folders. This resolves the folder
+            // media is copied FROM and TO, and it fails by returning null, which
+            // callers treat as "no media" — so on a foreign-language page,
+            // "Save as template" and copy-page silently produced a page with no
+            // images at all rather than reporting anything (#90 family).
+            $result = $this->locatePageAnyLanguage($this->getReadLanguageFolder(), $uniqueId);
             if ($result !== null && isset($result['folder'])) {
                 $folder = $result['folder'];
                 $this->pageFolderCache[$uniqueId] = $folder;
@@ -7656,9 +7729,11 @@ class PageService {
     public function copyPage(string $sourceUniqueId, ?string $targetParentId = null, ?string $newTitle = null): array {
         $languageFolder = $this->getLanguageFolder();
 
-        $source = $this->findPageByUniqueId($languageFolder, $sourceUniqueId);
+        // A copy follows its source across language folders, like every other
+        // operation on an existing page (#90).
+        $source = $this->locatePageAnyLanguage($languageFolder, $sourceUniqueId);
         if ($source === null || !isset($source['file'])) {
-            throw new \Exception('Page not found: ' . $sourceUniqueId);
+            throw new PageNotFoundException('Page not found: ' . $sourceUniqueId);
         }
 
         $sourceData = json_decode($source['file']->getContent(), true);
@@ -7669,15 +7744,28 @@ class PageService {
         // Determine the destination parent path.
         $parentPath = null;
         if ($targetParentId !== null && $targetParentId !== '') {
-            $targetParent = $this->findPageByUniqueId($languageFolder, $targetParentId);
+            $targetParent = $this->locatePageAnyLanguage($languageFolder, $targetParentId);
             if ($targetParent === null || !isset($targetParent['folder'])) {
-                throw new \Exception('Target parent not found: ' . $targetParentId);
+                throw new PageNotFoundException('Target parent not found: ' . $targetParentId);
             }
+            // getRelativePathFromRoot() keeps the leading language segment, and
+            // getOrCreateFolderPath() honours it, so the copy lands in the
+            // target parent's language rather than the copier's.
             $parentPath = $this->getRelativePathFromRoot($targetParent['folder']);
         } elseif (isset($source['folder'])) {
-            // Same parent as the source (empty string / root when source is at root).
-            $sourceParentPath = dirname($this->getRelativePathFromRoot($source['folder']));
-            $parentPath = ($sourceParentPath === '.' || $sourceParentPath === '') ? null : $sourceParentPath;
+            // Same parent as the source. For a page at the language ROOT,
+            // dirname() yields '.', which used to become null and sent the copy
+            // to the reader's own language folder — an English page copied by a
+            // German user landed in de/. Fall back to the source's own language
+            // root instead, so a copy never changes language.
+            $sourceRelPath = $this->getRelativePathFromRoot($source['folder']);
+            $sourceParentPath = dirname($sourceRelPath);
+            if ($sourceParentPath === '.' || $sourceParentPath === '') {
+                $sourceLanguage = $this->languageOfFolder($source['folder']);
+                $parentPath = $sourceLanguage;
+            } else {
+                $parentPath = $sourceParentPath;
+            }
         }
 
         // Build the copy's page data (fresh identity, draft status).
