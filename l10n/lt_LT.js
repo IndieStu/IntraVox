@@ -34,6 +34,7 @@ OC.L10N.register(
     "Learn more" : "Sužinoti daugiau",
     "Configured" : "Sukonfigūruota",
     "Invalid URL" : "Neteisingas URL",
+    "Empty folder" : "Tuščias aplankas",
     "No export.json found in the ZIP. Make sure you uploaded an IntraVox export (Settings → Export), not a Nextcloud Files backup or a different app's archive." : "ZIP faile nerasta „export.json“ rinkmenos. Įsitikinkite, kad įkėlėte „IntraVox“ eksporto failą (Nustatymai → Eksportuoti), o ne „Nextcloud Failai“ atsarginę kopiją ar kitos programėlės archyvą.",
     "_Data recovered: %n file migrated_::_Data recovered: %n files migrated_" : ["Duomenys atkurti: perkeltas failas - %n","Duomenys atkurti: perkeltų failų - %n","Duomenys atkurti: perkeltų failų - %n","Duomenys atkurti: perkeltų failų - %n"],
     "Deletion failed" : "Ištrynimas nepavyko",

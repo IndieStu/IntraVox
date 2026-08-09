@@ -33,6 +33,7 @@
     "Hidden from readers in IntraVox until the publish date" : "Oculta dos leitores no IntraVox até a data de publicação",
     "Expired" : "Expirado",
     "Past its expiration date, so hidden from readers in IntraVox" : "Já passou da data de validade, por isso está oculta dos leitores no IntraVox",
+    "This page is in {language}, not your own language. Editing it saves back to {language}." : "Esta página está em {language}, e não no seu idioma. Ao editá-la, as alterações serão salvas em {language}.",
     "This page is a draft: hidden from readers everywhere in IntraVox until you publish it." : "Esta página é um rascunho: ela fica oculta aos leitores em todo o IntraVox até que você a publique.",
     "This page is scheduled: it has a publish date in the future, so it stays hidden from readers until that moment and then appears automatically. The publish date overrides the Draft/Published button — clear the date to switch manually again." : "Esta página está agendada: ela tem uma data de publicação no futuro, por isso permanece oculta aos leitores até esse momento e, então, aparece automaticamente. A data de publicação substitui a função do botão “Rascunho/Publicada” — apague a data para alternar manualmente novamente.",
     "This page has expired: its expiration date has passed, so it is hidden from readers. Change or clear the expiration date to make it visible again." : "Esta página expirou: sua data de validade já passou, por isso ela está oculta para os leitores. Altere ou remova a data de validade para torná-la visível novamente.",
