@@ -31,6 +31,7 @@ OC.L10N.register(
     "Configured" : "Yapılandırılmış",
     "Invalid URL" : "Adres geçersiz",
     "Installed" : "Kurulmuş",
+    "Empty folder" : "Klasör boş",
     "Unavailable" : "Kullanılamıyor",
     "Deletion failed" : "Silinemedi",
     "Languages" : "Diller",
