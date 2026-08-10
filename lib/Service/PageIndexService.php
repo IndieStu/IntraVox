@@ -168,4 +168,125 @@ class PageIndexService {
             ->where($qb->expr()->eq('language', $qb->createNamedParameter($language)));
         $qb->executeStatement();
     }
+
+    /**
+     * Repoint every indexed path under $oldPrefix at $newPrefix.
+     *
+     * A move relocates a page AND everything nested inside it, so one move
+     * invalidates the indexed `path` of the whole subtree — not just the page
+     * that was dragged. Rewriting the prefix in a single statement keeps that
+     * O(1) in queries regardless of how large the subtree is; walking the
+     * descendants to re-index them one by one would reintroduce exactly the
+     * filesystem traversal the index exists to avoid.
+     *
+     * Matches `$oldPrefix` itself and anything below it, and nothing else:
+     * the LIKE is anchored with a trailing slash so `/IntraVox/en/news` cannot
+     * drag `/IntraVox/en/newsletter` along with it.
+     *
+     * @return int rows updated (0 is normal for an unindexed subtree)
+     */
+    public function repathSubtree(string $oldPrefix, string $newPrefix): int {
+        $oldPrefix = rtrim($oldPrefix, '/');
+        $newPrefix = rtrim($newPrefix, '/');
+        if ($oldPrefix === '' || $oldPrefix === $newPrefix) {
+            return 0;
+        }
+
+        try {
+            // Portable across the DB platforms Nextcloud supports: read the
+            // affected rows, rewrite in PHP, write back. SUBSTRING/CONCAT
+            // spellings differ per platform, and a subtree is small enough
+            // that a read-modify-write is not worth a platform matrix.
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('id', 'path')
+                ->from(self::TABLE)
+                ->where($qb->expr()->orX(
+                    $qb->expr()->eq('path', $qb->createNamedParameter($oldPrefix)),
+                    $qb->expr()->like(
+                        'path',
+                        $qb->createNamedParameter(
+                            $this->db->escapeLikeParameter($oldPrefix . '/') . '%'
+                        )
+                    )
+                ));
+            $result = $qb->executeQuery();
+            $rows = $result->fetchAll();
+            $result->closeCursor();
+
+            $updated = 0;
+            foreach ($rows as $row) {
+                $suffix = substr((string)$row['path'], strlen($oldPrefix));
+                $update = $this->db->getQueryBuilder();
+                $update->update(self::TABLE)
+                    ->set('path', $update->createNamedParameter($newPrefix . $suffix))
+                    ->where($update->expr()->eq(
+                        'id',
+                        $update->createNamedParameter($row['id'], \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)
+                    ));
+                $updated += $update->executeStatement();
+            }
+            return $updated;
+        } catch (\Exception $e) {
+            $this->logger->warning('IntraVox: Failed to repath index subtree', [
+                'oldPrefix' => $oldPrefix,
+                'newPrefix' => $newPrefix,
+                'error' => $e->getMessage(),
+            ]);
+            return 0;
+        }
+    }
+
+    /**
+     * Drop every entry whose path sits at or below $prefix.
+     *
+     * Deleting a page deletes its descendants with it; removePage() only knows
+     * about the one uniqueId, so without this the children linger as rows
+     * pointing at folders that no longer exist.
+     *
+     * @return int rows removed
+     */
+    public function removeSubtree(string $prefix): int {
+        $prefix = rtrim($prefix, '/');
+        if ($prefix === '') {
+            return 0;
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->delete(self::TABLE)
+                ->where($qb->expr()->orX(
+                    $qb->expr()->eq('path', $qb->createNamedParameter($prefix)),
+                    $qb->expr()->like(
+                        'path',
+                        $qb->createNamedParameter(
+                            $this->db->escapeLikeParameter($prefix . '/') . '%'
+                        )
+                    )
+                ));
+            return $qb->executeStatement();
+        } catch (\Exception $e) {
+            $this->logger->warning('IntraVox: Failed to remove index subtree', [
+                'prefix' => $prefix,
+                'error' => $e->getMessage(),
+            ]);
+            return 0;
+        }
+    }
+
+    /** Drop every entry, for a full rebuild across all languages. */
+    public function clearAll(): void {
+        $qb = $this->db->getQueryBuilder();
+        $qb->delete(self::TABLE);
+        $qb->executeStatement();
+    }
+
+    /** Total number of indexed pages, for reporting after a rebuild. */
+    public function countAll(): int {
+        $qb = $this->db->getQueryBuilder();
+        $qb->select($qb->func()->count('id'))->from(self::TABLE);
+        $result = $qb->executeQuery();
+        $count = (int)$result->fetchOne();
+        $result->closeCursor();
+        return $count;
+    }
 }

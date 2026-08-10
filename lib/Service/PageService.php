@@ -2425,10 +2425,17 @@ class PageService {
             $this->clearCache($validatedData['uniqueId']);
         }
 
-        // Update page metadata index (non-blocking — page was already saved)
+        // Update page metadata index (non-blocking — page was already saved).
+        // Index the language the page actually LIVES in, never the editor's
+        // own: since #90 an editor can save a page outside their own language,
+        // and getUserLanguage() here wrote rows under the WRONG language. The
+        // index is keyed (unique_id, language), so those rows did not match the
+        // existing entry — every such save INSERTed a duplicate under a
+        // language the page was never in, and nothing ever cleaned them up.
+        // Mirrors createPageAtPath(), which already derives it from the folder.
         try {
-            $language = $this->getUserLanguage();
             $folderPath = $result['folder']->getPath();
+            $language = $this->languageOfFolder($result['folder']) ?? $this->getUserLanguage();
             $this->pageIndexService->indexPage($validatedData, $language, $folderPath, $file->getId());
         } catch (\Exception $e) {
             $this->logger->warning('Failed to update page index', ['error' => $e->getMessage()]);
@@ -2494,13 +2501,19 @@ class PageService {
             $this->logger->warning('Failed to dispatch PageDeletedEvent for page ' . $id . ': ' . $e->getMessage());
         }
 
-        // Remove from page metadata index before deleting files (non-blocking)
-        if (!empty($uniqueId)) {
-            try {
+        // Remove from page metadata index before deleting files (non-blocking).
+        // Deleting a page deletes everything nested inside it, so the subtree
+        // goes too: removePage() only knows this one uniqueId, and without the
+        // subtree sweep the children linger as rows pointing at folders that
+        // no longer exist.
+        $deletedPath = $result['folder']->getPath();
+        try {
+            if (!empty($uniqueId)) {
                 $this->pageIndexService->removePage($uniqueId);
-            } catch (\Exception $e) {
-                $this->logger->warning('Failed to remove page from index', ['error' => $e->getMessage()]);
             }
+            $this->pageIndexService->removeSubtree($deletedPath);
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to remove page from index', ['error' => $e->getMessage()]);
         }
 
         // Delete the entire folder (includes .json, images/, files/)
@@ -2680,7 +2693,24 @@ class PageService {
         }
 
         // Relocate the whole folder; children travel inside it.
-        $sourceFolder->move($targetParentPath . '/' . $newName);
+        $newPath = $targetParentPath . '/' . $newName;
+        $sourceFolder->move($newPath);
+
+        // The index stores a path per page, and the move just invalidated it
+        // for this page AND every descendant that travelled with it. Rewriting
+        // the prefix is one statement per affected row; re-walking the subtree
+        // would be the filesystem traversal the index exists to avoid.
+        // Non-blocking: the move already succeeded on disk, so a failure here
+        // must not surface as a failed move — `occ intravox:reindex` repairs it.
+        try {
+            $this->pageIndexService->repathSubtree($sourcePath, $newPath);
+        } catch (\Throwable $e) {
+            $this->logger->warning('movePage: could not repath index subtree', [
+                'from' => $sourcePath,
+                'to' => $newPath,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         // Send the moved page to the end of its new siblings by clearing its
         // explicit order — the stable comparator then places it after ordered

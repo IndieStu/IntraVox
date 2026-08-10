@@ -63,6 +63,7 @@ interface IDBConnection {
     public function beginTransaction(): void;
     public function commit(): void;
     public function rollBack(): void;
+    public function escapeLikeParameter(string $param): string;
 }
 
 interface ICache {

@@ -33,8 +33,14 @@ class PageServiceMoveLanguageTest extends TestCase {
     /** Records every move() performed: [sourcePath => destinationPath]. */
     private array $moves = [];
 
+    /** Index subtree operations triggered by the service under test. */
+    private array $indexRepaths = [];
+    private array $indexRemovals = [];
+
     protected function setUp(): void {
         $this->moves = [];
+        $this->indexRepaths = [];
+        $this->indexRemovals = [];
     }
 
     private function makeFile(string $path, array $json): File {
@@ -144,12 +150,29 @@ class PageServiceMoveLanguageTest extends TestCase {
             ['code' => 'de', 'name' => 'Deutsch'],
         ]);
 
+        // Record what the index is told, so a move can be checked for keeping
+        // the indexed paths of the whole subtree in step.
+        $index = $this->createMock(\OCA\IntraVox\Service\PageIndexService::class);
+        $index->method('repathSubtree')->willReturnCallback(
+            function (string $old, string $new): int {
+                $this->indexRepaths[] = ['from' => $old, 'to' => $new];
+                return 1;
+            }
+        );
+        $index->method('removeSubtree')->willReturnCallback(
+            function (string $prefix): int {
+                $this->indexRemovals[] = $prefix;
+                return 1;
+            }
+        );
+
         $explicit = [
             'userSession' => $session,
             'userId' => 'tester',
             'config' => $config,
             'logger' => $this->createMock(\Psr\Log\LoggerInterface::class),
             'languageService' => $languageService,
+            'pageIndexService' => $index,
         ];
         foreach ($explicit as $name => $value) {
             (new \ReflectionProperty(PageService::class, $name))->setValue($svc, $value);
@@ -345,6 +368,56 @@ class PageServiceMoveLanguageTest extends TestCase {
 
         $this->expectException(\OCA\IntraVox\Exception\PageNotFoundException::class);
         $svc->movePage('page-nope', '');
+    }
+
+    /**
+     * A move relocates the page AND everything nested under it, so the index
+     * must repoint the whole subtree — not just the page that was dragged.
+     * Without this, every descendant keeps an indexed path to a folder that no
+     * longer exists, and the index silently rots with each move.
+     */
+    public function testMoveRepathsTheIndexedSubtree(): void {
+        $svc = $this->twoLanguageFixture();
+
+        $svc->movePage('page-move1', '');
+
+        $this->assertCount(1, $this->indexRepaths, 'a move must repath the index once');
+        $this->assertSame(
+            ['from' => '/IntraVox/en/news/about', 'to' => '/IntraVox/en/about'],
+            $this->indexRepaths[0],
+            'the index must follow the page from its old path to its new one'
+        );
+    }
+
+    /** A refused cross-language move must not touch the index either. */
+    public function testRefusedMoveLeavesTheIndexAlone(): void {
+        $targetJson = $this->makeFile(
+            '/IntraVox/de/ziele.json',
+            ['uniqueId' => 'page-detarget2', 'title' => 'Ziele', 'widgets' => []]
+        );
+        $de = $this->makeFolder('/IntraVox/de', [
+            'ziele.json' => $targetJson,
+            'ziele' => $this->makeFolder('/IntraVox/de/ziele', []),
+        ]);
+        $sourceJson = $this->makeFile(
+            '/IntraVox/en/about.json',
+            ['uniqueId' => 'page-move5', 'title' => 'About', 'widgets' => []]
+        );
+        $en = $this->makeFolder('/IntraVox/en', [
+            'about.json' => $sourceJson,
+            'about' => $this->makeFolder('/IntraVox/en/about', []),
+        ]);
+
+        $svc = $this->makeService($de, [$de, $en]);
+
+        try {
+            $svc->movePage('page-move5', 'page-detarget2');
+            $this->fail('a cross-language move must be refused');
+        } catch (CrossLanguageMoveException $e) {
+            // expected
+        }
+
+        $this->assertSame([], $this->indexRepaths, 'a refused move must not repath anything');
     }
 
     /**

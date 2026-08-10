@@ -25,7 +25,8 @@ class ImportService {
         private ITempManager $tempManager,
         private LoggerInterface $logger,
         private MetaVoxImportService $metaVoxImportService,
-        private IDBConnection $connection
+        private IDBConnection $connection,
+        private PageIndexService $pageIndexService
     ) {}
 
     /**
@@ -608,6 +609,20 @@ class ImportService {
                 // Calculate full page path
                 $relativePagePath = $this->getRelativePath($pageFolder, $langFolder);
                 $pageFolderPath = $language . '/' . $relativePagePath;
+            }
+
+            // Keep the page index in step with the import. Import writes page
+            // JSON directly rather than going through PageService::createPage(),
+            // so without this every imported page is invisible to the index —
+            // and `occ intravox:import` is a documented way to seed a whole
+            // language folder. Non-blocking: the page is already on disk, and
+            // `occ intravox:reindex` repairs a miss.
+            try {
+                $this->pageIndexService->indexPage($content, $language, $pageFolderPath, $fileId);
+            } catch (\Exception $e) {
+                $this->logger->warning('Failed to index imported page ' . $uniqueId, [
+                    'error' => $e->getMessage(),
+                ]);
             }
 
             return ['imported' => true, 'path' => $pageFolderPath, 'fileId' => $fileId];
