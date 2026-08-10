@@ -145,6 +145,60 @@ class PageIndexService {
     }
 
     /**
+     * Locate a page by uniqueId without knowing its language.
+     *
+     * This is the lookup that replaces the cross-language tree walk. Resolving
+     * a link is exactly the moment the language is unknown — that is what made
+     * locateAcrossLanguages() read every page file in every language folder,
+     * and why a miss cost a full O(pages x languages) sweep.
+     *
+     * $preferredLanguage breaks ties rather than filtering: a uniqueId is
+     * unique per language, so in a healthy index at most one row matches
+     * anyway. Two rows mean two genuinely different pages that share an id —
+     * possible via `occ intravox:import --language` seeding one folder from
+     * another — and then the reader's own language is the right one to serve.
+     * Ordering makes that deterministic instead of leaving it to row order,
+     * which is what the filesystem walk depended on.
+     *
+     * @return array|null the index row, or null when the id is unknown
+     */
+    public function findByUniqueId(string $uniqueId, ?string $preferredLanguage = null): ?array {
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from(self::TABLE)
+                ->where($qb->expr()->eq('unique_id', $qb->createNamedParameter($uniqueId)));
+
+            $result = $qb->executeQuery();
+            $rows = $result->fetchAll();
+            $result->closeCursor();
+
+            if (empty($rows)) {
+                return null;
+            }
+            if ($preferredLanguage !== null) {
+                foreach ($rows as $row) {
+                    if (($row['language'] ?? null) === $preferredLanguage) {
+                        return $row;
+                    }
+                }
+            }
+            // Deterministic fallback: lowest language code, so repeated reads
+            // of a duplicated id always resolve to the same page.
+            usort($rows, fn($a, $b) => strcmp((string)$a['language'], (string)$b['language']));
+            return $rows[0];
+        } catch (\Exception $e) {
+            // A failing index must degrade to "unknown", letting the caller
+            // fall back to the filesystem rather than turning a read into a
+            // hard error.
+            $this->logger->warning('IntraVox: index lookup failed for ' . $uniqueId, [
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
      * Check if index has any entries (to know if initial population is needed).
      */
     public function hasEntries(string $language): bool {

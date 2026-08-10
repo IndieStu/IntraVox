@@ -617,8 +617,13 @@ class ImportService {
             // and `occ intravox:import` is a documented way to seed a whole
             // language folder. Non-blocking: the page is already on disk, and
             // `occ intravox:reindex` repairs a miss.
+            //
+            // Index the ABSOLUTE path of the folder holding the JSON, matching
+            // PageService. $pageFolderPath is relative and stays that way — it
+            // is this method's return value and callers depend on that shape.
             try {
-                $this->pageIndexService->indexPage($content, $language, $pageFolderPath, $fileId);
+                $indexPath = $file->getParent()->getPath();
+                $this->pageIndexService->indexPage($content, $language, $indexPath, $fileId);
             } catch (\Exception $e) {
                 $this->logger->warning('Failed to index imported page ' . $uniqueId, [
                     'error' => $e->getMessage(),

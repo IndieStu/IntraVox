@@ -1,0 +1,247 @@
+<?php
+declare(strict_types=1);
+
+namespace OCA\IntraVox\Tests\Unit\Service;
+
+use OCA\IntraVox\Service\PageIndexService;
+use OCA\IntraVox\Service\PageService;
+use OCP\Files\File;
+use OCP\Files\FileInfo;
+use OCP\Files\Folder;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * The page index answers lookups, but never at the cost of correctness.
+ *
+ * Resolving a uniqueId used to read and JSON-parse every page file in every
+ * language folder — measured at 9,000 reads for a 3,000-page x 3-language
+ * install. The index turns that into one query.
+ *
+ * The rule that makes it safe to rely on: the index is a CACHE over the
+ * filesystem, never an authority. Every hit is verified against the file on
+ * disk, and anything that does not check out falls through to the scan. A
+ * stale index therefore costs performance, never correctness — which is what
+ * these tests pin down.
+ */
+class PageIndexLookupTest extends TestCase {
+
+    /** Page files whose content was read, to prove the scan was skipped. */
+    private array $reads = [];
+
+    protected function setUp(): void {
+        $this->reads = [];
+    }
+
+    private function makeFile(string $path, array $json): File {
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn(basename($path));
+        $file->method('getType')->willReturn(FileInfo::TYPE_FILE);
+        $file->method('getPath')->willReturn($path);
+        $file->method('getId')->willReturn(abs(crc32($path)));
+        $file->method('isUpdateable')->willReturn(true);
+        $file->method('getContent')->willReturnCallback(function () use ($path, $json) {
+            $this->reads[] = $path;
+            return json_encode($json);
+        });
+        return $file;
+    }
+
+    /** @param array<string, File|Folder> $children */
+    private function makeFolder(string $path, array $children, ?Folder $parent = null): Folder {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn(basename($path));
+        $folder->method('getType')->willReturn(FileInfo::TYPE_FOLDER);
+        $folder->method('getPath')->willReturn($path);
+        $folder->method('getDirectoryListing')->willReturn(array_values($children));
+        $folder->method('nodeExists')->willReturnCallback(fn($n) => isset($children[$n]));
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('get')->willReturnCallback(function ($p) use ($children, $path) {
+            if (isset($children[$p])) {
+                return $children[$p];
+            }
+            // Resolve nested relative paths, as folderFromAbsolutePath() does.
+            if (str_contains($p, '/')) {
+                [$head, $rest] = explode('/', $p, 2);
+                if (isset($children[$head]) && $children[$head] instanceof Folder) {
+                    return $children[$head]->get($rest);
+                }
+            }
+            throw new \OCP\Files\NotFoundException($path . '/' . $p);
+        });
+        return $folder;
+    }
+
+    /**
+     * Fixture: /IntraVox/en holds about.json beside an about/ folder.
+     * $indexRows simulates the index; empty means it knows nothing.
+     */
+    private function makeService(array $indexRows, ?array $pageJson = null): PageService {
+        $pageJson ??= ['uniqueId' => 'page-idx', 'title' => 'About', 'widgets' => []];
+
+        $aboutJson = $this->makeFile('/IntraVox/en/about.json', $pageJson);
+
+        // Built in two passes: about/ needs a parent link to en/, and en/ needs
+        // about/ among its children. The first en/ exists only to be that
+        // parent; the second is the one the service sees.
+        $enForParent = $this->makeFolder('/IntraVox/en', ['about.json' => $aboutJson]);
+        $aboutFolder = $this->makeFolder('/IntraVox/en/about', [], $enForParent);
+        $en = $this->makeFolder('/IntraVox/en', [
+            'about.json' => $aboutJson,
+            'about' => $aboutFolder,
+        ]);
+
+        $base = $this->makeFolder('/IntraVox', ['en' => $en]);
+
+        $svc = new class($en, $base) extends PageService {
+            private Folder $langFolder;
+            private Folder $baseFolder;
+            public function __construct(Folder $langFolder, Folder $baseFolder) {
+                $this->langFolder = $langFolder;
+                $this->baseFolder = $baseFolder;
+            }
+            protected function getLanguageFolder() {
+                return $this->langFolder;
+            }
+            protected function getReadLanguageFolder(): Folder {
+                return $this->langFolder;
+            }
+            protected function getIntraVoxFolder() {
+                return $this->baseFolder;
+            }
+            public function clearCache(): void {
+            }
+        };
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->method('findByUniqueId')->willReturnCallback(
+            fn(string $uniqueId, ?string $pref = null) => $indexRows[$uniqueId] ?? null
+        );
+
+        $explicit = [
+            'userSession' => $this->createMock(\OCP\IUserSession::class),
+            'userId' => 'tester',
+            'config' => $this->createMock(\OCP\IConfig::class),
+            'logger' => $this->createMock(\Psr\Log\LoggerInterface::class),
+            'languageService' => $this->createMock(\OCA\IntraVox\Service\LanguageService::class),
+            'pageIndexService' => $index,
+        ];
+        foreach ($explicit as $name => $value) {
+            (new \ReflectionProperty(PageService::class, $name))->setValue($svc, $value);
+        }
+        foreach ((new \ReflectionClass(PageService::class))->getProperties() as $prop) {
+            if ($prop->isStatic() || isset($explicit[$prop->getName()])) {
+                continue;
+            }
+            $type = $prop->getType();
+            if (!$type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+                continue;
+            }
+            if ($prop->isInitialized($svc)) {
+                continue;
+            }
+            $class = $type->getName();
+            if (!interface_exists($class) && !class_exists($class)) {
+                continue;
+            }
+            try {
+                $prop->setValue($svc, $this->createMock($class));
+            } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
+                $ctor = (new \ReflectionClass($class))->getConstructor();
+                $args = [];
+                foreach ($ctor?->getParameters() ?? [] as $param) {
+                    $pType = $param->getType();
+                    $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
+                        ? $this->createMock($pType->getName())
+                        : null;
+                }
+                $prop->setValue($svc, new $class(...$args));
+            }
+        }
+        return $svc;
+    }
+
+    /** Drive the private locator through reflection. */
+    private function locate(PageService $svc, string $uniqueId): ?array {
+        $m = new \ReflectionMethod(PageService::class, 'locatePageAnyLanguage');
+        $readFolder = (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))->invoke($svc);
+        return $m->invoke($svc, $readFolder, $uniqueId);
+    }
+
+    /** An indexed page resolves, and the result matches what a scan returns. */
+    public function testIndexedLookupResolvesThePage(): void {
+        $svc = $this->makeService([
+            'page-idx' => ['path' => '/IntraVox/en/about', 'language' => 'en'],
+        ]);
+
+        $result = $this->locate($svc, 'page-idx');
+
+        $this->assertNotNull($result);
+        $this->assertSame('/IntraVox/en/about.json', $result['file']->getPath());
+        $this->assertSame('/IntraVox/en/about', $result['folder']->getPath());
+        $this->assertFalse($result['isHome']);
+    }
+
+    /**
+     * The point of the exercise: an indexed hit reads ONE file (the verify),
+     * where the scan reads every page it passes.
+     */
+    public function testIndexedLookupReadsOnlyTheTargetFile(): void {
+        $svc = $this->makeService([
+            'page-idx' => ['path' => '/IntraVox/en/about', 'language' => 'en'],
+        ]);
+
+        $this->locate($svc, 'page-idx');
+
+        $this->assertSame(
+            ['/IntraVox/en/about.json'],
+            $this->reads,
+            'an indexed hit must read only the file it verifies'
+        );
+    }
+
+    /**
+     * A STALE index must not produce a wrong answer. Here the index points at a
+     * folder that holds a different page; the verify fails and the scan takes
+     * over, still finding the real page.
+     */
+    public function testStaleIndexFallsBackToTheScan(): void {
+        $svc = $this->makeService([
+            // Points at the right folder, but claims a uniqueId the file does
+            // not carry — exactly what a moved or overwritten page looks like.
+            'page-gone' => ['path' => '/IntraVox/en/about', 'language' => 'en'],
+        ]);
+
+        // The id the index knows resolves to nothing…
+        $this->assertNull($this->locate($svc, 'page-gone'));
+        // …while the page that really exists is still found by the scan.
+        $this->assertNotNull($this->locate($svc, 'page-idx'));
+    }
+
+    /** An index pointing outside the user's tree is ignored, not followed. */
+    public function testIndexPathOutsideTheTreeIsIgnored(): void {
+        $svc = $this->makeService([
+            'page-idx' => ['path' => '/SomeoneElse/en/about', 'language' => 'en'],
+        ]);
+
+        // Falls back to the scan and still finds the real page.
+        $result = $this->locate($svc, 'page-idx');
+        $this->assertNotNull($result);
+        $this->assertSame('/IntraVox/en/about.json', $result['file']->getPath());
+    }
+
+    /** With an empty index everything still works, via the scan. */
+    public function testEmptyIndexStillResolvesViaScan(): void {
+        $svc = $this->makeService([]);
+
+        $result = $this->locate($svc, 'page-idx');
+
+        $this->assertNotNull($result);
+        $this->assertSame('/IntraVox/en/about.json', $result['file']->getPath());
+    }
+
+    /** A genuinely unknown id is not found by either route. */
+    public function testUnknownIdIsNotFound(): void {
+        $svc = $this->makeService([]);
+        $this->assertNull($this->locate($svc, 'page-nope'));
+    }
+}

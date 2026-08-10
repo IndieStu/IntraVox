@@ -132,6 +132,7 @@ interface Node {
     public function getMTime(): int;
     public function getSize();
     public function move(string $targetPath);
+    public function getParent();
 }
 
 /**

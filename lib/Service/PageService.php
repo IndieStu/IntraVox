@@ -787,10 +787,144 @@ class PageService {
      * @return array|null findPageByUniqueId() result, or null when unknown.
      */
     private function locatePageAnyLanguage(\OCP\Files\Folder $primaryFolder, string $uniqueId): ?array {
+        // Ask the index first. The walk below reads and JSON-parses every page
+        // file in every language folder — measured at 9,000 reads for a miss on
+        // a 3,000-page x 3-language install — where this is one query.
+        //
+        // The index is a cache over the filesystem, never an authority: a hit
+        // is verified against disk by resolveIndexedPage(), and anything that
+        // does not check out falls through to the walk. A stale or empty index
+        // therefore costs performance, never correctness, which is what makes
+        // it safe to rely on before every write path is proven to maintain it.
+        $indexed = $this->locateViaIndex($uniqueId, $primaryFolder);
+        if ($indexed !== null) {
+            return $indexed;
+        }
+
+        // A MISS still costs the full scan, and that is deliberate. The index
+        // cannot prove a page does not exist — only that it does not know of
+        // one — so treating "not in the index" as "not found" would turn a
+        // stale index from a slowdown into pages that vanish. Correctness wins
+        // over the cost of the path that answers "no".
+        //
+        // If that cost ever needs removing, the fix is a completeness marker
+        // (a rebuild stamp the write paths keep current), not skipping the scan
+        // on the strength of the index being non-empty.
         return $this->locateAcrossLanguages(
             $primaryFolder,
             fn(\OCP\Files\Folder $f) => $this->findPageByUniqueId($f, $uniqueId)
         );
+    }
+
+    /**
+     * Resolve a uniqueId through the page index, verified against disk.
+     *
+     * Returns the same shape as findPageByUniqueId() — ['file', 'folder',
+     * 'isHome'] — so callers cannot tell which route answered.
+     *
+     * @return array|null null when the index does not know the id, or when
+     *   what it points at no longer matches the file on disk.
+     */
+    private function locateViaIndex(string $uniqueId, \OCP\Files\Folder $primaryFolder): ?array {
+        try {
+            $row = $this->pageIndexService->findByUniqueId(
+                $uniqueId,
+                $this->languageOfFolder($primaryFolder)
+            );
+            if ($row === null || empty($row['path'])) {
+                return null;
+            }
+
+            $folder = $this->folderFromAbsolutePath((string)$row['path']);
+            if ($folder === null) {
+                return null;
+            }
+
+            // The index stores what findPageByUniqueId() calls 'folder': the
+            // page's OWN {slug}/ folder. The page JSON is {slug}.json, which
+            // sits BESIDE that folder in its parent — not inside it. The home
+            // page is the exception: its folder IS the language folder and its
+            // file (home.json) really is inside.
+            $name = $folder->getName();
+            $candidates = [];
+            try {
+                $candidates[] = [$folder->getParent(), $name . '.json', false];
+            } catch (\Throwable $e) {
+                // No reachable parent (mount root); the in-folder forms below
+                // still apply.
+            }
+            $candidates[] = [$folder, 'home.json', true];
+            // Legacy/flat layouts keep {slug}.json inside its own folder.
+            $candidates[] = [$folder, $name . '.json', false];
+
+            foreach ($candidates as [$container, $fileName, $isHome]) {
+                if (!($container instanceof \OCP\Files\Folder)) {
+                    continue;
+                }
+                try {
+                    $file = $container->get($fileName);
+                } catch (NotFoundException $e) {
+                    continue;
+                }
+                if (!($file instanceof \OCP\Files\File)) {
+                    continue;
+                }
+
+                // Verify: the file must really carry this uniqueId. This is
+                // what makes a stale index harmless — a page that moved, was
+                // deleted, or was overwritten simply fails the check and the
+                // caller falls back to the filesystem walk.
+                $data = json_decode($this->getCachedFileContent($file), true);
+                if (!is_array($data) || ($data['uniqueId'] ?? null) !== $uniqueId) {
+                    continue;
+                }
+
+                return [
+                    'file' => $file,
+                    'folder' => $folder,
+                    'isHome' => $isHome,
+                ];
+            }
+
+            return null;
+        } catch (\Throwable $e) {
+            // Never let an index problem break a read.
+            $this->logger->warning('[PageService] index lookup failed, falling back to scan', [
+                'uniqueId' => $uniqueId,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Resolve an absolute Nextcloud path (as stored in the index) to a Folder
+     * inside the current user's IntraVox tree.
+     *
+     * Deliberately resolves relative to the user's own mounted IntraVox folder
+     * rather than the raw path, so the index can never hand a user a folder
+     * their mount does not grant them.
+     */
+    private function folderFromAbsolutePath(string $absolutePath): ?\OCP\Files\Folder {
+        $base = $this->getIntraVoxFolder();
+        $basePath = rtrim($base->getPath(), '/');
+        $path = rtrim($absolutePath, '/');
+
+        if ($path === $basePath) {
+            return $base;
+        }
+        if (strpos($path, $basePath . '/') !== 0) {
+            // Outside this user's IntraVox tree — not ours to serve.
+            return null;
+        }
+
+        $relative = substr($path, strlen($basePath) + 1);
+        try {
+            $node = $base->get($relative);
+        } catch (NotFoundException $e) {
+            return null;
+        }
+        return $node instanceof \OCP\Files\Folder ? $node : null;
     }
 
     /**
@@ -2190,10 +2324,21 @@ class PageService {
         // Update page metadata index (non-blocking — page was already saved).
         // Index the language the page actually LANDED in, which is not always
         // the author's own (a sub-page follows its parent's language).
+        //
+        // The stored path is the ABSOLUTE path of the folder holding the page
+        // JSON, matching updatePage() and rebuildIndex(). This used to store a
+        // relative parent path here and an absolute one everywhere else, so the
+        // same table held two incompatible path shapes — which breaks both the
+        // index lookup (it resolves the stored path) and repathSubtree() (it
+        // matches on a path prefix).
         try {
             $language = $this->languageOfFolder($targetFolder) ?? $this->getUserLanguage();
-            $path = $parentPath ?? $language;
-            $this->pageIndexService->indexPage($data, $language, $path, $file->getId());
+            $this->pageIndexService->indexPage(
+                $data,
+                $language,
+                $targetFolder->getPath(),
+                $file->getId()
+            );
         } catch (\Exception $e) {
             $this->logger->warning('Failed to index new page', ['error' => $e->getMessage()]);
         }

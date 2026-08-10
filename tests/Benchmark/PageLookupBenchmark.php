@@ -92,12 +92,29 @@ final class BenchFile implements File {
     public function move(string $targetPath) {
         return null;
     }
+    public function getParent() {
+        return null;
+    }
 }
 
 /** Minimal Folder stand-in; see BenchFile for why these are hand-written. */
 final class BenchFolder implements Folder {
+    private ?BenchFolder $parent = null;
+
     /** @param array<string, File|Folder> $children */
-    public function __construct(private string $path, private array $children) {}
+    public function __construct(private string $path, private array $children) {
+        // Back-link children so the index route can reach a page's {slug}.json,
+        // which sits in the PARENT of the page's own folder.
+        foreach ($this->children as $child) {
+            if ($child instanceof self) {
+                $child->parent = $this;
+            }
+        }
+    }
+
+    public function getParent() {
+        return $this->parent;
+    }
 
     public function getName(): string {
         return basename($this->path);
@@ -117,6 +134,14 @@ final class BenchFolder implements Folder {
     public function get(string $path) {
         if (isset($this->children[$path])) {
             return $this->children[$path];
+        }
+        // Resolve a nested relative path too ('en/news/about'), which is how
+        // the index route reaches a folder from a stored absolute path.
+        if (str_contains($path, '/')) {
+            [$head, $rest] = explode('/', $path, 2);
+            if (isset($this->children[$head]) && $this->children[$head] instanceof self) {
+                return $this->children[$head]->get($rest);
+            }
         }
         throw new \OCP\Files\NotFoundException($this->path . '/' . $path);
     }
@@ -158,9 +183,13 @@ class PageLookupBenchmark extends TestCase {
     private int $fileReads = 0;
     private int $jsonDecodes = 0;
 
+    /** uniqueId => ['path' => folder holding the JSON, 'language' => code]. */
+    private array $pagePaths = [];
+
     protected function setUp(): void {
         $this->fileReads = 0;
         $this->jsonDecodes = 0;
+        $this->pagePaths = [];
     }
 
     /**
@@ -207,6 +236,13 @@ class PageLookupBenchmark extends TestCase {
                 $slug = 'p' . $level . '-' . $i . '-' . $made;
                 $uniqueId = 'page-' . $lang . '-' . $made;
                 $ids[] = $uniqueId;
+                // The index stores the page's own folder ({slug}/), which is
+                // what findPageByUniqueId() returns as 'folder' and therefore
+                // what the write paths record.
+                $this->pagePaths[$uniqueId] = [
+                    'path' => $basePath . '/' . $slug,
+                    'language' => $lang,
+                ];
                 $made++;
 
                 // Recurse before closing this level, so pages spread across
@@ -236,20 +272,20 @@ class PageLookupBenchmark extends TestCase {
         return $this->makeFolder('/IntraVox/' . $lang, $children);
     }
 
-    private function makeService(Folder $readFolder, array $allLanguages): PageService {
+    /**
+     * @param array<string, array{path:string, language:string}> $indexRows
+     *   uniqueId => index row, simulating a warm page index. Empty means the
+     *   index knows nothing and every lookup falls back to the tree walk.
+     */
+    private function makeService(Folder $readFolder, array $allLanguages, array $indexRows = []): PageService {
         $byLang = [];
         foreach ($allLanguages as $l) {
             $byLang[$l->getName()] = $l;
         }
-        $base = $this->createMock(Folder::class);
-        $base->method('getPath')->willReturn('/IntraVox');
-        $base->method('getDirectoryListing')->willReturn($allLanguages);
-        $base->method('get')->willReturnCallback(function ($p) use ($byLang) {
-            if (isset($byLang[$p])) {
-                return $byLang[$p];
-            }
-            throw new \OCP\Files\NotFoundException($p);
-        });
+        // Resolves both a bare language name and a nested relative path, so the
+        // index route (which resolves a stored path) and the walk route can be
+        // measured against the same fixture.
+        $base = new BenchFolder('/IntraVox', $byLang);
 
         $svc = new class($readFolder, $base) extends PageService {
             private Folder $readFolder;
@@ -281,12 +317,20 @@ class PageLookupBenchmark extends TestCase {
         $languageService->method('isLanguageAvailable')->willReturn(true);
         $languageService->method('getPrimaryLanguage')->willReturn('en');
 
+        // Stands in for the DB-backed index: a hash lookup, which is what a
+        // single indexed query amounts to next to a tree walk.
+        $index = $this->createMock(\OCA\IntraVox\Service\PageIndexService::class);
+        $index->method('findByUniqueId')->willReturnCallback(
+            fn(string $uniqueId, ?string $preferred = null) => $indexRows[$uniqueId] ?? null
+        );
+
         $explicit = [
             'userSession' => $session,
             'userId' => 'bench',
             'config' => $config,
             'logger' => $this->createMock(\Psr\Log\LoggerInterface::class),
             'languageService' => $languageService,
+            'pageIndexService' => $index,
         ];
         foreach ($explicit as $name => $value) {
             (new \ReflectionProperty(PageService::class, $name))->setValue($svc, $value);
@@ -357,43 +401,68 @@ class PageLookupBenchmark extends TestCase {
             'MISS (unknown id)'          => 'page-does-not-exist',
         ];
 
+        // A warm index knows every page; a cold one knows nothing and every
+        // lookup falls back to the tree walk. Both run the same scenarios
+        // against the same fixture, so the difference is the index alone.
+        $warmIndex = $this->pagePaths;
+
         $rows = [];
         foreach ($scenarios as $label => $uniqueId) {
-            // Fresh service per scenario: the request-level caches would
-            // otherwise make the second lookup free and hide the real cost.
-            $svc = $this->makeService($folders['en'], array_values($folders));
-            $this->fileReads = 0;
-            $this->jsonDecodes = 0;
+            $measured = [];
+            foreach (['no index' => [], 'indexed' => $warmIndex] as $mode => $indexRows) {
+                // Fresh service per run: the request-level caches would
+                // otherwise make the second lookup free and hide the real cost.
+                $svc = $this->makeService($folders['en'], array_values($folders), $indexRows);
+                $this->fileReads = 0;
+                $this->jsonDecodes = 0;
 
-            // Reflection rather than a public test hook: the locator is
-            // private on purpose, and a benchmark is not a reason to widen
-            // production visibility.
-            $locate = new \ReflectionMethod(PageService::class, 'locatePageAnyLanguage');
-            $readFolder = (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))->invoke($svc);
+                // Reflection rather than a public test hook: the locator is
+                // private on purpose, and a benchmark is not a reason to widen
+                // production visibility.
+                $locate = new \ReflectionMethod(PageService::class, 'locatePageAnyLanguage');
+                $readFolder = (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))
+                    ->invoke($svc);
 
-            $start = microtime(true);
-            $result = $locate->invoke($svc, $readFolder, $uniqueId);
-            $ms = (microtime(true) - $start) * 1000;
+                $start = microtime(true);
+                $result = $locate->invoke($svc, $readFolder, $uniqueId);
+                $measured[$mode] = [
+                    'found' => $result !== null,
+                    'reads' => $this->fileReads,
+                    'ms' => (microtime(true) - $start) * 1000,
+                ];
+            }
+
+            // Both routes must agree on whether the page exists: a faster
+            // lookup that answers differently is a bug, not an optimisation.
+            $this->assertSame(
+                $measured['no index']['found'],
+                $measured['indexed']['found'],
+                sprintf('index and scan disagree on "%s"', $label)
+            );
 
             $rows[] = [
                 $label,
-                $result !== null ? 'found' : 'not found',
-                $this->fileReads,
-                $this->jsonDecodes,
-                sprintf('%.1f', $ms),
+                $measured['no index']['found'] ? 'found' : 'not found',
+                $measured['no index']['reads'],
+                $measured['indexed']['reads'],
+                sprintf('%.1f', $measured['no index']['ms']),
+                sprintf('%.1f', $measured['indexed']['ms']),
             ];
         }
 
         $total = $pagesPerLanguage * count($languages);
         fwrite(STDERR, sprintf(
-            "\n\n  BASELINE — page lookup cost (pre-index)\n"
+            "\n\n  PAGE LOOKUP — filesystem scan vs page index\n"
             . "  %d pages per language x %d languages = %d pages\n\n",
             $pagesPerLanguage, count($languages), $total
         ));
-        fwrite(STDERR, sprintf("  %-28s %-11s %10s %10s %9s\n", 'scenario', 'result', 'reads', 'decodes', 'ms'));
-        fwrite(STDERR, '  ' . str_repeat('-', 72) . "\n");
+        fwrite(STDERR, sprintf(
+            "  %-28s %-11s %12s %10s %10s %9s\n",
+            'scenario', 'result', 'reads:scan', 'indexed', 'ms:scan', 'ms:idx'
+        ));
+        fwrite(STDERR, '  ' . str_repeat('-', 86) . "\n");
         foreach ($rows as $r) {
-            fwrite(STDERR, sprintf("  %-28s %-11s %10s %10s %9s\n", ...$r));
+            fwrite(STDERR, sprintf("  %-28s %-11s %12s %10s %10s %9s\n", ...$r));
         }
         fwrite(STDERR, "\n  Set IVOX_BENCH_PAGES to change the tree size.\n\n");
 
