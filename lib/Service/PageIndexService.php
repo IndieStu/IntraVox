@@ -40,6 +40,7 @@ class PageIndexService {
                 ->set('modified_at', $qb->createNamedParameter(time(), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
                 ->set('parent_id', $qb->createNamedParameter($pageData['parentId'] ?? null))
                 ->set('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                ->set('translation_group', $qb->createNamedParameter($pageData['translationGroup'] ?? null))
                 ->where($qb->expr()->eq('unique_id', $qb->createNamedParameter($uniqueId)))
                 ->andWhere($qb->expr()->eq('language', $qb->createNamedParameter($language)));
 
@@ -58,6 +59,7 @@ class PageIndexService {
                         'modified_at' => $qb->createNamedParameter(time(), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
                         'parent_id' => $qb->createNamedParameter($pageData['parentId'] ?? null),
                         'file_id' => $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
+                        'translation_group' => $qb->createNamedParameter($pageData['translationGroup'] ?? null),
                     ]);
                 $qb->executeStatement();
             }
@@ -195,6 +197,48 @@ class PageIndexService {
                 'error' => $e->getMessage(),
             ]);
             return null;
+        }
+    }
+
+    /**
+     * Every language version in a translation group.
+     *
+     * This is the query the language switcher and the "also available in X"
+     * notice are built on: one indexed lookup answers "which languages does
+     * this page exist in", where before there was no way to ask at all.
+     *
+     * Returns rows ordered by language so the switcher is stable between page
+     * loads. An unknown or empty group yields an empty array — a page that is
+     * not linked to anything is a group of one, which is the normal state for
+     * every page until an editor links it.
+     *
+     * @return array<int, array> index rows, one per language
+     */
+    public function findByTranslationGroup(string $translationGroup): array {
+        if ($translationGroup === '') {
+            return [];
+        }
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from(self::TABLE)
+                ->where($qb->expr()->eq(
+                    'translation_group',
+                    $qb->createNamedParameter($translationGroup)
+                ))
+                ->orderBy('language', 'ASC');
+
+            $result = $qb->executeQuery();
+            $rows = $result->fetchAll();
+            $result->closeCursor();
+            return $rows;
+        } catch (\Exception $e) {
+            // A failing index must not break the page it decorates.
+            $this->logger->warning('IntraVox: translation-group lookup failed', [
+                'translationGroup' => $translationGroup,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
         }
     }
 

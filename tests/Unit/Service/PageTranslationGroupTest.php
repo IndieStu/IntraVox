@@ -1,0 +1,275 @@
+<?php
+declare(strict_types=1);
+
+namespace OCA\IntraVox\Tests\Unit\Service;
+
+use OCA\IntraVox\Service\PageIndexService;
+use OCA\IntraVox\Service\PageService;
+use OCP\Files\File;
+use OCP\Files\FileInfo;
+use OCP\Files\Folder;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Translation groups: the link between the language versions of one page.
+ *
+ * Before this, pages in different languages were entirely independent —
+ * uniqueId is unique only PER language, and nothing tied the Dutch and German
+ * version of a subject together. That is why there could be no switcher, no
+ * "also available in German", and no way to ask which languages a page exists
+ * in.
+ *
+ * The model is deliberately symmetric: no source page, no derived translations.
+ * Every version is equal, so removing one language shrinks the group rather
+ * than orphaning anything — the failure mode that leaves SharePoint's
+ * source-pointer model with dangling references and a hanging language menu.
+ */
+class PageTranslationGroupTest extends TestCase {
+
+    /** Content written per path. */
+    private array $writes = [];
+
+    protected function setUp(): void {
+        $this->writes = [];
+    }
+
+    private function makeFile(string $path, array $json): File {
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn(basename($path));
+        $file->method('getType')->willReturn(FileInfo::TYPE_FILE);
+        $file->method('getPath')->willReturn($path);
+        $file->method('getId')->willReturn(abs(crc32($path)));
+        $file->method('isUpdateable')->willReturn(true);
+        $file->method('getMTime')->willReturn(1000);
+        // Reads reflect earlier writes, so a link followed by a read sees it.
+        $file->method('getContent')->willReturnCallback(
+            fn() => $this->writes[$path] ?? json_encode($json)
+        );
+        $file->method('putContent')->willReturnCallback(function ($data) use ($path) {
+            $this->writes[$path] = $data;
+        });
+        return $file;
+    }
+
+    private function makeFolder(string $path, array $children): Folder {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn(basename($path));
+        $folder->method('getType')->willReturn(FileInfo::TYPE_FOLDER);
+        $folder->method('getPath')->willReturn($path);
+        $folder->method('getDirectoryListing')->willReturn(array_values($children));
+        $folder->method('nodeExists')->willReturnCallback(fn($n) => isset($children[$n]));
+        $folder->method('get')->willReturnCallback(function ($p) use ($children, $path) {
+            if (isset($children[$p])) {
+                return $children[$p];
+            }
+            if (str_contains($p, '/')) {
+                [$head, $rest] = explode('/', $p, 2);
+                if (isset($children[$head]) && $children[$head] instanceof Folder) {
+                    return $children[$head]->get($rest);
+                }
+            }
+            throw new \OCP\Files\NotFoundException($path . '/' . $p);
+        });
+        return $folder;
+    }
+
+    /** Two languages, one page each: nl/over-ons and de/ueber-uns. */
+    private function makeService(?array $nlJson = null, ?array $deJson = null): PageService {
+        $nlJson ??= ['uniqueId' => 'page-nl', 'title' => 'Over ons'];
+        $deJson ??= ['uniqueId' => 'page-de', 'title' => 'Über uns'];
+
+        $nlFile = $this->makeFile('/IntraVox/nl/over-ons.json', $nlJson);
+        $deFile = $this->makeFile('/IntraVox/de/ueber-uns.json', $deJson);
+
+        $nl = $this->makeFolder('/IntraVox/nl', [
+            'over-ons.json' => $nlFile,
+            'over-ons' => $this->makeFolder('/IntraVox/nl/over-ons', []),
+        ]);
+        $de = $this->makeFolder('/IntraVox/de', [
+            'ueber-uns.json' => $deFile,
+            'ueber-uns' => $this->makeFolder('/IntraVox/de/ueber-uns', []),
+        ]);
+        $base = $this->makeFolder('/IntraVox', ['nl' => $nl, 'de' => $de]);
+
+        $svc = new class($nl, $base) extends PageService {
+            private Folder $langFolder;
+            private Folder $baseFolder;
+            public function __construct(Folder $langFolder, Folder $baseFolder) {
+                $this->langFolder = $langFolder;
+                $this->baseFolder = $baseFolder;
+            }
+            protected function getLanguageFolder() {
+                return $this->langFolder;
+            }
+            protected function getReadLanguageFolder(): Folder {
+                return $this->langFolder;
+            }
+            protected function getIntraVoxFolder() {
+                return $this->baseFolder;
+            }
+            public function clearCache(): void {
+            }
+        };
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->method('findByUniqueId')->willReturn(null);
+
+        $config = $this->createMock(\OCP\IConfig::class);
+        $config->method('getUserValue')->willReturn('nl');
+
+        // updatePage() needs a session user before it resolves the page.
+        $user = $this->createMock(\OCP\IUser::class);
+        $user->method('getUID')->willReturn('tester');
+        $user->method('getDisplayName')->willReturn('Tester');
+        $session = $this->createMock(\OCP\IUserSession::class);
+        $session->method('getUser')->willReturn($user);
+
+        $explicit = [
+            'userSession' => $session,
+            'userId' => 'tester',
+            'config' => $config,
+            'logger' => $this->createMock(\Psr\Log\LoggerInterface::class),
+            'languageService' => $this->createMock(\OCA\IntraVox\Service\LanguageService::class),
+            'pageIndexService' => $index,
+        ];
+        foreach ($explicit as $name => $value) {
+            (new \ReflectionProperty(PageService::class, $name))->setValue($svc, $value);
+        }
+        foreach ((new \ReflectionClass(PageService::class))->getProperties() as $prop) {
+            if ($prop->isStatic() || isset($explicit[$prop->getName()])) {
+                continue;
+            }
+            $type = $prop->getType();
+            if (!$type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+                continue;
+            }
+            if ($prop->isInitialized($svc)) {
+                continue;
+            }
+            $class = $type->getName();
+            if (!interface_exists($class) && !class_exists($class)) {
+                continue;
+            }
+            try {
+                $prop->setValue($svc, $this->createMock($class));
+            } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
+                $ctor = (new \ReflectionClass($class))->getConstructor();
+                $args = [];
+                foreach ($ctor?->getParameters() ?? [] as $param) {
+                    $pType = $param->getType();
+                    $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
+                        ? $this->createMock($pType->getName())
+                        : null;
+                }
+                $prop->setValue($svc, new $class(...$args));
+            }
+        }
+        return $svc;
+    }
+
+    private function writtenGroup(string $path): ?string {
+        $data = json_decode($this->writes[$path] ?? '{}', true);
+        return $data['translationGroup'] ?? null;
+    }
+
+    /** Linking gives both pages one shared group. */
+    public function testLinkingSharesOneGroup(): void {
+        $svc = $this->makeService();
+
+        $group = $svc->linkTranslation('page-nl', 'page-de');
+
+        $this->assertMatchesRegularExpression('/^tg-[a-f0-9-]{36}$/', $group);
+        $this->assertSame($group, $this->writtenGroup('/IntraVox/nl/over-ons.json'));
+        $this->assertSame($group, $this->writtenGroup('/IntraVox/de/ueber-uns.json'));
+    }
+
+    /**
+     * An existing group is adopted rather than replaced, so linking A-B and
+     * later B-C leaves all three together instead of splitting into pairs.
+     */
+    public function testLinkingAdoptsAnExistingGroup(): void {
+        $existing = 'tg-11111111-2222-3333-4444-555555555555';
+        $svc = $this->makeService(
+            ['uniqueId' => 'page-nl', 'title' => 'Over ons', 'translationGroup' => $existing]
+        );
+
+        $group = $svc->linkTranslation('page-nl', 'page-de');
+
+        $this->assertSame($existing, $group, 'the existing group must win');
+        $this->assertSame($existing, $this->writtenGroup('/IntraVox/de/ueber-uns.json'));
+    }
+
+    /**
+     * A group holds at most one page per language: a second German version
+     * would make "the German page" ambiguous for the switcher and the notice.
+     */
+    public function testCannotLinkTwoPagesInTheSameLanguage(): void {
+        $svc = $this->makeService();
+
+        // Both ids resolve inside nl/ — link must be refused.
+        $this->expectException(\InvalidArgumentException::class);
+        $svc->linkTranslation('page-nl', 'page-nl');
+    }
+
+    /** Unlinking gives the page a fresh group of its own, not none. */
+    public function testUnlinkingAssignsAFreshGroup(): void {
+        $shared = 'tg-11111111-2222-3333-4444-555555555555';
+        $svc = $this->makeService(
+            ['uniqueId' => 'page-nl', 'title' => 'Over ons', 'translationGroup' => $shared],
+            ['uniqueId' => 'page-de', 'title' => 'Über uns', 'translationGroup' => $shared]
+        );
+
+        $fresh = $svc->unlinkTranslation('page-nl');
+
+        $this->assertNotSame($shared, $fresh);
+        $this->assertMatchesRegularExpression('/^tg-[a-f0-9-]{36}$/', $fresh);
+        $this->assertSame($fresh, $this->writtenGroup('/IntraVox/nl/over-ons.json'));
+        // The other page is untouched — unlink acts on one page only.
+        $this->assertArrayNotHasKey('/IntraVox/de/ueber-uns.json', $this->writes);
+    }
+
+    /** An unknown page is reported as not found. */
+    public function testLinkingAnUnknownPageFails(): void {
+        $svc = $this->makeService();
+
+        $this->expectException(\OCA\IntraVox\Exception\PageNotFoundException::class);
+        $svc->linkTranslation('page-nl', 'page-nope');
+    }
+
+    /**
+     * The group survives an ordinary save. The sanitiser is a strict
+     * whitelist, so without explicit handling every edit would silently drop
+     * the field and unlink the page from its translations.
+     */
+    public function testGroupSurvivesAnOrdinarySave(): void {
+        $shared = 'tg-11111111-2222-3333-4444-555555555555';
+        $svc = $this->makeService(
+            ['uniqueId' => 'page-nl', 'title' => 'Over ons', 'translationGroup' => $shared]
+        );
+
+        // A client that knows nothing about translation groups saves the page.
+        $svc->updatePage('page-nl', ['title' => 'Over ons (bijgewerkt)', 'widgets' => []]);
+
+        $this->assertSame(
+            $shared,
+            $this->writtenGroup('/IntraVox/nl/over-ons.json'),
+            'an ordinary save must not unlink the page'
+        );
+    }
+
+    /** A malformed group is dropped rather than stored. */
+    public function testMalformedGroupIsRejected(): void {
+        $svc = $this->makeService();
+
+        $svc->updatePage('page-nl', [
+            'title' => 'Over ons',
+            'widgets' => [],
+            'translationGroup' => '../../etc/passwd',
+        ]);
+
+        $this->assertNull(
+            $this->writtenGroup('/IntraVox/nl/over-ons.json'),
+            'only well-formed group ids may be stored'
+        );
+    }
+}

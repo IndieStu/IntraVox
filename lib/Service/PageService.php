@@ -1446,6 +1446,172 @@ class PageService {
     }
 
     /**
+     * Link two pages as language versions of each other.
+     *
+     * Both pages end up sharing one translation group. Symmetric by design:
+     * neither becomes the "source", so removing either one later shrinks the
+     * group instead of orphaning the other — the failure mode that leaves
+     * SharePoint's source-pointer model with dangling references.
+     *
+     * Refuses to link two pages in the SAME language: a group holds at most one
+     * page per language, and allowing a second would make "the German version"
+     * ambiguous for the switcher and the reader notice alike.
+     *
+     * When either page is already linked, the existing group wins and the other
+     * page joins it, so linking A→B and later B→C leaves all three together
+     * rather than splitting into two pairs.
+     *
+     * @throws PageNotFoundException when either page cannot be found
+     * @throws \InvalidArgumentException when both pages share a language
+     */
+    public function linkTranslation(string $uniqueIdA, string $uniqueIdB): string {
+        if ($uniqueIdA === $uniqueIdB) {
+            throw new \InvalidArgumentException('A page cannot be a translation of itself');
+        }
+
+        $folder = $this->getReadLanguageFolder();
+        $a = $this->locatePageAnyLanguage($folder, $uniqueIdA);
+        $b = $this->locatePageAnyLanguage($folder, $uniqueIdB);
+        if ($a === null) {
+            throw new PageNotFoundException('Page not found: ' . $uniqueIdA);
+        }
+        if ($b === null) {
+            throw new PageNotFoundException('Page not found: ' . $uniqueIdB);
+        }
+
+        $langA = $this->languageOfFolder($a['folder']);
+        $langB = $this->languageOfFolder($b['folder']);
+        if ($langA !== null && $langA === $langB) {
+            throw new \InvalidArgumentException(
+                'These pages are both in the same language, so one cannot be a translation of the other.'
+            );
+        }
+
+        // Adopt an existing group when there is one, so linking is additive.
+        $dataA = json_decode($a['file']->getContent(), true);
+        $dataB = json_decode($b['file']->getContent(), true);
+        $group = (is_array($dataA) ? ($dataA['translationGroup'] ?? null) : null)
+            ?: (is_array($dataB) ? ($dataB['translationGroup'] ?? null) : null)
+            ?: 'tg-' . $this->generateUUID();
+
+        $this->writeTranslationGroup($a, $group);
+        $this->writeTranslationGroup($b, $group);
+        $this->clearCache();
+
+        return $group;
+    }
+
+    /**
+     * Detach a page from its translation group.
+     *
+     * The page gets a fresh group of its own rather than none at all, so
+     * "linked" and "unlinked" stay the same shape and the page can be linked
+     * again later without a special case.
+     *
+     * Only ever touches the page asked for. WPML shipped a bug where an update
+     * silently re-linked translations an editor had deliberately unlinked;
+     * nothing here infers a relationship from similarity.
+     *
+     * @throws PageNotFoundException when the page cannot be found
+     */
+    public function unlinkTranslation(string $uniqueId): string {
+        $folder = $this->getReadLanguageFolder();
+        $result = $this->locatePageAnyLanguage($folder, $uniqueId);
+        if ($result === null) {
+            throw new PageNotFoundException('Page not found: ' . $uniqueId);
+        }
+
+        $group = 'tg-' . $this->generateUUID();
+        $this->writeTranslationGroup($result, $group);
+        $this->clearCache();
+
+        return $group;
+    }
+
+    /**
+     * Write a translation group into a page file and its index row.
+     *
+     * @param array $result findPageByUniqueId()-shaped result
+     */
+    private function writeTranslationGroup(array $result, string $group): void {
+        $file = $result['file'];
+        if (!$file->isUpdateable()) {
+            throw new ForbiddenException('You do not have permission to edit this page');
+        }
+
+        $data = json_decode($file->getContent(), true);
+        if (!is_array($data)) {
+            throw new \InvalidArgumentException('Page data could not be read');
+        }
+        $data['translationGroup'] = $group;
+        $file->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+
+        // Keep the index in step; the file is already written, so a failure
+        // here is non-blocking and `occ intravox:reindex` repairs it.
+        try {
+            $language = $this->languageOfFolder($result['folder']) ?? $this->getUserLanguage();
+            $this->pageIndexService->indexPage(
+                $data,
+                $language,
+                $result['folder']->getPath(),
+                $file->getId()
+            );
+        } catch (\Exception $e) {
+            $this->logger->warning('Failed to index translation group', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * The other language versions of a page, from its translation group.
+     *
+     * Answered entirely from the index — one lookup, no tree walk — which is
+     * what makes it cheap enough to attach to every page render.
+     *
+     * Returns [] rather than throwing on any problem: this decorates a page,
+     * and a missing switcher is a far smaller failure than a page that will
+     * not load. Also returns [] for a page with no group, which is the normal
+     * state of every page that is not linked to another language.
+     *
+     * @return array<int, array{language:string, uniqueId:string, title:string, status:string}>
+     */
+    private function resolveTranslations(?string $translationGroup, ?string $ownUniqueId): array {
+        if (empty($translationGroup)) {
+            return [];
+        }
+
+        try {
+            $rows = $this->pageIndexService->findByTranslationGroup($translationGroup);
+        } catch (\Throwable $e) {
+            $this->logger->warning('[PageService] translation lookup failed', [
+                'translationGroup' => $translationGroup,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
+
+        $translations = [];
+        foreach ($rows as $row) {
+            // Skip the page itself — the list answers "where else".
+            if ($ownUniqueId !== null && ($row['unique_id'] ?? null) === $ownUniqueId) {
+                continue;
+            }
+            if (empty($row['language']) || empty($row['unique_id'])) {
+                continue;
+            }
+            $translations[] = [
+                'language' => (string)$row['language'],
+                'uniqueId' => (string)$row['unique_id'],
+                'title' => (string)($row['title'] ?? ''),
+                'status' => (string)($row['status'] ?? 'published'),
+            ];
+        }
+
+        return $translations;
+    }
+
+    /**
      * Build the page list from the index instead of walking the tree.
      *
      * Returns null when the index cannot serve this language, so the caller
@@ -2040,6 +2206,18 @@ class PageService {
             // field in the JSON, which is client-supplied and would compare a
             // value against itself.
             $page['baseVersion'] = $file->getMTime();
+
+            // Which languages this page exists in. Powers the reader's "also
+            // available in X" notice and the language switcher, and tells an
+            // editor at a glance what still needs translating.
+            //
+            // Excludes the page's own language: the list answers "where ELSE
+            // can I read this", so including the page you are on would only add
+            // a no-op entry to every switcher.
+            $page['translations'] = $this->resolveTranslations(
+                $page['translationGroup'] ?? null,
+                $page['uniqueId'] ?? null
+            );
         } else {
             $page['permissions'] = $this->permissionsFromNode($folder);
             $page['canEdit'] = $folder->isUpdateable();
@@ -2715,6 +2893,17 @@ class PageService {
         // Preserve uniqueId from existing data
         if (isset($existingData['uniqueId'])) {
             $data['uniqueId'] = $existingData['uniqueId'];
+        }
+
+        // Same for the translation group: it belongs to the page, not to the
+        // payload a client happens to send. An editor saving from a UI that
+        // knows nothing about translation groups (or an older frontend, or a
+        // script) must not silently unlink the page from its other languages.
+        //
+        // Linking and unlinking are explicit operations with their own entry
+        // points; an ordinary save is never one of them.
+        if (isset($existingData['translationGroup'])) {
+            $data['translationGroup'] = $existingData['translationGroup'];
         }
 
         // Preserve originalSrc for video widgets to prevent URL loss when whitelist changes
@@ -3411,6 +3600,22 @@ class PageService {
         // Preserve uniqueId if provided (for internal references)
         if (isset($data['uniqueId'])) {
             $sanitized['uniqueId'] = $data['uniqueId'];
+        }
+
+        // Translation group: the shared id linking the language versions of one
+        // page. This is a strict whitelist, so an unlisted field is silently
+        // dropped on every save — without this line a page would lose its
+        // translation links the moment anyone edited it.
+        //
+        // Format-checked rather than sanitised: it is an identifier we generate
+        // ('tg-' + UUID), never user prose, so anything that does not look like
+        // one is dropped rather than escaped. Absence is valid and means the
+        // page is not linked to any other language.
+        if (isset($data['translationGroup'])
+            && is_string($data['translationGroup'])
+            && preg_match('/^tg-[a-f0-9-]{36}$/', $data['translationGroup'])
+        ) {
+            $sanitized['translationGroup'] = $data['translationGroup'];
         }
 
         // Preserve settings object (engagement settings for comments/reactions)
