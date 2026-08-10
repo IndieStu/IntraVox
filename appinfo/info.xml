@@ -90,6 +90,7 @@
         <command>OCA\IntraVox\Command\AddDemoFieldsCommand</command>
         <command>OCA\IntraVox\Command\RepairEntitiesCommand</command>
         <command>OCA\IntraVox\Command\PeopleScopeReportCommand</command>
+        <command>OCA\IntraVox\Command\ReindexPagesCommand</command>
     </commands>
     <settings>
         <admin>OCA\IntraVox\Settings\AdminSettings</admin>

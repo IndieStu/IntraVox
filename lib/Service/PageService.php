@@ -4995,6 +4995,116 @@ class PageService {
     }
 
     /**
+     * Rebuild the page index from the filesystem, which is the source of truth.
+     *
+     * The index is a derived structure: pages live as JSON on disk, and the
+     * index only exists so lookups do not have to walk that tree. Anything
+     * that writes page files outside the service — a restore, a manual copy in
+     * the Files app, an `occ files:scan`, an older IntraVox version, or simply
+     * a bug — leaves it stale. Without a rebuild, a stale index is unfixable
+     * short of editing the database by hand, which is why no read path may be
+     * built on the index until this exists.
+     *
+     * Clears and repopulates in one pass rather than diffing: at intranet
+     * scale a full rebuild is seconds, and a diff would have to solve exactly
+     * the "which rows are wrong" question that a corrupt index cannot answer.
+     *
+     * Deliberately does NOT infer or repair translation groupings — it records
+     * only what the files say. (WPML shipped a bug where an update silently
+     * re-linked translations an editor had deliberately unlinked; guessing
+     * relationships during a repair is how that happens.)
+     *
+     * @param bool $dryRun count what would be indexed without writing
+     * @return array{scanned:int, indexed:int, languages:array<string,int>}
+     */
+    public function rebuildIndex(bool $dryRun = false): array {
+        $stats = ['scanned' => 0, 'indexed' => 0, 'languages' => []];
+
+        $base = $this->getIntraVoxFolder();
+        $languageFolders = [];
+        foreach ($this->getCachedDirectoryListing($base) as $node) {
+            if (!($node instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            // Language folders are 2–3 letter codes; skips _media/_resources.
+            if (!preg_match('/^[a-z]{2,3}$/', $node->getName())) {
+                continue;
+            }
+            $languageFolders[] = $node;
+        }
+
+        // Clear only after the tree is readable: wiping first and then failing
+        // to read would leave the install with no index at all.
+        if (!$dryRun) {
+            $this->pageIndexService->clearAll();
+        }
+
+        foreach ($languageFolders as $langFolder) {
+            $lang = $langFolder->getName();
+            $stats['languages'][$lang] = 0;
+            $this->rebuildIndexInFolder($langFolder, $lang, $dryRun, $stats);
+        }
+
+        return $stats;
+    }
+
+    /**
+     * Recurse one language folder, indexing every page JSON found.
+     *
+     * @param array{scanned:int, indexed:int, languages:array<string,int>} $stats
+     */
+    private function rebuildIndexInFolder(
+        \OCP\Files\Folder $folder,
+        string $language,
+        bool $dryRun,
+        array &$stats
+    ): void {
+        foreach ($this->getCachedDirectoryListing($folder) as $node) {
+            if ($node instanceof \OCP\Files\Folder) {
+                $name = $node->getName();
+                // Media and asset folders hold no pages.
+                if (in_array($name, ['_media', '_resources', '_templates', 'images', 'files'], true)) {
+                    continue;
+                }
+                $this->rebuildIndexInFolder($node, $language, $dryRun, $stats);
+                continue;
+            }
+
+            if (!($node instanceof \OCP\Files\File) || !str_ends_with($node->getName(), '.json')) {
+                continue;
+            }
+            // Per-language config files are not pages.
+            if (in_array($node->getName(), ['navigation.json', 'footer.json', 'homepage.json'], true)) {
+                continue;
+            }
+
+            $stats['scanned']++;
+            try {
+                $data = json_decode($node->getContent(), true);
+                if (!is_array($data) || empty($data['uniqueId'])) {
+                    // A JSON file without a uniqueId is not an indexable page.
+                    continue;
+                }
+                if (!$dryRun) {
+                    $this->pageIndexService->indexPage(
+                        $data,
+                        $language,
+                        $folder->getPath(),
+                        $node->getId()
+                    );
+                }
+                $stats['indexed']++;
+                $stats['languages'][$language]++;
+            } catch (\Throwable $e) {
+                // One unreadable file must not abort the whole rebuild.
+                $this->logger->warning(
+                    '[PageService] rebuildIndex skipped ' . $node->getPath() . ': ' . $e->getMessage()
+                );
+            }
+        }
+    }
+
+    /**
      * Decode HTML entities in the plain-text fields of a page-data array,
      * in place: title, and each widget's content/alt/title and link titles.
      */

@@ -29,8 +29,12 @@ class PageIndexLanguageTest extends TestCase {
     /** Calls recorded from PageIndexService::indexPage(). */
     private array $indexed = [];
 
+    /** Whether clearAll() was called (the rebuild wipes before repopulating). */
+    private bool $indexCleared = false;
+
     protected function setUp(): void {
         $this->indexed = [];
+        $this->indexCleared = false;
     }
 
     private function makeFile(string $path, array $json): File {
@@ -108,6 +112,9 @@ class PageIndexLanguageTest extends TestCase {
                 ];
             }
         );
+        $index->method('clearAll')->willReturnCallback(function () {
+            $this->indexCleared = true;
+        });
 
         $user = $this->createMock(\OCP\IUser::class);
         $user->method('getUID')->willReturn('tester');
@@ -219,6 +226,76 @@ class PageIndexLanguageTest extends TestCase {
 
         $this->assertCount(1, $this->indexed);
         $this->assertSame('de', $this->indexed[0]['language']);
+    }
+
+    /**
+     * The rebuild walks the real tree and records what the files say — one
+     * entry per page, under the language folder it actually sits in.
+     */
+    public function testRebuildIndexesEveryPageUnderItsOwnLanguage(): void {
+        $en = $this->makeFolder('/IntraVox/en', [
+            'home.json' => $this->makeFile('/IntraVox/en/home.json', ['uniqueId' => 'page-en-home', 'title' => 'Home']),
+            'about.json' => $this->makeFile('/IntraVox/en/about.json', ['uniqueId' => 'page-en-about', 'title' => 'About']),
+            // Per-language config files are not pages and must be skipped.
+            'navigation.json' => $this->makeFile('/IntraVox/en/navigation.json', ['items' => []]),
+            'footer.json' => $this->makeFile('/IntraVox/en/footer.json', ['columns' => []]),
+            // Asset folders hold no pages.
+            '_media' => $this->makeFolder('/IntraVox/en/_media', [
+                'stray.json' => $this->makeFile('/IntraVox/en/_media/stray.json', ['uniqueId' => 'page-should-not-index']),
+            ]),
+        ]);
+        $de = $this->makeFolder('/IntraVox/de', [
+            'home.json' => $this->makeFile('/IntraVox/de/home.json', ['uniqueId' => 'page-de-home', 'title' => 'Startseite']),
+        ]);
+
+        $svc = $this->makeService($de, [$de, $en]);
+        $stats = $svc->rebuildIndex();
+
+        $this->assertSame(3, $stats['indexed'], 'three real pages, config files excluded');
+        $this->assertSame(['de' => 1, 'en' => 2], $stats['languages']);
+
+        $byId = [];
+        foreach ($this->indexed as $row) {
+            $byId[$row['uniqueId']] = $row['language'];
+        }
+        $this->assertSame('en', $byId['page-en-about'] ?? null);
+        $this->assertSame('de', $byId['page-de-home'] ?? null);
+        $this->assertArrayNotHasKey(
+            'page-should-not-index',
+            $byId,
+            'JSON inside _media is not a page'
+        );
+    }
+
+    /** A dry run reports the same counts but writes nothing. */
+    public function testRebuildDryRunWritesNothing(): void {
+        $en = $this->makeFolder('/IntraVox/en', [
+            'home.json' => $this->makeFile('/IntraVox/en/home.json', ['uniqueId' => 'page-dry', 'title' => 'Home']),
+        ]);
+
+        $svc = $this->makeService($en, [$en]);
+        $stats = $svc->rebuildIndex(true);
+
+        $this->assertSame(1, $stats['indexed'], 'a dry run still reports what it would do');
+        $this->assertSame([], $this->indexed, 'a dry run must not touch the index');
+        $this->assertFalse($this->indexCleared, 'a dry run must not clear the index');
+    }
+
+    /**
+     * A JSON file without a uniqueId is counted as scanned but not indexed, so
+     * the command can report the gap instead of silently dropping it.
+     */
+    public function testRebuildSkipsFilesWithoutAUniqueId(): void {
+        $en = $this->makeFolder('/IntraVox/en', [
+            'home.json' => $this->makeFile('/IntraVox/en/home.json', ['uniqueId' => 'page-ok', 'title' => 'Home']),
+            'broken.json' => $this->makeFile('/IntraVox/en/broken.json', ['title' => 'No id']),
+        ]);
+
+        $svc = $this->makeService($en, [$en]);
+        $stats = $svc->rebuildIndex();
+
+        $this->assertSame(2, $stats['scanned']);
+        $this->assertSame(1, $stats['indexed']);
     }
 
     /**
