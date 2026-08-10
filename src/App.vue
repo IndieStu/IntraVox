@@ -308,11 +308,14 @@
          operation the sidebar's Translations tab offers, reachable from the
          actions menu because creating a translation is an ACTION on the page —
          alongside Copy and Rename — not something you go inspect in a panel. -->
+    <!-- v-if alone, without :open. NcDialog opens on mount, so a dialog that is
+         only created when it should already be open must not also be told to
+         open — pairing the two leaves it created but never shown, which is why
+         the menu item appeared to do nothing. Matches the other dialogs here. -->
     <NcDialog v-if="showTranslateDialog"
               :name="t('intravox', 'Translate page')"
-              :open="showTranslateDialog"
               size="normal"
-              @update:open="showTranslateDialog = $event">
+              @closing="showTranslateDialog = false">
       <div class="translate-dialog">
         <p v-if="translateLanguages.length === 0" class="translate-dialog__empty">
           {{ t('intravox', 'This page already exists in every language that has content.') }}
