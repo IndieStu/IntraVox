@@ -30,6 +30,16 @@ class PageIndexService {
             return;
         }
 
+        // Store the path relative to the IntraVox root, never the caller's
+        // absolute Nextcloud path. The index is shared by every user but a
+        // Nextcloud path is per-user: the same page is
+        // /admin/files/IntraVox/en/about for one account and
+        // /Rik/files/IntraVox/en/about for another. Storing the absolute form
+        // meant every row only ever resolved for the account that wrote it —
+        // for everyone else listPages() came back empty and the app showed its
+        // first-run welcome screen on a fully populated intranet.
+        $path = $this->toRelativePath($path);
+
         try {
             // Try update first
             $qb = $this->db->getQueryBuilder();
@@ -66,6 +76,37 @@ class PageIndexService {
         } catch (\Exception $e) {
             $this->logger->warning('IntraVox: Failed to index page ' . $uniqueId, ['error' => $e->getMessage()]);
         }
+    }
+
+    /**
+     * Strip the per-user prefix from a page path.
+     *
+     * Keeps everything after the last `IntraVox` segment, which is the app-root
+     * marker in every form these paths take (`/admin/files/IntraVox/en/about`,
+     * `/Rik/files/IntraVox/en/about`, `/__groupfolders/1/files/en/about`).
+     * A path already relative is returned unchanged, so this is idempotent and
+     * safe to apply to rows written by an older version.
+     */
+    private function toRelativePath(string $path): string {
+        $trimmed = trim($path, '/');
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $segments = explode('/', $trimmed);
+        $rootIndex = null;
+        foreach ($segments as $i => $segment) {
+            if ($segment === 'IntraVox') {
+                $rootIndex = $i;
+            }
+        }
+        if ($rootIndex === null) {
+            // No IntraVox segment: either already relative, or a layout we do
+            // not recognise. Leave it alone rather than mangling it.
+            return $trimmed;
+        }
+
+        return implode('/', array_slice($segments, $rootIndex + 1));
     }
 
     /**
@@ -284,8 +325,9 @@ class PageIndexService {
      * @return int rows updated (0 is normal for an unindexed subtree)
      */
     public function repathSubtree(string $oldPrefix, string $newPrefix): int {
-        $oldPrefix = rtrim($oldPrefix, '/');
-        $newPrefix = rtrim($newPrefix, '/');
+        // Callers pass absolute paths; rows store relative ones.
+        $oldPrefix = rtrim($this->toRelativePath($oldPrefix), '/');
+        $newPrefix = rtrim($this->toRelativePath($newPrefix), '/');
         if ($oldPrefix === '' || $oldPrefix === $newPrefix) {
             return 0;
         }
@@ -344,7 +386,8 @@ class PageIndexService {
      * @return int rows removed
      */
     public function removeSubtree(string $prefix): int {
-        $prefix = rtrim($prefix, '/');
+        // Callers pass absolute paths; rows store relative ones.
+        $prefix = rtrim($this->toRelativePath($prefix), '/');
         if ($prefix === '') {
             return 0;
         }

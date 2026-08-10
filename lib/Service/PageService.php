@@ -934,24 +934,81 @@ class PageService {
      */
     private function folderFromAbsolutePath(string $absolutePath): ?\OCP\Files\Folder {
         $base = $this->getIntraVoxFolder();
-        $basePath = rtrim($base->getPath(), '/');
-        $path = rtrim($absolutePath, '/');
-
-        if ($path === $basePath) {
-            return $base;
-        }
-        if (strpos($path, $basePath . '/') !== 0) {
-            // Outside this user's IntraVox tree — not ours to serve.
+        $relative = $this->indexPathToRelative($absolutePath);
+        if ($relative === null) {
             return null;
         }
+        if ($relative === '') {
+            return $base;
+        }
 
-        $relative = substr($path, strlen($basePath) + 1);
         try {
             $node = $base->get($relative);
         } catch (NotFoundException $e) {
             return null;
         }
         return $node instanceof \OCP\Files\Folder ? $node : null;
+    }
+
+    /**
+     * Normalise a stored index path to a path relative to the IntraVox root.
+     *
+     * The index is shared by every user, but a Nextcloud path is per-user:
+     * the same page is /admin/files/IntraVox/en/about for one account and
+     * /Rik/files/IntraVox/en/about for another. Matching a stored path against
+     * the CURRENT user's mount therefore failed for everyone except the account
+     * that happened to write the row — listPages() returned zero pages and the
+     * app showed its first-run welcome screen on a fully populated intranet.
+     *
+     * Rows written before this fix still hold a per-user absolute path, so both
+     * forms are accepted: anything up to and including an `IntraVox/` segment is
+     * stripped, and what remains is resolved against the caller's own mount.
+     * That keeps the resolution mount-scoped — a row can never hand a user a
+     * folder their mount does not grant them — while surviving a stale index.
+     *
+     * @return string|null relative path ('' for the root), or null when the
+     *   path does not sit inside an IntraVox tree at all
+     */
+    private function indexPathToRelative(string $storedPath): ?string {
+        $path = trim($storedPath, '/');
+        if ($path === '') {
+            return null;
+        }
+
+        $base = rtrim($this->getIntraVoxFolder()->getPath(), '/');
+        $basePath = trim($base, '/');
+
+        // Fast path: written by this same user (or already relative).
+        if ($basePath !== '' && $path === $basePath) {
+            return '';
+        }
+        if ($basePath !== '' && strpos($path, $basePath . '/') === 0) {
+            return substr($path, strlen($basePath) + 1);
+        }
+
+        // Another user's absolute path, or a legacy row: keep everything after
+        // the LAST 'IntraVox' segment, which is the app-root marker in every
+        // form of the path.
+        $segments = explode('/', $path);
+        $rootIndex = null;
+        foreach ($segments as $i => $segment) {
+            if ($segment === 'IntraVox') {
+                $rootIndex = $i;
+            }
+        }
+        if ($rootIndex === null) {
+            // No IntraVox segment. Since 2.0 the index stores paths RELATIVE to
+            // the app root ('en/about'), which is exactly this shape — so treat
+            // it as already relative rather than refusing it. Refusing here made
+            // every lookup fail the moment paths were stored relatively.
+            //
+            // A path that is neither relative nor inside an IntraVox tree simply
+            // will not resolve against the caller's mount below, which is the
+            // safe outcome: resolution stays mount-scoped either way.
+            return $path;
+        }
+
+        return implode('/', array_slice($segments, $rootIndex + 1));
     }
 
     /**

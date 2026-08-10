@@ -782,8 +782,17 @@ export default {
           // Fall back to home page if no hash or page not found. Prefer the
           // configured homepage pointer, then the slug/path heuristic.
           if (!targetPage) {
+            // `homepageUniqueId` arrives via an event from the page tree, which
+            // has not rendered yet on first load — so on a plain visit to
+            // /apps/intravox it is still null here and the reader fell straight
+            // through to findHomePage(), which lands on pages[0]: whatever sorts
+            // first alphabetically. Ask the server directly instead.
+            if (!this.homepageUniqueId) {
+              await this.loadHomepageUniqueId();
+            }
             if (this.homepageUniqueId) {
-              targetPage = this.pages.find(p => p.uniqueId === this.homepageUniqueId);
+              targetPage = this.pages.find(p => p.uniqueId === this.homepageUniqueId)
+                || await this.resolvePageById(this.homepageUniqueId);
             }
             if (!targetPage) {
               targetPage = findHomePage(this.pages);
@@ -806,7 +815,11 @@ export default {
             return;
           }
 
-          // Only update URL if we didn't find the page in the hash (i.e., we're loading default/home)
+          // Only update URL if we didn't find the page in the hash (i.e., we're
+          // loading default/home). Opening /apps/intravox with no hash lands on
+          // the homepage and the address bar becomes #<its uniqueId>, so the URL
+          // always names the page on screen — refreshing, bookmarking or sharing
+          // it then does what the reader expects.
           await this.selectPage(targetPage.uniqueId, !foundInHash);
         }
         // If no pages found, don't set error - the welcome screen will be shown instead
@@ -815,6 +828,29 @@ export default {
         this.error = this.t('intravox', 'Could not load pages: {error}', { error: err.message });
       } finally {
         this.loading = false;
+      }
+    },
+    /**
+     * Fetch the configured homepage from the server.
+     *
+     * `homepageUniqueId` normally arrives as an event from the page tree, but
+     * that component has not rendered when loadPages() runs on first load — so
+     * on a plain visit to /apps/intravox the pointer was still null and the
+     * reader landed on pages[0], the alphabetically first page, instead of the
+     * homepage. Asking directly removes that ordering dependency.
+     *
+     * Never throws: without an answer the caller falls back to its heuristic,
+     * which is the behaviour that was there before.
+     */
+    async loadHomepageUniqueId() {
+      try {
+        const response = await axios.get(generateUrl('/apps/intravox/api/pages/tree'));
+        const id = response?.data?.homepageUniqueId;
+        if (typeof id === 'string' && id !== '') {
+          this.homepageUniqueId = id;
+        }
+      } catch (err) {
+        console.warn('[IntraVox] Could not resolve the configured homepage:', err.message);
       }
     },
     /**
