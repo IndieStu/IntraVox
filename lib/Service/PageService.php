@@ -8,6 +8,7 @@ use OCA\IntraVox\Constants;
 use OCA\IntraVox\Event\PageDeletedEvent;
 use OCA\IntraVox\Exception\CrossLanguageMoveException;
 use OCA\IntraVox\Exception\ForbiddenException;
+use OCA\IntraVox\Exception\PageConflictException;
 use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Service\GroupContextService;
 use OCA\IntraVox\Service\News\NewsContentExtractor;
@@ -1772,6 +1773,12 @@ class PageService {
             if ($file instanceof \OCP\Files\File) {
                 $page['fileId'] = $file->getId();
             }
+            // Concurrency token: the editor sends this back on save, and
+            // updatePage() refuses a write whose baseVersion predates the file
+            // on disk. Deliberately the file's mtime rather than the `modified`
+            // field in the JSON, which is client-supplied and would compare a
+            // value against itself.
+            $page['baseVersion'] = $file->getMTime();
         } else {
             $page['permissions'] = $this->permissionsFromNode($folder);
             $page['canEdit'] = $folder->isUpdateable();
@@ -2389,6 +2396,40 @@ class PageService {
             throw new \InvalidArgumentException('Failed to read existing page data: ' . $e->getMessage());
         }
 
+        // Optimistic concurrency. putContent() replaces the WHOLE document, so
+        // a save built on stale content erases everything written since — not a
+        // field, the entire page. PageLockService catches the common case, but
+        // locks expire after 15 minutes without a heartbeat, so a tab left open
+        // comes back with stale content and no lock to stop it.
+        //
+        // The FILE's mtime is the version token, not the `modified` field in the
+        // JSON: that field is whatever the client last sent (updatePage never
+        // stamps it), so it would compare a value against itself. The mtime is
+        // set by the filesystem on every write and cannot be spoofed by a stale
+        // client.
+        //
+        // A client that sends no baseVersion — an older frontend, a script, an
+        // import — is not blocked. This rejects only a save that demonstrably
+        // started from an older version, never one that merely failed to say.
+        $submittedBase = $data['baseVersion'] ?? null;
+        if (is_numeric($submittedBase)) {
+            $currentMtime = $file->getMTime();
+            if ((int)$submittedBase < $currentMtime) {
+                $this->logger->warning('[updatePage] stale write rejected', [
+                    'pageId' => $originalId,
+                    'baseVersion' => (int)$submittedBase,
+                    'currentMtime' => $currentMtime,
+                ]);
+                throw new PageConflictException(
+                    'This page was changed by someone else while you were editing it. '
+                    . 'Reload the page to get the latest version before saving again.'
+                );
+            }
+        }
+
+        // Never persist the transport-only concurrency token.
+        unset($data['baseVersion']);
+
         // Preserve uniqueId from existing data
         if (isset($existingData['uniqueId'])) {
             $data['uniqueId'] = $existingData['uniqueId'];
@@ -2444,7 +2485,16 @@ class PageService {
         // Return data with id for frontend (id is derived from folder name)
         // Get id from folder name (for home page it's 'home', otherwise folder basename)
         $pageId = ($result['isHome'] ?? false) ? 'home' : $result['folder']->getName();
-        return array_merge(['id' => $pageId], $validatedData);
+
+        // Hand back the version this write produced, so the editor can keep
+        // saving without reloading. Without it the client would still hold the
+        // token from page load, and its NEXT save would look stale against the
+        // file it just wrote — a conflict with itself.
+        return array_merge(
+            ['id' => $pageId],
+            $validatedData,
+            ['baseVersion' => $file->getMTime()]
+        );
     }
 
     /**

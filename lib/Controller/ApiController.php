@@ -7,6 +7,7 @@ use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
 use OCA\IntraVox\Exception\CrossLanguageMoveException;
 use OCA\IntraVox\Exception\ForbiddenException;
+use OCA\IntraVox\Exception\PageConflictException;
 use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Http\EtagBuilder;
 use OCA\IntraVox\Service\EngagementSettingsService;
@@ -387,6 +388,14 @@ class ApiController extends Controller {
             return new DataResponse(
                 ['error' => $e->getMessage()],
                 Http::STATUS_FORBIDDEN
+            );
+        } catch (PageConflictException $e) {
+            // 409, matching the page-lock conflict above: the editor's copy is
+            // out of date and they can recover by reloading. A silent overwrite
+            // is what this replaces.
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_CONFLICT
             );
         } catch (PageNotFoundException $e) {
             $this->logger->warning('[updatePage] PageNotFoundException: ' . $e->getMessage(), [

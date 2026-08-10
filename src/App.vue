@@ -1108,7 +1108,19 @@ export default {
       const url = generateUrl(`/apps/intravox/api/pages/${this.currentPage.uniqueId}`);
 
       try {
-        await axios.put(url, this.currentPage);
+        // currentPage carries `baseVersion` from the last load — the server
+        // refuses a save that started from an older version of the file rather
+        // than silently overwriting whoever saved in the meantime.
+        const response = await axios.put(url, this.currentPage);
+
+        // Adopt the version the save produced. Without this the token stays at
+        // the value from page load, so the SECOND save in a session would look
+        // stale against the file this very editor just wrote, and would be
+        // rejected — a conflict with yourself.
+        const newBaseVersion = response?.data?.baseVersion;
+        if (typeof newBaseVersion === 'number') {
+          this.currentPage.baseVersion = newBaseVersion;
+        }
 
         // Invalidate cache for this page and pages list
         CacheService.delete(`page-${this.currentPage.uniqueId}`);
