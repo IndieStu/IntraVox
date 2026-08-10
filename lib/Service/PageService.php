@@ -1373,6 +1373,17 @@ class PageService {
      */
     public function listPages(): array {
         $folder = $this->getReadLanguageFolder();
+
+        // Titles and statuses come from the index when it has this language,
+        // which removes the read + json_decode of every page file. Permissions
+        // still come from the filesystem: they depend on GroupFolder ACLs and
+        // on who is asking, so they are not derivable from an index row and
+        // must never be cached across users.
+        $indexed = $this->listPagesFromIndex($folder);
+        if ($indexed !== null) {
+            return $indexed;
+        }
+
         $intraVoxFolder = $this->getIntraVoxFolder();
         $pages = [];
 
@@ -1403,6 +1414,95 @@ class PageService {
 
         // Recursively find all pages in subfolders
         $this->findPagesInFolder($folder, $pages, $basePath);
+
+        return $pages;
+    }
+
+    /**
+     * Build the page list from the index instead of walking the tree.
+     *
+     * Returns null when the index cannot serve this language, so the caller
+     * falls back to the filesystem walk. That is the whole safety story: the
+     * index is a cache, and an empty or partial one costs a slow path, never a
+     * short list. A page the index does not know about would otherwise silently
+     * disappear from the sidebar — a far worse failure than being slow.
+     *
+     * Permissions are still read per page from the filesystem. They depend on
+     * GroupFolder ACLs and on the current user, so an index row cannot carry
+     * them and caching them across users would leak access.
+     *
+     * @return array|null the page list, or null to fall back to the walk
+     */
+    private function listPagesFromIndex(\OCP\Files\Folder $folder): ?array {
+        $language = $this->languageOfFolder($folder);
+        if ($language === null) {
+            return null;
+        }
+
+        try {
+            if (!$this->pageIndexService->hasEntries($language)) {
+                return null;
+            }
+            $rows = $this->pageIndexService->getPagesByLanguage($language);
+        } catch (\Throwable $e) {
+            $this->logger->warning('[PageService] index listing failed, falling back to scan', [
+                'language' => $language,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+
+        if (empty($rows)) {
+            return null;
+        }
+
+        // The homepage must be in the list. It lives as home.json at the
+        // language ROOT rather than in a page folder, and on real installs it
+        // turns out not to reach the index at all — so serving the index list
+        // as-is would silently drop the homepage from the sidebar. Rather than
+        // depend on that ever being fixed upstream, verify it here and fall
+        // back to the walk when it is missing: a slow, complete list beats a
+        // fast one with a hole in it.
+        $homeUniqueId = null;
+        try {
+            $homeFile = $folder->get('home.json');
+            if ($homeFile instanceof \OCP\Files\File) {
+                $homeData = json_decode($this->getCachedFileContent($homeFile), true);
+                $homeUniqueId = is_array($homeData) ? ($homeData['uniqueId'] ?? null) : null;
+            }
+        } catch (NotFoundException $e) {
+            // No loose homepage in this language; nothing to guarantee.
+        }
+        if ($homeUniqueId !== null) {
+            $indexedIds = array_column($rows, 'unique_id');
+            if (!in_array($homeUniqueId, $indexedIds, true)) {
+                return null;
+            }
+        }
+
+        $pages = [];
+        foreach ($rows as $row) {
+            if (empty($row['unique_id']) || empty($row['path'])) {
+                continue;
+            }
+
+            // Resolve the page folder to read permissions from. A row pointing
+            // at something the user cannot reach is skipped rather than served
+            // without permissions — the same mount-scoped resolution the
+            // uniqueId lookup uses, so the index can never widen access.
+            $pageFolder = $this->folderFromAbsolutePath((string)$row['path']);
+            if ($pageFolder === null) {
+                continue;
+            }
+
+            $pages[] = [
+                'uniqueId' => (string)$row['unique_id'],
+                'title' => (string)($row['title'] ?? ''),
+                'modified' => (int)($row['modified_at'] ?? 0),
+                'status' => (string)($row['status'] ?? 'published'),
+                'permissions' => $this->permissionsFromNode($pageFolder),
+            ];
+        }
 
         return $pages;
     }

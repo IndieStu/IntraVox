@@ -244,4 +244,153 @@ class PageIndexLookupTest extends TestCase {
         $svc = $this->makeService([]);
         $this->assertNull($this->locate($svc, 'page-nope'));
     }
+
+    /**
+     * listPages() may serve from the index only when the homepage is in it.
+     *
+     * The homepage lives as home.json at the language ROOT, not in a page
+     * folder, and on real installs it is sometimes absent from the index — a
+     * loose home.json without a uniqueId cannot be indexed at all. Serving the
+     * index list regardless would silently drop the homepage from the sidebar,
+     * which is a worse failure than being slow.
+     */
+    public function testListPagesFallsBackWhenTheHomepageIsNotIndexed(): void {
+        $svc = $this->makeServiceWithHome(
+            // The index knows about a page, but NOT about the homepage.
+            [['unique_id' => 'page-idx', 'title' => 'About', 'path' => '/IntraVox/en/about',
+              'status' => 'published', 'modified_at' => 100]],
+            ['uniqueId' => 'page-home', 'title' => 'Home']
+        );
+
+        $result = (new \ReflectionMethod(PageService::class, 'listPagesFromIndex'))
+            ->invoke($svc, (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))->invoke($svc));
+
+        $this->assertNull($result, 'an index list missing the homepage must not be served');
+    }
+
+    /** With the homepage indexed, the fast path is used. */
+    public function testListPagesUsesTheIndexWhenComplete(): void {
+        $svc = $this->makeServiceWithHome(
+            [
+                ['unique_id' => 'page-home', 'title' => 'Home', 'path' => '/IntraVox/en',
+                 'status' => 'published', 'modified_at' => 50],
+                ['unique_id' => 'page-idx', 'title' => 'About', 'path' => '/IntraVox/en/about',
+                 'status' => 'published', 'modified_at' => 100],
+            ],
+            ['uniqueId' => 'page-home', 'title' => 'Home']
+        );
+
+        $result = (new \ReflectionMethod(PageService::class, 'listPagesFromIndex'))
+            ->invoke($svc, (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))->invoke($svc));
+
+        $this->assertNotNull($result);
+        $this->assertSame(['page-home', 'page-idx'], array_column($result, 'uniqueId'));
+    }
+
+    /**
+     * A language folder with no loose homepage at all has nothing to guarantee,
+     * so the index list is served as-is.
+     */
+    public function testListPagesServesIndexWhenThereIsNoLooseHomepage(): void {
+        $svc = $this->makeServiceWithHome(
+            [['unique_id' => 'page-idx', 'title' => 'About', 'path' => '/IntraVox/en/about',
+              'status' => 'published', 'modified_at' => 100]],
+            null // no home.json in the language root
+        );
+
+        $result = (new \ReflectionMethod(PageService::class, 'listPagesFromIndex'))
+            ->invoke($svc, (new \ReflectionMethod(PageService::class, 'getReadLanguageFolder'))->invoke($svc));
+
+        $this->assertNotNull($result);
+        $this->assertSame(['page-idx'], array_column($result, 'uniqueId'));
+    }
+
+    /**
+     * Build a service whose en/ folder optionally holds a loose home.json.
+     *
+     * @param array $indexRows rows getPagesByLanguage() should return
+     * @param array|null $homeJson contents of en/home.json, or null for none
+     */
+    private function makeServiceWithHome(array $indexRows, ?array $homeJson): PageService {
+        $aboutJson = $this->makeFile(
+            '/IntraVox/en/about.json',
+            ['uniqueId' => 'page-idx', 'title' => 'About']
+        );
+
+        $children = ['about.json' => $aboutJson];
+        if ($homeJson !== null) {
+            $children['home.json'] = $this->makeFile('/IntraVox/en/home.json', $homeJson);
+        }
+
+        $enForParent = $this->makeFolder('/IntraVox/en', $children);
+        $aboutFolder = $this->makeFolder('/IntraVox/en/about', [], $enForParent);
+        $en = $this->makeFolder('/IntraVox/en', $children + ['about' => $aboutFolder]);
+        $base = $this->makeFolder('/IntraVox', ['en' => $en]);
+
+        $svc = new class($en, $base) extends PageService {
+            private Folder $langFolder;
+            private Folder $baseFolder;
+            public function __construct(Folder $langFolder, Folder $baseFolder) {
+                $this->langFolder = $langFolder;
+                $this->baseFolder = $baseFolder;
+            }
+            protected function getLanguageFolder() {
+                return $this->langFolder;
+            }
+            protected function getReadLanguageFolder(): Folder {
+                return $this->langFolder;
+            }
+            protected function getIntraVoxFolder() {
+                return $this->baseFolder;
+            }
+            public function clearCache(): void {
+            }
+        };
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->method('hasEntries')->willReturn(!empty($indexRows));
+        $index->method('getPagesByLanguage')->willReturn($indexRows);
+
+        $explicit = [
+            'userSession' => $this->createMock(\OCP\IUserSession::class),
+            'userId' => 'tester',
+            'config' => $this->createMock(\OCP\IConfig::class),
+            'logger' => $this->createMock(\Psr\Log\LoggerInterface::class),
+            'languageService' => $this->createMock(\OCA\IntraVox\Service\LanguageService::class),
+            'pageIndexService' => $index,
+        ];
+        foreach ($explicit as $name => $value) {
+            (new \ReflectionProperty(PageService::class, $name))->setValue($svc, $value);
+        }
+        foreach ((new \ReflectionClass(PageService::class))->getProperties() as $prop) {
+            if ($prop->isStatic() || isset($explicit[$prop->getName()])) {
+                continue;
+            }
+            $type = $prop->getType();
+            if (!$type instanceof \ReflectionNamedType || $type->isBuiltin()) {
+                continue;
+            }
+            if ($prop->isInitialized($svc)) {
+                continue;
+            }
+            $class = $type->getName();
+            if (!interface_exists($class) && !class_exists($class)) {
+                continue;
+            }
+            try {
+                $prop->setValue($svc, $this->createMock($class));
+            } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
+                $ctor = (new \ReflectionClass($class))->getConstructor();
+                $args = [];
+                foreach ($ctor?->getParameters() ?? [] as $param) {
+                    $pType = $param->getType();
+                    $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
+                        ? $this->createMock($pType->getName())
+                        : null;
+                }
+                $prop->setValue($svc, new $class(...$args));
+            }
+        }
+        return $svc;
+    }
 }

@@ -70,8 +70,15 @@ class PageSearchProvider implements IProvider {
         }
 
         try {
-            // Try fast indexed search first (DB query, ~1ms)
-            $language = $this->config->getUserValue($user->getUID(), 'core', 'lang', 'en');
+            // Try fast indexed search first (DB query, ~1ms).
+            //
+            // Normalise the locale to a base code: Nextcloud stores 'nl_NL' or
+            // 'de_DE', while the index stores the language FOLDER name, which
+            // is always a 2-3 letter base code. Passing the raw locale matched
+            // zero rows, so for every user with a regional locale the fast path
+            // silently returned nothing and only the full scan answered.
+            $locale = $this->config->getUserValue($user->getUID(), 'core', 'lang', 'en');
+            $language = explode('_', str_replace('-', '_', $locale))[0];
             $indexedResults = $this->pageIndexService->searchByTitle($term, $language, $query->getLimit());
 
             // Title-index hits render first (fast path). We no longer return
