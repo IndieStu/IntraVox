@@ -25,6 +25,17 @@
       {{ t('intravox', 'Copy page') }}
     </NcActionButton>
 
+    <!-- Sits beside "Copy page" because that is what editors reach for when
+         they want this page somewhere else. Only on multilingual intranets:
+         on a single-language site the whole concept is noise. -->
+    <NcActionButton v-if="isMultilingual && canPerformAction('createPage')"
+                    @click="emitAndClose('translate-page')">
+      <template #icon>
+        <Translate :size="20" />
+      </template>
+      {{ t('intravox', 'Translate page') }}
+    </NcActionButton>
+
     <NcActionButton v-if="canPerformAction('saveAsTemplate')"
                     @click="emitAndClose('save-as-template')">
       <template #icon>
@@ -90,6 +101,7 @@ import FileDocumentMultipleOutline from 'vue-material-design-icons/FileDocumentM
 import Rss from 'vue-material-design-icons/Rss.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
+import Translate from 'vue-material-design-icons/Translate.vue';
 
 export default {
   name: 'PageActionsMenu',
@@ -104,7 +116,8 @@ export default {
     FileDocumentMultipleOutline,
     Rss,
     ContentCopy,
-    Delete
+    Delete,
+    Translate
   },
   props: {
     isEditMode: {
@@ -124,9 +137,18 @@ export default {
     isHome: {
       type: Boolean,
       default: false
+    },
+    /**
+     * Whether this intranet holds content in more than one language. Gates the
+     * Translate action: a single-language site must not carry a multilingual
+     * concept it never uses.
+     */
+    isMultilingual: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'delete-page'],
+  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'translate-page', 'delete-page'],
   computed: {
     // Group-presence flags drive the separators: a separator only renders
     // between two non-empty groups, so permission-gated hiding never leaves a

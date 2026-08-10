@@ -76,6 +76,7 @@
                          :is-edit-mode="isEditMode"
                          :permissions="pagePermissions"
                          :is-home="isCurrentPageHome"
+                         :is-multilingual="isMultilingual"
                          @edit-navigation="showNavigationEditor = true"
                          @create-page="createNewPage"
                          @rename-page="renameCurrentPage"
@@ -83,6 +84,7 @@
                          @save-as-template="showSaveAsTemplateModal = true"
                          @feed-settings="showFeedSettings = true"
                          @copy-page="copyCurrentPage"
+                         @translate-page="openTranslateDialog"
                          @delete-page="deleteCurrentPage" />
 
         <!-- Edit Mode Actions (Save/Cancel) -->
@@ -302,6 +304,50 @@
       @saved="handleTemplateSaved"
     />
 
+    <!-- Translate page: pick a language, get a linked draft to edit. The same
+         operation the sidebar's Translations tab offers, reachable from the
+         actions menu because creating a translation is an ACTION on the page —
+         alongside Copy and Rename — not something you go inspect in a panel. -->
+    <NcDialog v-if="showTranslateDialog"
+              :name="t('intravox', 'Translate page')"
+              :open="showTranslateDialog"
+              size="normal"
+              @update:open="showTranslateDialog = $event">
+      <div class="translate-dialog">
+        <p v-if="translateLanguages.length === 0" class="translate-dialog__empty">
+          {{ t('intravox', 'This page already exists in every language that has content.') }}
+        </p>
+        <template v-else>
+          <label class="translate-dialog__label" for="translate-language">
+            {{ t('intravox', 'Create this page in:') }}
+          </label>
+          <select id="translate-language"
+                  v-model="translateLanguage"
+                  class="translate-dialog__select"
+                  :disabled="translateWorking">
+            <option value="">{{ t('intravox', 'Choose a language …') }}</option>
+            <option v-for="lang in translateLanguages" :key="lang.code" :value="lang.code">
+              {{ lang.name }}
+            </option>
+          </select>
+          <p class="translate-dialog__hint">
+            {{ t('intravox', 'The content is copied as a starting point and saved as a draft. From then on both pages are independent — translating one never changes the other.') }}
+          </p>
+        </template>
+      </div>
+      <template #actions>
+        <NcButton @click="showTranslateDialog = false">
+          {{ t('intravox', 'Cancel') }}
+        </NcButton>
+        <NcButton v-if="translateLanguages.length > 0"
+                  type="primary"
+                  :disabled="!translateLanguage || translateWorking"
+                  @click="confirmTranslatePage">
+          {{ t('intravox', 'Create') }}
+        </NcButton>
+      </template>
+    </NcDialog>
+
     <FeedSettings
       v-if="showFeedSettings"
       @close="showFeedSettings = false"
@@ -432,6 +478,12 @@ export default {
       // Shared by the page-header action and the page-tree rename button.
       renameTarget: null,
       showSaveAsTemplateModal: false,
+      // "Translate page" from the actions menu: the languages this page can
+      // still be created in, and which one the editor picked.
+      showTranslateDialog: false,
+      translateLanguages: [],
+      translateLanguage: '',
+      translateWorking: false,
       showDetailsSidebar: false,
       breadcrumb: [],
       navigation: {
@@ -949,6 +1001,53 @@ export default {
       }
       const base = String(full).split('(')[0].trim();
       return base || String(full);
+    },
+    /**
+     * Open the "translate page" dialog, loading the languages this page can
+     * still be created in so the picker only ever offers a choice that works.
+     */
+    async openTranslateDialog() {
+      this.translateLanguage = '';
+      this.translateLanguages = [];
+      this.showTranslateDialog = true;
+      try {
+        const url = generateUrl(
+          `/apps/intravox/api/pages/${encodeURIComponent(this.currentPage.uniqueId)}/translatable-languages`
+        );
+        const response = await axios.get(url);
+        this.translateLanguages = response?.data?.languages || [];
+      } catch (err) {
+        showError(this.t('intravox', 'Could not load the available languages'));
+        this.showTranslateDialog = false;
+      }
+    },
+    /** Create the translation and open it, so the editor can start writing. */
+    async confirmTranslatePage() {
+      if (!this.translateLanguage) {
+        return;
+      }
+      this.translateWorking = true;
+      try {
+        const url = generateUrl(
+          `/apps/intravox/api/pages/${encodeURIComponent(this.currentPage.uniqueId)}/translations/create`
+        );
+        const response = await axios.post(url, { language: this.translateLanguage });
+        const created = response?.data?.page;
+        this.showTranslateDialog = false;
+        showSuccess(this.t('intravox', 'Translation created as a draft'));
+
+        // The page list is per language, so the new page is not in it — resolve
+        // it through the API the same way a cross-language link does.
+        if (created?.uniqueId) {
+          await this.resolvePageById(created.uniqueId);
+          await this.selectPage(created.uniqueId);
+        }
+      } catch (err) {
+        showError(err.response?.data?.error
+          || this.t('intravox', 'Could not create the translation'));
+      } finally {
+        this.translateWorking = false;
+      }
     },
     /**
      * Adopt the translation set after the editor linked or unlinked one, so the
@@ -2232,6 +2331,28 @@ export default {
   border: 1px solid var(--color-warning, #ffc107);
   text-transform: none;
   letter-spacing: 0;
+}
+
+/* Translate-page dialog */
+.translate-dialog {
+  padding: 8px 0 4px;
+}
+
+.translate-dialog__label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.translate-dialog__select {
+  width: 100%;
+}
+
+.translate-dialog__hint,
+.translate-dialog__empty {
+  margin: 10px 0 0;
+  color: var(--color-text-maxcontrast, #767676);
+  font-size: 0.9em;
 }
 
 /* Reader notice: this page is not in your language. Informational rather than

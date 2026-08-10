@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 2.0.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-10 16:31+0000\n"
+"POT-Creation-Date: 2026-08-10 16:38+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -768,6 +768,9 @@ msgstr ""
 msgid "Could not load people"
 msgstr ""
 
+msgid "Could not load the available languages"
+msgstr ""
+
 msgid "Could not load version: {error}"
 msgstr ""
 
@@ -826,6 +829,9 @@ msgid "Create templates by saving existing pages as templates"
 msgstr ""
 
 msgid "Create this page in another language"
+msgstr ""
+
+msgid "Create this page in:"
 msgstr ""
 
 msgid "Created"
@@ -3567,6 +3573,9 @@ msgstr ""
 msgid "This month"
 msgstr ""
 
+msgid "This page already exists in every language that has content."
+msgstr ""
+
 msgid "This page also exists in:"
 msgstr ""
 
@@ -3706,6 +3715,9 @@ msgid "Total user count and active users"
 msgstr ""
 
 msgid "Tracking concerns"
+msgstr ""
+
+msgid "Translate page"
 msgstr ""
 
 msgid "Translation created as a draft"
