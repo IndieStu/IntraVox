@@ -576,6 +576,33 @@ class PageService {
         }
 
         // Legacy default: the loose home.json in the language root.
+        //
+        // Resolve it to the uniqueId the file actually carries. Returning the
+        // bare string 'home' hands the frontend an id that matches no page in
+        // listPages(), so `pages.find(p => p.uniqueId === homepageUniqueId)`
+        // came up empty and the reader fell through to a slug/path heuristic
+        // that ends at `pages[0]` — the alphabetically first page. On dev that
+        // put every Dutch reader on "API Referentie" instead of "Welkom bij
+        // IntraVox", while English (which uses the normalised home/home.json
+        // layout, so it already had a real uniqueId) worked fine.
+        //
+        // Falls back to the literal 'home' when the file is missing or carries
+        // no uniqueId, which is the pre-existing behaviour and what the rest of
+        // the legacy path still understands.
+        try {
+            $folder = $this->getLanguageFolderByCode($lang);
+            $homeFile = $folder->get('home.json');
+            if ($homeFile instanceof \OCP\Files\File) {
+                $data = json_decode($this->getCachedFileContent($homeFile), true);
+                $homeUniqueId = is_array($data) ? ($data['uniqueId'] ?? null) : null;
+                if (is_string($homeUniqueId) && $homeUniqueId !== '') {
+                    return $homeUniqueId;
+                }
+            }
+        } catch (\Exception $e) {
+            // No loose home.json in this language — fall through.
+        }
+
         return 'home';
     }
 
@@ -2472,6 +2499,16 @@ class PageService {
         // Generate uniqueId if not provided
         if (!isset($data['uniqueId'])) {
             $data['uniqueId'] = 'page-' . $this->generateUUID();
+        }
+
+        // Every page belongs to a translation group, even when it is the only
+        // member. Giving each new page its own group from the start means
+        // "linked" and "not linked" are the same shape — there is no special
+        // case for an unlinked page, and linking later is a value change rather
+        // than a structural one. A caller that supplies a group (adding a
+        // translation of an existing page) keeps it.
+        if (empty($data['translationGroup'])) {
+            $data['translationGroup'] = 'tg-' . $this->generateUUID();
         }
 
         $validatedData = $this->validateAndSanitizePage($data);

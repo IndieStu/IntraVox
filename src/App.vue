@@ -338,8 +338,19 @@ const FeedSettings = defineAsyncComponent(() => import('./components/FeedSetting
 
 // Helper function to find home page
 const findHomePage = (pages) => {
-  // Try to find page with slug "home" or filename containing "home"
-  return pages.find(p => p.slug === 'home' || p.path?.toLowerCase().includes('/home.json')) || pages[0];
+  // Last-resort heuristic, used only when the server could not name the
+  // homepage. Note that `slug` and `path` are NOT part of what /api/pages
+  // returns (it carries uniqueId, title, modified, status, permissions), so
+  // both conditions below are effectively dead against the real payload and
+  // this collapses to pages[0] — the alphabetically first page.
+  //
+  // Kept as a guard against a blank screen rather than trusted: the correct
+  // answer comes from the server's homepageUniqueId, which now resolves the
+  // legacy loose home.json to its real uniqueId instead of the bare string
+  // 'home' (which matched no page and sent readers here).
+  return pages.find(p => p.slug === 'home' || p.path?.toLowerCase().includes('/home.json'))
+    || pages.find(p => p.uniqueId === 'home')
+    || pages[0];
 };
 
 export default {
