@@ -1,6 +1,6 @@
 {
-    "count": 1338,
-    "sha256": "e8893e644fb1051337bb4126888491321b42c9320f1a61b624cfdd0f5a27b7a5",
+    "count": 1339,
+    "sha256": "0042c0d99aadfd0e58a3442bb5e4608d00cbc558683d18a08a95d0297130bb29",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -1168,6 +1168,7 @@
         "Text documents",
         "Text:",
         "Thank you for helping improve IntraVox.",
+        "That page could not be found. Showing the home page instead.",
         "The export.json file is not valid JSON: {detail}",
         "The full URL of your SharePoint site. Found in your browser address bar.",
         "The IntraVox Team folder will be created automatically when you install demo data.",

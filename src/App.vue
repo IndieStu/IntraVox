@@ -728,11 +728,43 @@ export default {
           // is intra-page navigation, not a page identifier.
           if (!targetPage && hash && !isSectionAnchor(hash)) {
             const pageIdentifier = hash.substring(1); // Remove '#'
-
-            // Try to find page by ID or uniqueId
-            targetPage = this.pages.find(p => p.uniqueId === pageIdentifier || p.uniqueId === pageIdentifier);
+            targetPage = this.pages.find(p => p.uniqueId === pageIdentifier);
             if (targetPage) {
               foundInHash = true;
+            }
+          }
+
+          // The page list is ONE language — the one this reader is served — but
+          // a link can point at a page in any language. Before giving up, ask
+          // the server, which resolves across every language folder.
+          //
+          // Without this the backend's cross-language resolution is unreachable
+          // from the UI: a link to a page in another language fell through to
+          // the block below and landed the reader on their own homepage, with
+          // the address bar rewritten so the original link was lost. Sharing a
+          // page in a campaign therefore did not work at all unless every
+          // recipient happened to share the author's language.
+          if (!targetPage) {
+            const requestedId = uniqueIdFromUrl
+              || new URLSearchParams(window.location.search).get('page')
+              || (hash && !isSectionAnchor(hash) ? hash.substring(1) : null);
+
+            if (requestedId) {
+              const resolved = await this.resolvePageById(requestedId);
+              if (resolved) {
+                targetPage = resolved;
+                // Keep the URL as the sender wrote it.
+                foundInHash = true;
+              } else {
+                // The link named a page that does not exist. Say so: the
+                // homepage appearing instead, with the address bar quietly
+                // rewritten, gave the reader no way to tell the link had
+                // failed — they simply saw the wrong page.
+                showError(this.t(
+                  'intravox',
+                  'That page could not be found. Showing the home page instead.'
+                ));
+              }
             }
           }
 
@@ -772,6 +804,50 @@ export default {
         this.error = this.t('intravox', 'Could not load pages: {error}', { error: err.message });
       } finally {
         this.loading = false;
+      }
+    },
+    /**
+     * Ask the server for a page the local list does not contain.
+     *
+     * The list held in `this.pages` covers ONE language — whichever this reader
+     * is served — while a shared link can point at a page in any language. The
+     * API resolves across all of them, so this is what makes a link from a
+     * colleague working in another language actually open.
+     *
+     * Returns a list-shaped entry (uniqueId + title) or null when the page
+     * genuinely does not exist. Never throws: a failed lookup must fall through
+     * to the homepage, exactly as an unknown id always did.
+     */
+    async resolvePageById(pageId) {
+      if (!pageId || pageId === 'undefined' || isSectionAnchor(`#${pageId}`)) {
+        return null;
+      }
+      try {
+        const url = generateUrl(`/apps/intravox/api/pages/${encodeURIComponent(pageId)}`);
+        const response = await axios.get(url);
+        const page = response?.data;
+        if (!page?.uniqueId) {
+          return null;
+        }
+        // Add it to the local list so selectPage() and the rest of the UI can
+        // find it the same way they find a same-language page.
+        if (!this.pages.some(p => p.uniqueId === page.uniqueId)) {
+          this.pages.push({
+            uniqueId: page.uniqueId,
+            title: page.title,
+            modified: page.modified,
+            status: page.status,
+            permissions: page.permissions,
+          });
+        }
+        return page;
+      } catch (err) {
+        // 404 is the ordinary answer for a stale or mistyped link; anything
+        // else is worth a console note but must not break the load.
+        if (err.response?.status !== 404) {
+          console.warn('[IntraVox] Could not resolve page by id:', pageId, err.message);
+        }
+        return null;
       }
     },
     async selectPage(pageId, updateUrl = true) {
@@ -1686,7 +1762,7 @@ export default {
         console.error('IntraVox: Error reloading pages after restore:', err);
       }
     },
-    handleHashChange() {
+    async handleHashChange() {
       // Handle URL hash changes for navigation
       const hash = window.location.hash;
 
@@ -1714,12 +1790,25 @@ export default {
       if (targetPage) {
         // Don't update URL since we're already responding to a hash change
         this.selectPage(targetPage.uniqueId, false);
-      } else {
-        // Fall back to home
-        const homePage = this.resolveHomePage();
-        if (homePage) {
-          this.selectPage(homePage.uniqueId, true);
-        }
+        return;
+      }
+
+      // Not in this language's list — ask the server before giving up, the
+      // same as on first load. Without this, pasting a link to a page in
+      // another language back into the address bar bounced to the homepage
+      // and rewrote the URL, so the link could not be opened by any means.
+      const resolved = await this.resolvePageById(pageIdentifier);
+      if (resolved) {
+        this.selectPage(resolved.uniqueId, false);
+        return;
+      }
+
+      // Genuinely unknown: fall back to home, and say so rather than
+      // silently swapping the page out from under the reader.
+      showError(this.t('intravox', 'That page could not be found. Showing the home page instead.'));
+      const homePage = this.resolveHomePage();
+      if (homePage) {
+        this.selectPage(homePage.uniqueId, true);
       }
     },
     async handleVersionSelected(data) {
