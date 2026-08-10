@@ -1189,7 +1189,17 @@ class PageService {
         try {
             foreach ($this->languageService->getAvailableLanguages() as $lang) {
                 if (($lang['code'] ?? '') === $code) {
-                    return $lang['name'] ?? strtoupper($code);
+                    $name = $lang['name'] ?? '';
+                    if ($name === '') {
+                        return strtoupper($code);
+                    }
+                    // Nextcloud's names describe INTERFACE translations and
+                    // carry variant suffixes ('English (US)', 'Deutsch
+                    // (Persönlich: Du)'). A content folder is a plain code, so
+                    // drop the parenthesised part — "this page is in Deutsch
+                    // (Persönlich: Du)" is nonsense to a reader.
+                    $base = trim(explode('(', $name)[0]);
+                    return $base !== '' ? $base : $name;
                 }
             }
         } catch (\Throwable $e) {
@@ -1556,6 +1566,178 @@ class PageService {
         $this->clearCache();
 
         return $group;
+    }
+
+    /**
+     * Create this page in another language and link the two.
+     *
+     * The entry point an editor actually wants: "make this page in German".
+     * Linking two pages that already exist is the rarer case — normally the
+     * other version does not exist yet, and asking an editor to first create a
+     * blank page elsewhere, find it, and then link it is the workflow every
+     * mature CMS avoids. SharePoint's Translation button, Drupal's Translate
+     * tab and WPML's "+" all do exactly this in one step.
+     *
+     * The copy is a STARTING POINT, not a synchronised mirror: content is
+     * copied once, and from then on the two pages are independent. The German
+     * page may gain a widget the English one does not have. WPML's translation
+     * editor enforces structural parity and overwrites a diverging layout;
+     * Polylang free starts from a blank page and makes the editor rebuild it.
+     * This is the middle neither offers.
+     *
+     * Lands as a DRAFT: a machine-made copy in the wrong language is not
+     * something readers should meet before an editor has been through it.
+     *
+     * @param string $sourceUniqueId page to translate
+     * @param string $language target language code
+     * @param string|null $title title for the new page (defaults to the source's)
+     * @return array the created page
+     * @throws PageNotFoundException when the source does not exist
+     * @throws \InvalidArgumentException when the target language is invalid,
+     *   is the source's own, or already holds a version of this page
+     */
+    public function createTranslation(
+        string $sourceUniqueId,
+        string $language,
+        ?string $title = null
+    ): array {
+        if (!preg_match('/^[a-z]{2,3}$/', $language)) {
+            throw new \InvalidArgumentException('Invalid language code: ' . $language);
+        }
+
+        $source = $this->locatePageAnyLanguage($this->getReadLanguageFolder(), $sourceUniqueId);
+        if ($source === null || !isset($source['file'])) {
+            throw new PageNotFoundException('Page not found: ' . $sourceUniqueId);
+        }
+
+        $sourceLanguage = $this->languageOfFolder($source['folder']);
+        if ($sourceLanguage === $language) {
+            throw new \InvalidArgumentException(
+                'This page is already in that language.'
+            );
+        }
+
+        $sourceData = json_decode($source['file']->getContent(), true);
+        if (!is_array($sourceData)) {
+            throw new \InvalidArgumentException('Could not read the source page');
+        }
+
+        // One page per language per group — refuse rather than create a second
+        // German version that would make the switcher ambiguous.
+        $group = $sourceData['translationGroup'] ?? null;
+        if (!empty($group)) {
+            foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
+                if (($row['language'] ?? null) === $language) {
+                    throw new \InvalidArgumentException(
+                        'A version of this page already exists in that language.'
+                    );
+                }
+            }
+        }
+
+        // The target language folder must exist; creating one silently would
+        // add a language to the intranet as a side effect of translating.
+        try {
+            $targetFolder = $this->getIntraVoxFolder()->get($language);
+        } catch (NotFoundException $e) {
+            throw new \InvalidArgumentException(
+                'That language has no content folder yet. Add the language in the admin settings first.'
+            );
+        }
+        if (!($targetFolder instanceof \OCP\Files\Folder)) {
+            throw new \InvalidArgumentException('Invalid language folder: ' . $language);
+        }
+        if (!$targetFolder->isCreatable()) {
+            throw new ForbiddenException('You do not have permission to create a page in that language');
+        }
+
+        // Assign the group up front so both sides land linked in one write
+        // each, rather than being linked afterwards as a second step that
+        // could half-fail.
+        if (empty($group)) {
+            $group = 'tg-' . $this->generateUUID();
+            $this->writeTranslationGroup($source, $group);
+        }
+
+        $pageData = $sourceData;
+        unset($pageData['order']);
+        $baseTitle = $this->decodeHtmlEntitiesRecursive((string)($sourceData['title'] ?? 'Untitled'));
+        $pageData['title'] = ($title !== null && $title !== '') ? $title : $baseTitle;
+        $pageData['id'] = $this->sanitizeId($pageData['title']);
+        $pageData['uniqueId'] = 'page-' . $this->generateUUID();
+        $pageData['translationGroup'] = $group;
+        // Draft: an untranslated copy is not something readers should meet.
+        $pageData['status'] = 'draft';
+        $pageData['created'] = time();
+        $pageData['modified'] = time();
+
+        // Mirror the source's position within its own language tree, so the
+        // German page sits where the English one does rather than at the root.
+        $sourceRelative = $this->getRelativePathFromRoot($source['folder']);
+        $sourceParent = dirname($sourceRelative);
+        $parentPath = $language;
+        if ($sourceParent !== '.' && $sourceParent !== '') {
+            $segments = explode('/', $sourceParent);
+            // Swap the language segment for the target language; the rest of
+            // the path only exists in the target tree if the parents were
+            // translated too, and getOrCreateFolderPath() creates what is missing.
+            array_shift($segments);
+            $parentPath = $language . (empty($segments) ? '' : '/' . implode('/', $segments));
+        }
+
+        $created = $this->createPage($pageData, $parentPath);
+        $this->clearCache();
+
+        return $created;
+    }
+
+    /**
+     * Languages this page could still be created in.
+     *
+     * A language qualifies when it has a content folder, is not the page's own,
+     * and does not already hold a version of this page. Offering anything else
+     * would produce a control that fails when used.
+     *
+     * @return array<int, array{code:string, name:string}>
+     */
+    public function getTranslatableLanguages(string $pageId): array {
+        $result = $this->locatePageAnyLanguage($this->getReadLanguageFolder(), $pageId);
+        if ($result === null) {
+            throw new PageNotFoundException('Page not found: ' . $pageId);
+        }
+
+        $ownLanguage = $this->languageOfFolder($result['folder']);
+        $data = json_decode($result['file']->getContent(), true);
+        $group = is_array($data) ? ($data['translationGroup'] ?? null) : null;
+
+        $taken = [];
+        if (!empty($group)) {
+            foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
+                if (!empty($row['language'])) {
+                    $taken[(string)$row['language']] = true;
+                }
+            }
+        }
+
+        $languages = [];
+        foreach ($this->getCachedDirectoryListing($this->getIntraVoxFolder()) as $node) {
+            if (!($node instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            $code = $node->getName();
+            if (!preg_match('/^[a-z]{2,3}$/', $code)) {
+                continue;
+            }
+            if ($code === $ownLanguage || isset($taken[$code])) {
+                continue;
+            }
+            $languages[] = [
+                'code' => $code,
+                'name' => $this->languageDisplayName($code),
+            ];
+        }
+
+        return $languages;
     }
 
     /**

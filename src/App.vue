@@ -563,15 +563,14 @@ export default {
         return null;
       }
 
-      const names = this.languageContentStatus?.languageNames || {};
-      const pageLanguage = names[code] || code.toUpperCase();
+      const pageLanguage = this.contentLanguageName(code);
 
       // A version in the reader's own language, if the page has one.
       const target = (this.currentPage?.translations || [])
         .find(t => t.language === uiLang && t.status !== 'draft');
 
       if (target) {
-        const ownLanguage = names[uiLang] || uiLang.toUpperCase();
+        const ownLanguage = this.contentLanguageName(uiLang);
         return {
           text: this.t('intravox', 'This page is in {language}.', { language: pageLanguage }),
           switchLabel: this.t('intravox', 'Read it in {language}', { language: ownLanguage }),
@@ -599,8 +598,7 @@ export default {
       if (!uiLang || uiLang === code) {
         return null;
       }
-      const names = this.languageContentStatus?.languageNames || {};
-      const label = names[code] || code.toUpperCase();
+      const label = this.contentLanguageName(code);
       return {
         label,
         tooltip: this.t('intravox', 'This page is in {language}, not your own language. Editing it saves back to {language}.', { language: label }),
@@ -926,6 +924,31 @@ export default {
       } finally {
         this.loading = false;
       }
+    },
+    /**
+     * Display name for a CONTENT language.
+     *
+     * Nextcloud's language list describes INTERFACE translations, so its names
+     * carry variant suffixes: 'English (US)', 'Deutsch (Persönlich: Du)',
+     * 'Deutsch (Sie)'. Those distinguish translations of the UI, not languages
+     * content is written in — a content folder is plain `de`. Telling a reader
+     * "This page is in Deutsch (Persönlich: Du)" is nonsense, so the
+     * parenthesised part is dropped.
+     *
+     * Falls back to the uppercased code when the language is unknown, so an
+     * exotic content folder still reads as 'EO' rather than nothing.
+     */
+    contentLanguageName(code) {
+      if (!code) {
+        return '';
+      }
+      const names = this.languageContentStatus?.languageNames || {};
+      const full = names[code];
+      if (!full) {
+        return String(code).toUpperCase();
+      }
+      const base = String(full).split('(')[0].trim();
+      return base || String(full);
     },
     /**
      * Adopt the translation set after the editor linked or unlinked one, so the

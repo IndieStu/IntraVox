@@ -35,7 +35,42 @@
 				{{ t('intravox', 'This page is not linked to a version in another language yet.') }}
 			</p>
 
-			<!-- Link an existing page in another language. -->
+			<!-- Create this page in another language. The primary action: the
+			     other version usually does not exist yet, and making an editor
+			     first create a blank page elsewhere, find it and then link it
+			     is the workflow every mature CMS avoids. -->
+			<div class="translations-create">
+				<label class="translations-create__label" :for="createId">
+					{{ t('intravox', 'Create this page in another language') }}
+				</label>
+				<div class="translations-create__row">
+					<select :id="createId"
+							v-model="createLanguage"
+							class="translations-create__select"
+							:disabled="working || availableLanguages.length === 0">
+						<option value="">
+							{{ availableLanguages.length === 0
+								? t('intravox', 'Already in every language')
+								: t('intravox', 'Choose a language …') }}
+						</option>
+						<option v-for="lang in availableLanguages"
+								:key="lang.code"
+								:value="lang.code">
+							{{ lang.name }}
+						</option>
+					</select>
+					<button class="translations-create__button"
+							:disabled="working || !createLanguage"
+							@click="create">
+						{{ t('intravox', 'Create') }}
+					</button>
+				</div>
+				<p class="translations-create__hint">
+					{{ t('intravox', 'The content is copied as a starting point and saved as a draft. From then on both pages are independent — translating one never changes the other.') }}
+				</p>
+			</div>
+
+			<!-- Link a page that already exists in another language. -->
 			<div class="translations-add">
 				<label class="translations-add__label" :for="selectId">
 					{{ t('intravox', 'Link an existing page as a translation') }}
@@ -105,7 +140,9 @@ export default {
 		return {
 			translations: [...this.initialTranslations],
 			candidates: [],
+			availableLanguages: [],
 			selected: '',
+			createLanguage: '',
 			loading: false,
 			working: false,
 		}
@@ -113,6 +150,9 @@ export default {
 	computed: {
 		selectId() {
 			return `translation-target-${this.pageId}`
+		},
+		createId() {
+			return `translation-create-${this.pageId}`
 		},
 	},
 	watch: {
@@ -128,23 +168,67 @@ export default {
 		t(app, text, vars) {
 			return translate(app, text, vars)
 		},
+		/**
+		 * Display name for a CONTENT language.
+		 *
+		 * Nextcloud's names describe INTERFACE translations and carry variant
+		 * suffixes ('English (US)', 'Deutsch (Persönlich: Du)'). Content folders
+		 * are plain codes, so the parenthesised part is dropped — an editor
+		 * picking a translation should see 'Deutsch', not a UI-variant label.
+		 */
 		languageName(code) {
-			return this.languageNames[code] || String(code).toUpperCase()
+			const full = this.languageNames[code]
+			if (!full) {
+				return String(code).toUpperCase()
+			}
+			const base = String(full).split('(')[0].trim()
+			return base || String(full)
 		},
 		async loadCandidates() {
 			this.loading = true
+			const base = `/apps/intravox/api/pages/${encodeURIComponent(this.pageId)}`
 			try {
-				const url = generateUrl(
-					`/apps/intravox/api/pages/${encodeURIComponent(this.pageId)}/translation-candidates`
-				)
-				const response = await axios.get(url)
-				this.candidates = response?.data?.candidates || []
+				const [candidates, languages] = await Promise.all([
+					axios.get(generateUrl(`${base}/translation-candidates`)),
+					axios.get(generateUrl(`${base}/translatable-languages`)),
+				])
+				this.candidates = candidates?.data?.candidates || []
+				this.availableLanguages = languages?.data?.languages || []
 			} catch (err) {
 				// A failing picker must not break the sidebar it lives in.
-				console.warn('[IntraVox] Could not load translation candidates:', err.message)
+				console.warn('[IntraVox] Could not load translation options:', err.message)
 				this.candidates = []
+				this.availableLanguages = []
 			} finally {
 				this.loading = false
+			}
+		},
+		async create() {
+			if (!this.createLanguage) {
+				return
+			}
+			this.working = true
+			try {
+				const url = generateUrl(
+					`/apps/intravox/api/pages/${encodeURIComponent(this.pageId)}/translations/create`
+				)
+				const response = await axios.post(url, { language: this.createLanguage })
+				this.translations = response?.data?.translations || []
+				const created = response?.data?.page
+				this.createLanguage = ''
+				await this.loadCandidates()
+				this.$emit('changed', this.translations)
+				showSuccess(this.t('intravox', 'Translation created as a draft'))
+				// Open it straight away: the editor asked to make this page in
+				// another language, so the next thing they want is to edit it.
+				if (created?.uniqueId) {
+					this.$emit('navigate', created.uniqueId)
+				}
+			} catch (err) {
+				showError(err.response?.data?.error
+					|| this.t('intravox', 'Could not create the translation'))
+			} finally {
+				this.working = false
 			}
 		},
 		async link() {
@@ -260,6 +344,52 @@ export default {
 .translations-add__button:disabled {
 	opacity: 0.5;
 	cursor: default;
+}
+
+.translations-create {
+	margin-top: 16px;
+	padding: 12px;
+	border: 1px solid var(--color-border, #dbdbdb);
+	border-radius: var(--border-radius-large, 12px);
+	background: var(--color-background-hover, #f5f5f5);
+}
+
+.translations-create__label {
+	display: block;
+	margin-bottom: 6px;
+	font-weight: 600;
+}
+
+.translations-create__row {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+
+.translations-create__select {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.translations-create__button {
+	flex: 0 0 auto;
+	padding: 4px 12px;
+	border: 1px solid var(--color-primary-element, #0082c9);
+	border-radius: var(--border-radius, 8px);
+	background: var(--color-primary-element, #0082c9);
+	color: var(--color-primary-element-text, #fff);
+	cursor: pointer;
+}
+
+.translations-create__button:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.translations-create__hint {
+	margin: 8px 0 0;
+	font-size: 0.9em;
+	color: var(--color-text-maxcontrast, #767676);
 }
 
 .translations-add {

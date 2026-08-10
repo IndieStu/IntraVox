@@ -1332,6 +1332,62 @@ class ApiController extends Controller {
     }
 
     /**
+     * Create this page in another language, as a linked draft.
+     *
+     * The entry point editors actually reach for — "make this page in German" —
+     * rather than creating a blank page elsewhere and linking it afterwards.
+     *
+     * @NoAdminRequired
+     */
+    public function createTranslation(
+        string $pageId,
+        ?string $language = null,
+        ?string $title = null
+    ): DataResponse {
+        try {
+            if (!is_string($language) || $language === '') {
+                return new DataResponse(['error' => 'language is required'], Http::STATUS_BAD_REQUEST);
+            }
+
+            $created = $this->pageService->createTranslation($pageId, $language, $title);
+            return new DataResponse([
+                'success' => true,
+                'page' => $created,
+                'translations' => $this->pageService->getPage($pageId)['translations'] ?? [],
+            ], Http::STATUS_CREATED);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (ForbiddenException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+        } catch (\InvalidArgumentException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Languages this page could still be created in.
+     *
+     * Excludes the page's own language and any language that already holds a
+     * version of it, so the "add translation" control only ever offers a
+     * choice that will succeed.
+     *
+     * @NoAdminRequired
+     */
+    public function getTranslatableLanguages(string $pageId): DataResponse {
+        try {
+            return new DataResponse([
+                'languages' => $this->pageService->getTranslatableLanguages($pageId),
+            ]);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * Copy a page into a new draft (issue: copy page).
      *
      * @NoAdminRequired

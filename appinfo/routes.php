@@ -68,6 +68,8 @@ return [
         ['name' => 'api#linkTranslation', 'url' => '/api/pages/{pageId}/translations', 'verb' => 'POST'],
         ['name' => 'api#unlinkTranslation', 'url' => '/api/pages/{pageId}/translations', 'verb' => 'DELETE'],
         ['name' => 'api#getTranslationCandidates', 'url' => '/api/pages/{pageId}/translation-candidates', 'verb' => 'GET'],
+        ['name' => 'api#createTranslation', 'url' => '/api/pages/{pageId}/translations/create', 'verb' => 'POST'],
+        ['name' => 'api#getTranslatableLanguages', 'url' => '/api/pages/{pageId}/translatable-languages', 'verb' => 'GET'],
 
         // Setup route
         ['name' => 'api#runSetup', 'url' => '/api/setup', 'verb' => 'POST'],
