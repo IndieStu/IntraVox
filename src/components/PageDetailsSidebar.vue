@@ -121,11 +121,33 @@
       </div>
     </NcAppSidebarTab>
 
+    <!-- Translations Tab.
+         Only rendered when the intranet actually has more than one content
+         language: on a single-language install this whole concept is noise,
+         and the majority of installs are single-language. Multilingual UI that
+         everyone pays for is the documented failure of the WordPress plugins. -->
+    <NcAppSidebarTab
+      v-if="isMultilingual"
+      id="translations-tab"
+      :name="t('intravox', 'Translations')"
+      :order="3"
+    >
+      <template #icon>
+        <Translate :size="20" />
+      </template>
+      <TranslationsPanel
+        :page-id="pageId"
+        :initial-translations="translations"
+        :language-names="languageNames"
+        @navigate="$emit('navigate', $event)"
+        @changed="$emit('translations-changed', $event)" />
+    </NcAppSidebarTab>
+
     <!-- Versions Tab - Uses IntraVox versions API (leverages Nextcloud/GroupFolders versioning) -->
     <NcAppSidebarTab
       id="versions-tab"
       :name="t('intravox', 'Versions')"
-      :order="3"
+      :order="4"
     >
       <template #icon>
         <History :size="20" />
@@ -232,7 +254,9 @@ import { NcAppSidebar, NcAppSidebarTab, NcButton, NcDialog } from '@nextcloud/vu
 import History from 'vue-material-design-icons/History.vue';
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue';
 import Restore from 'vue-material-design-icons/Restore.vue';
+import Translate from 'vue-material-design-icons/Translate.vue';
 import MetaVoxIcon from './icons/MetaVoxIcon.vue';
+import TranslationsPanel from './TranslationsPanel.vue';
 
 export default {
   name: 'PageDetailsSidebar',
@@ -244,7 +268,9 @@ export default {
     History,
     InformationOutline,
     MetaVoxIcon,
-    Restore
+    Restore,
+    Translate,
+    TranslationsPanel
   },
   props: {
     isOpen: {
@@ -259,12 +285,38 @@ export default {
       type: String,
       default: ''
     },
+    /** Other language versions of this page, as returned with the page. */
+    translations: {
+      type: Array,
+      default: () => []
+    },
+    /** language code => display name, for the translations tab. */
+    languageNames: {
+      type: Object,
+      default: () => ({})
+    },
+    /**
+     * Whether this intranet has more than one content language. Gates the
+     * Translations tab: a single-language install must not pay for a
+     * multilingual concept it never uses.
+     */
+    isMultilingual: {
+      type: Boolean,
+      default: false
+    },
     initialTab: {
       type: String,
       default: 'details-tab'
     }
   },
-  emits: ['close', 'version-restored', 'version-selected', 'metadata-saved'],
+  emits: [
+    'close',
+    'version-restored',
+    'version-selected',
+    'metadata-saved',
+    'navigate',
+    'translations-changed'
+  ],
   data() {
     return {
       activeTab: 'details-tab',

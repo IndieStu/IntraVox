@@ -1255,6 +1255,83 @@ class ApiController extends Controller {
     }
 
     /**
+     * Link a page to another language version of itself.
+     *
+     * Both pages end up in one translation group. Symmetric: neither becomes
+     * the "source", so removing one language later shrinks the group instead
+     * of orphaning the other.
+     *
+     * @NoAdminRequired
+     */
+    public function linkTranslation(string $pageId, ?string $targetUniqueId = null): DataResponse {
+        try {
+            if (!is_string($targetUniqueId) || $targetUniqueId === '') {
+                return new DataResponse(
+                    ['error' => 'targetUniqueId is required'],
+                    Http::STATUS_BAD_REQUEST
+                );
+            }
+
+            $group = $this->pageService->linkTranslation($pageId, $targetUniqueId);
+            return new DataResponse([
+                'success' => true,
+                'translationGroup' => $group,
+                'translations' => $this->pageService->getPage($pageId)['translations'] ?? [],
+            ]);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (ForbiddenException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+        } catch (\InvalidArgumentException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_BAD_REQUEST);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Detach a page from its translation group.
+     *
+     * Acts on this page only — the other language versions stay linked to each
+     * other. Nothing is inferred or re-linked afterwards.
+     *
+     * @NoAdminRequired
+     */
+    public function unlinkTranslation(string $pageId): DataResponse {
+        try {
+            $this->pageService->unlinkTranslation($pageId);
+            return new DataResponse(['success' => true, 'translations' => []]);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (ForbiddenException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Pages in OTHER languages that this page could be linked to.
+     *
+     * Powers the editor's "add translation" picker. Excludes the page's own
+     * language — a group holds one page per language — and pages already in a
+     * group with something else, so linking cannot silently steal a page out of
+     * an existing set.
+     *
+     * @NoAdminRequired
+     */
+    public function getTranslationCandidates(string $pageId, ?string $language = null): DataResponse {
+        try {
+            $candidates = $this->pageService->getTranslationCandidates($pageId, $language);
+            return new DataResponse(['candidates' => $candidates]);
+        } catch (PageNotFoundException $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_NOT_FOUND);
+        } catch (\Exception $e) {
+            return new DataResponse(['error' => $e->getMessage()], Http::STATUS_INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
      * Copy a page into a new draft (issue: copy page).
      *
      * @NoAdminRequired

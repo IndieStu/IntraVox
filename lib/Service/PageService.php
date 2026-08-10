@@ -1559,6 +1559,83 @@ class PageService {
     }
 
     /**
+     * Pages this page could be linked to as a translation.
+     *
+     * Excludes three sets, each for a reason:
+     *   - the page's own language, since a group holds one page per language;
+     *   - pages already in a group with something else, so linking cannot
+     *     silently steal a page out of an existing set;
+     *   - the page itself.
+     *
+     * Answered from the index, so the picker stays cheap on a large intranet.
+     *
+     * @param string|null $language limit to one language, or null for all others
+     * @return array<int, array{uniqueId:string, title:string, language:string}>
+     */
+    public function getTranslationCandidates(string $pageId, ?string $language = null): array {
+        $folder = $this->getReadLanguageFolder();
+        $result = $this->locatePageAnyLanguage($folder, $pageId);
+        if ($result === null) {
+            throw new PageNotFoundException('Page not found: ' . $pageId);
+        }
+
+        $ownLanguage = $this->languageOfFolder($result['folder']);
+        $ownData = json_decode($result['file']->getContent(), true);
+        $ownGroup = is_array($ownData) ? ($ownData['translationGroup'] ?? null) : null;
+
+        // Languages to offer: everything with content except this page's own.
+        $languages = [];
+        foreach ($this->getCachedDirectoryListing($this->getIntraVoxFolder()) as $node) {
+            if (!($node instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            $code = $node->getName();
+            if (!preg_match('/^[a-z]{2,3}$/', $code) || $code === $ownLanguage) {
+                continue;
+            }
+            if ($language !== null && $code !== $language) {
+                continue;
+            }
+            $languages[] = $code;
+        }
+
+        $candidates = [];
+        foreach ($languages as $code) {
+            foreach ($this->pageIndexService->getPagesByLanguage($code) as $row) {
+                $uniqueId = (string)($row['unique_id'] ?? '');
+                if ($uniqueId === '' || $uniqueId === $pageId) {
+                    continue;
+                }
+
+                // Already linked to something else — offering it would mean
+                // silently removing it from that group.
+                $group = $row['translation_group'] ?? null;
+                if (!empty($group) && $group !== $ownGroup && $this->groupHasOtherMembers($group, $uniqueId)) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'uniqueId' => $uniqueId,
+                    'title' => (string)($row['title'] ?? ''),
+                    'language' => $code,
+                ];
+            }
+        }
+
+        return $candidates;
+    }
+
+    /** Whether a translation group holds anyone besides $uniqueId. */
+    private function groupHasOtherMembers(string $group, string $uniqueId): bool {
+        foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
+            if (($row['unique_id'] ?? null) !== $uniqueId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Detach a page from its translation group.
      *
      * The page gets a fresh group of its own rather than none at all, so

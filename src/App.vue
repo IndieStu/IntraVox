@@ -157,7 +157,26 @@
         {{ error }}
       </div>
 
-      <main v-else class="intravox-content" id="intravox-main-content">
+      <main v-else class="intravox-content" id="intravox-main-content"
+            :lang="contentLanguageAttr">
+        <!-- Content is not in the reader's own language. Shown to READERS, not
+             just editors: without it a reader simply meets an unexpected
+             language with no explanation, and a screen reader would pronounce
+             it with the wrong phonemes (the :lang above fixes that half, WCAG
+             3.1.2). Offers the switch when a version in their language exists;
+             otherwise it just explains. Never redirects — a shared link must
+             open the page it names. -->
+        <div v-if="contentLanguageNotice" class="content-language-notice" role="status">
+          <span class="content-language-notice__text">
+            {{ contentLanguageNotice.text }}
+          </span>
+          <button v-if="contentLanguageNotice.target"
+                  class="content-language-notice__switch"
+                  @click="selectPage(contentLanguageNotice.target.uniqueId)">
+            {{ contentLanguageNotice.switchLabel }}
+          </button>
+        </div>
+
         <!-- Breadcrumb row with Details button -->
         <div class="breadcrumb-row">
           <Breadcrumb v-if="breadcrumb.length > 0"
@@ -205,10 +224,15 @@
         :page-id="currentPage?.uniqueId"
         :page-name="currentPage?.title || t('intravox', 'Untitled page')"
         :initial-tab="sidebarInitialTab"
+        :translations="currentPage?.translations || []"
+        :language-names="languageContentStatus?.languageNames || {}"
+        :is-multilingual="isMultilingual"
         @close="handleCloseSidebar"
         @version-restored="handleVersionRestored"
         @version-selected="handleVersionSelected"
         @metadata-saved="refreshPublicationState"
+        @navigate="selectPage"
+        @translations-changed="handleTranslationsChanged"
       />
     </div>
 
@@ -488,6 +512,79 @@ export default {
      * Like the publication badge it is only shown to users who can write, since
      * it is authoring information rather than something a reader acts on.
      */
+    /**
+     * Whether this intranet actually holds content in more than one language.
+     *
+     * Gates every piece of translation UI. Most intranets are single-language,
+     * and making that majority carry a multilingual concept they never use is
+     * the documented failure of the WordPress plugins — install either and
+     * every editor pays the cost whether or not a second language exists.
+     */
+    isMultilingual() {
+      const langs = this.languageContentStatus?.languagesWithContent;
+      return Array.isArray(langs) && langs.length > 1;
+    },
+    /**
+     * The `lang` for the content region.
+     *
+     * Only set when the page differs from the interface language. Unlabelled
+     * fallback content is a WCAG 3.1.2 failure, not a nicety: text inside a
+     * `lang="de"` document is positively asserted to BE German, so a screen
+     * reader applies German phonemes to a Dutch page.
+     */
+    contentLanguageAttr() {
+      const code = this.currentPage?.language;
+      if (!code) {
+        return null;
+      }
+      const uiLang = (this.currentLanguage || '').split(/[-_]/)[0];
+      return uiLang && uiLang !== code ? code : null;
+    },
+    /**
+     * Reader-facing notice when the page is not in their own language.
+     *
+     * Two shapes, and the difference matters:
+     *   - a version in the reader's language exists → explain AND offer to
+     *     switch, so following a shared link never traps them;
+     *   - it does not → only explain, so they know why the language changed.
+     *
+     * Deliberately never redirects. Every platform researched that auto-
+     * redirected on language (SharePoint's old Variations) abandoned it, and
+     * both W3C and Google are explicit: offer, do not force. A campaign link
+     * has to open the page it names.
+     */
+    contentLanguageNotice() {
+      const code = this.currentPage?.language;
+      if (!code) {
+        return null;
+      }
+      const uiLang = (this.currentLanguage || '').split(/[-_]/)[0];
+      if (!uiLang || uiLang === code) {
+        return null;
+      }
+
+      const names = this.languageContentStatus?.languageNames || {};
+      const pageLanguage = names[code] || code.toUpperCase();
+
+      // A version in the reader's own language, if the page has one.
+      const target = (this.currentPage?.translations || [])
+        .find(t => t.language === uiLang && t.status !== 'draft');
+
+      if (target) {
+        const ownLanguage = names[uiLang] || uiLang.toUpperCase();
+        return {
+          text: this.t('intravox', 'This page is in {language}.', { language: pageLanguage }),
+          switchLabel: this.t('intravox', 'Read it in {language}', { language: ownLanguage }),
+          target,
+        };
+      }
+
+      return {
+        text: this.t('intravox', 'This page is in {language}.', { language: pageLanguage }),
+        switchLabel: null,
+        target: null,
+      };
+    },
     pageLanguageBadge() {
       if (!this.canEditCurrentPage) {
         return null;
@@ -828,6 +925,15 @@ export default {
         this.error = this.t('intravox', 'Could not load pages: {error}', { error: err.message });
       } finally {
         this.loading = false;
+      }
+    },
+    /**
+     * Adopt the translation set after the editor linked or unlinked one, so the
+     * reader notice and the switcher update without a page reload.
+     */
+    handleTranslationsChanged(translations) {
+      if (this.currentPage) {
+        this.currentPage = { ...this.currentPage, translations: translations || [] };
       }
     },
     /**
@@ -2103,6 +2209,44 @@ export default {
   border: 1px solid var(--color-warning, #ffc107);
   text-transform: none;
   letter-spacing: 0;
+}
+
+/* Reader notice: this page is not in your language. Informational rather than
+   a warning — the page is fine, it just is not the language you expected — so
+   it uses the neutral background tokens, not the amber of the Draft badge. */
+.content-language-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--color-border, #dbdbdb);
+  border-radius: var(--border-radius-large, 12px);
+  background: var(--color-background-hover, #f5f5f5);
+  color: var(--color-main-text, #222);
+  font-size: 0.95em;
+}
+
+.content-language-notice__text {
+  flex: 1 1 auto;
+}
+
+.content-language-notice__switch {
+  flex: 0 0 auto;
+  padding: 4px 12px;
+  border: 1px solid var(--color-primary-element, #0082c9);
+  border-radius: var(--border-radius, 8px);
+  background: transparent;
+  color: var(--color-primary-element, #0082c9);
+  cursor: pointer;
+  font-size: inherit;
+}
+
+.content-language-notice__switch:hover,
+.content-language-notice__switch:focus-visible {
+  background: var(--color-primary-element, #0082c9);
+  color: var(--color-primary-element-text, #fff);
 }
 
 /* Read-only publication-state chip shown in edit mode when a Publish-on date

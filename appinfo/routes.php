@@ -64,6 +64,11 @@ return [
         ['name' => 'footer#save', 'url' => '/api/footer', 'verb' => 'POST'],
         ['name' => 'api#setHomepage', 'url' => '/api/homepage', 'verb' => 'POST'],
 
+        // Translation links between the language versions of a page.
+        ['name' => 'api#linkTranslation', 'url' => '/api/pages/{pageId}/translations', 'verb' => 'POST'],
+        ['name' => 'api#unlinkTranslation', 'url' => '/api/pages/{pageId}/translations', 'verb' => 'DELETE'],
+        ['name' => 'api#getTranslationCandidates', 'url' => '/api/pages/{pageId}/translation-candidates', 'verb' => 'GET'],
+
         // Setup route
         ['name' => 'api#runSetup', 'url' => '/api/setup', 'verb' => 'POST'],
 

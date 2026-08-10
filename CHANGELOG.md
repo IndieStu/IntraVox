@@ -4,6 +4,46 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.0.0] - 2026-08-10 — Pages know their translations, and large intranets stay fast
+
+This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and rebuilds the foundation it rests on. Upgrading needs no action: the database change is a single optional column, and nothing has to be converted.
+
+### Added
+
+- **A page can now say which languages it exists in.** Until now the Dutch and German version of the same subject were entirely unrelated — nothing linked them, so nothing could offer a reader the other one. Pages can be linked as language versions of each other from the **Translations** tab in the page sidebar.
+
+  Linked pages stay fully separate: each language keeps its own content, layout and publication state, and a page may exist in one language only. Linking says "these are the same subject", nothing more. It is symmetric — there is no "original" and no "copies" — so removing one language shrinks the set instead of breaking the others.
+
+- **Readers are told when a page is not in their language, and offered the version that is.** Opening a link to a page written in another language shows a short notice above the content; when a version in the reader's own language exists, one click switches to it.
+
+  The link always wins: a page you share opens the page you shared, never a redirect to something else. That matters for anyone sending a link in a newsletter or campaign — the recipient sees what the sender saw.
+
+  The content region now also carries the correct language for screen readers, which previously pronounced a foreign-language page with the wrong phonemes.
+
+- **`occ intravox:reindex`** rebuilds the page index from the page files. Use it after a restore or migration, or whenever pages behave as if they are missing while the files are plainly there.
+
+### Changed
+
+- **Large intranets are dramatically faster.** Finding a page used to read and parse every page file in every language folder. On a 3,000-page, 3-language intranet that was up to 7,500 file reads for a single page view; it is now one indexed lookup. The page list no longer reads every file either.
+
+- **Saving a page that someone else changed in the meantime is now refused instead of silently overwriting it.** Pages are stored whole, so the second of two concurrent saves used to erase everything the first had written. Editors are asked to reload; the existing page lock still prevents the common case.
+
+### Fixed
+
+- **The intranet could show its first-run "Welcome to IntraVox" screen even though it was full of pages** — for every user except the one whose account happened to write the index entries. Page locations were stored per user, so they never resolved for anyone else.
+
+- **The wrong page could open as the homepage.** Intranets whose homepage is a `home.json` in the language root landed readers on the alphabetically first page instead. Both homepage layouts now resolve correctly, and a homepage configured by an admin still wins.
+
+- **Search missed the fast path for anyone with a regional locale** (`nl_NL`, `de_DE`, …), quietly falling back to a full scan on every query.
+
+- Moving or deleting a page left its sub-pages pointing at folders that no longer existed, and imported pages never entered the index at all.
+
+### Upgrade notes
+
+No action required. The database change is one optional column; existing pages keep working untouched and are simply not linked to any translation until an editor links them. Running `occ intravox:reindex` once after upgrading makes the speed improvements take effect immediately — without it, they arrive gradually as pages are edited.
+
+Sites with a single content language see no translation features anywhere.
+
 ## [1.9.8] - 2026-08-09 — Moving, copying and version tools work across languages
 
 ### Fixed

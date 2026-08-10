@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 1.9.8\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-10 14:44+0000\n"
+"POT-Creation-Date: 2026-08-10 16:16+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -528,6 +528,9 @@ msgstr ""
 msgid "Checking capabilities …"
 msgstr ""
 
+msgid "Choose a page …"
+msgstr ""
+
 msgid "Choose which part of the image is visible when cropped"
 msgstr ""
 
@@ -735,6 +738,9 @@ msgstr ""
 msgid "Could not delete page: {error}"
 msgstr ""
 
+msgid "Could not link the translation"
+msgstr ""
+
 msgid "Could not load feed. Check the connection settings."
 msgstr ""
 
@@ -781,6 +787,9 @@ msgid "Could not set homepage: {error}"
 msgstr ""
 
 msgid "Could not start editing: {error}"
+msgstr ""
+
+msgid "Could not unlink the translation"
 msgstr ""
 
 msgid "Could not unlock page: {error}"
@@ -1917,6 +1926,9 @@ msgstr ""
 msgid "Link"
 msgstr ""
 
+msgid "Link an existing page as a translation"
+msgstr ""
+
 msgid "Link background:"
 msgstr ""
 
@@ -1936,6 +1948,9 @@ msgid "Link to:"
 msgstr ""
 
 msgid "Link:"
+msgstr ""
+
+msgid "Linked pages stay separate: each language keeps its own content and layout. Linking only tells readers where else this page exists."
 msgstr ""
 
 msgid "Links"
@@ -2005,6 +2020,9 @@ msgid "Loading shares …"
 msgstr ""
 
 msgid "Loading templates …"
+msgstr ""
+
+msgid "Loading translations …"
 msgstr ""
 
 msgid "Loading versions …"
@@ -2331,6 +2349,9 @@ msgstr ""
 msgid "No pages available"
 msgstr ""
 
+msgid "No pages available to link"
+msgstr ""
+
 msgid "No pages created yet."
 msgstr ""
 
@@ -2473,6 +2494,9 @@ msgid "Open photo {name}"
 msgstr ""
 
 msgid "Open sharing settings"
+msgstr ""
+
+msgid "Open this translation"
 msgstr ""
 
 msgid "Open work packages"
@@ -2851,6 +2875,9 @@ msgid "React"
 msgstr ""
 
 msgid "Reactions & comments"
+msgstr ""
+
+msgid "Read it in {language}"
 msgstr ""
 
 msgid "read-only"
@@ -3525,6 +3552,9 @@ msgstr ""
 msgid "This month"
 msgstr ""
 
+msgid "This page also exists in:"
+msgstr ""
+
 msgid "This page has expired: its expiration date has passed, so it is hidden from readers. Change or clear the expiration date to make it visible again."
 msgstr ""
 
@@ -3534,7 +3564,13 @@ msgstr ""
 msgid "This page is in {language}, not your own language. Editing it saves back to {language}."
 msgstr ""
 
+msgid "This page is in {language}."
+msgstr ""
+
 msgid "This page is not available or the share link has expired."
+msgstr ""
+
+msgid "This page is not linked to a version in another language yet."
 msgstr ""
 
 msgid "This page is not shared publicly"
@@ -3657,6 +3693,15 @@ msgstr ""
 msgid "Tracking concerns"
 msgstr ""
 
+msgid "Translation linked"
+msgstr ""
+
+msgid "Translation unlinked"
+msgstr ""
+
+msgid "Translations"
+msgstr ""
+
 msgid "Travel diary with timeline rail"
 msgstr ""
 
@@ -3688,6 +3733,12 @@ msgid "Unknown platform"
 msgstr ""
 
 msgid "Unknown widget type: {type}"
+msgstr ""
+
+msgid "Unlink"
+msgstr ""
+
+msgid "Unlink this translation"
 msgstr ""
 
 msgid "Unlock"
