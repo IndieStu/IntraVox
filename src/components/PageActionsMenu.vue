@@ -36,6 +36,20 @@
       {{ t('intravox', 'Translate page') }}
     </NcActionButton>
 
+    <!-- Version history and Translate page both open the sidebar rather than
+         doing something here. They are INSPECTION, not actions — bodies of
+         information about this page — so the sidebar is their home and this is
+         an accelerator to it. Versions had no menu entry at all, and with four
+         sidebar tabs its label was being truncated, which is why an editor
+         could not find it. -->
+    <NcActionButton v-if="canPerformAction('editPage')"
+                    @click="emitAndClose('version-history')">
+      <template #icon>
+        <History :size="20" />
+      </template>
+      {{ t('intravox', 'Version history') }}
+    </NcActionButton>
+
     <NcActionButton v-if="canPerformAction('saveAsTemplate')"
                     @click="emitAndClose('save-as-template')">
       <template #icon>
@@ -102,6 +116,7 @@ import Rss from 'vue-material-design-icons/Rss.vue';
 import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
 import Translate from 'vue-material-design-icons/Translate.vue';
+import History from 'vue-material-design-icons/History.vue';
 
 export default {
   name: 'PageActionsMenu',
@@ -117,7 +132,8 @@ export default {
     Rss,
     ContentCopy,
     Delete,
-    Translate
+    Translate,
+    History
   },
   props: {
     isEditMode: {
@@ -148,7 +164,7 @@ export default {
       default: false
     }
   },
-  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'translate-page', 'delete-page'],
+  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'translate-page', 'version-history', 'delete-page'],
   computed: {
     // Group-presence flags drive the separators: a separator only renders
     // between two non-empty groups, so permission-gated hiding never leaves a

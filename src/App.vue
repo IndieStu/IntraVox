@@ -84,7 +84,8 @@
                          @save-as-template="showSaveAsTemplateModal = true"
                          @feed-settings="showFeedSettings = true"
                          @copy-page="copyCurrentPage"
-                         @translate-page="openTranslateDialog"
+                         @translate-page="openSidebarTab('translations-tab')"
+                         @version-history="openSidebarTab('versions-tab')"
                          @delete-page="deleteCurrentPage" />
 
         <!-- Edit Mode Actions (Save/Cancel) -->
@@ -238,12 +239,6 @@
       />
     </div>
 
-    <PageListModal
-      v-if="showPages"
-      :pages="pages"
-      @close="showPages = false"
-      @select="selectPage"
-      @delete="deletePage"
     />
 
     <PageTreeModal
@@ -304,78 +299,6 @@
       @saved="handleTemplateSaved"
     />
 
-    <!-- Translate page: pick a language, get a linked draft to edit. The same
-         operation the sidebar's Translations tab offers, reachable from the
-         actions menu because creating a translation is an ACTION on the page —
-         alongside Copy and Rename — not something you go inspect in a panel. -->
-    <!-- v-if alone, without :open. NcDialog opens on mount, so a dialog that is
-         only created when it should already be open must not also be told to
-         open — pairing the two leaves it created but never shown, which is why
-         the menu item appeared to do nothing. Matches the other dialogs here. -->
-    <NcDialog v-if="showTranslateDialog"
-              :name="t('intravox', 'Translate page')"
-              size="normal"
-              @closing="showTranslateDialog = false">
-      <div class="translate-dialog">
-        <!-- What already exists comes FIRST. Asking to translate a page that is
-             already translated is a fair question — the honest answer is "it
-             exists, here it is" rather than an empty picker or a dead end. Shown
-             as links rather than navigating automatically: the editor asked to
-             translate, not to be moved somewhere else. -->
-        <div v-if="existingTranslations.length > 0" class="translate-dialog__existing">
-          <p class="translate-dialog__label">
-            {{ t('intravox', 'This page already exists in:') }}
-          </p>
-          <button v-for="item in existingTranslations"
-                  :key="item.uniqueId"
-                  class="translate-dialog__existing-item"
-                  @click="goToTranslation(item.uniqueId)">
-            <span class="translate-dialog__existing-lang">{{ contentLanguageName(item.language) }}</span>
-            <span class="translate-dialog__existing-title">{{ item.title }}</span>
-            <span v-if="item.status === 'draft'" class="translate-dialog__existing-draft">
-              {{ t('intravox', 'Draft') }}
-            </span>
-          </button>
-        </div>
-
-        <p v-if="translateLanguages.length === 0" class="translate-dialog__empty">
-          {{ existingTranslations.length > 0
-            ? t('intravox', 'There are no other languages left to translate into.')
-            : t('intravox', 'There is no other language with content to translate into yet.') }}
-        </p>
-        <template v-else>
-          <label class="translate-dialog__label" for="translate-language">
-            {{ existingTranslations.length > 0
-              ? t('intravox', 'Also create it in:')
-              : t('intravox', 'Create this page in:') }}
-          </label>
-          <select id="translate-language"
-                  v-model="translateLanguage"
-                  class="translate-dialog__select"
-                  :disabled="translateWorking">
-            <option value="">{{ t('intravox', 'Choose a language …') }}</option>
-            <option v-for="lang in translateLanguages" :key="lang.code" :value="lang.code">
-              {{ lang.name }}
-            </option>
-          </select>
-          <p class="translate-dialog__hint">
-            {{ t('intravox', 'The content is copied as a starting point and saved as a draft. From then on both pages are independent — translating one never changes the other.') }}
-          </p>
-        </template>
-      </div>
-      <template #actions>
-        <NcButton @click="showTranslateDialog = false">
-          {{ t('intravox', 'Cancel') }}
-        </NcButton>
-        <NcButton v-if="translateLanguages.length > 0"
-                  type="primary"
-                  :disabled="!translateLanguage || translateWorking"
-                  @click="confirmTranslatePage">
-          {{ t('intravox', 'Create') }}
-        </NcButton>
-      </template>
-    </NcDialog>
-
     <FeedSettings
       v-if="showFeedSettings"
       @close="showFeedSettings = false"
@@ -422,7 +345,6 @@ import './metavox-integration.js'; // Load MetaVox integration
 // Lazy-loaded components (only loaded when needed)
 // This reduces initial bundle size and improves first load performance
 const PageEditor = defineAsyncComponent(() => import('./components/PageEditor.vue'));
-const PageListModal = defineAsyncComponent(() => import('./components/PageListModal.vue'));
 const PageTreeModal = defineAsyncComponent(() => import('./components/PageTreeModal.vue'));
 const NewPageModal = defineAsyncComponent(() => import('./components/NewPageModal.vue'));
 const RenamePageModal = defineAsyncComponent(() => import('./components/RenamePageModal.vue'));
@@ -467,7 +389,6 @@ export default {
     Information,
     PageViewer,
     PageEditor,
-    PageListModal,
     PageTreeModal,
     RenamePageModal,
     NewPageModal,
@@ -493,7 +414,6 @@ export default {
       isEditMode: false,
       loading: true,
       error: null,
-      showPages: false,
       showPageTree: false,
       showMoveDialog: false,
       homepageUniqueId: null,
@@ -506,12 +426,6 @@ export default {
       // Shared by the page-header action and the page-tree rename button.
       renameTarget: null,
       showSaveAsTemplateModal: false,
-      // "Translate page" from the actions menu: the languages this page can
-      // still be created in, and which one the editor picked.
-      showTranslateDialog: false,
-      translateLanguages: [],
-      translateLanguage: '',
-      translateWorking: false,
       showDetailsSidebar: false,
       breadcrumb: [],
       navigation: {
@@ -603,10 +517,6 @@ export default {
     isMultilingual() {
       const langs = this.languageContentStatus?.languagesWithContent;
       return Array.isArray(langs) && langs.length > 1;
-    },
-    /** Language versions of this page that already exist, for the dialog. */
-    existingTranslations() {
-      return this.currentPage?.translations || [];
     },
     /**
      * The `lang` for the content region.
@@ -1035,65 +945,44 @@ export default {
       return base || String(full);
     },
     /**
-     * Open the "translate page" dialog, loading the languages this page can
-     * still be created in so the picker only ever offers a choice that works.
-     */
-    async openTranslateDialog() {
-      this.translateLanguage = '';
-      this.translateLanguages = [];
-      this.showTranslateDialog = true;
-      try {
-        const url = generateUrl(
-          `/apps/intravox/api/pages/${encodeURIComponent(this.currentPage.uniqueId)}/translatable-languages`
-        );
-        const response = await axios.get(url);
-        this.translateLanguages = response?.data?.languages || [];
-      } catch (err) {
-        showError(this.t('intravox', 'Could not load the available languages'));
-        this.showTranslateDialog = false;
-      }
-    },
-    /**
-     * Open an existing translation from the dialog.
+     * Open the details sidebar on a given tab.
      *
-     * Explicit click, never automatic: the editor asked to translate this page,
-     * so being silently moved to another one would be the same surprise a
-     * language redirect on a shared link causes.
+     * The single route from the actions menu into the sidebar, shared by
+     * "Translate page" and "Version history". Both are INSPECTION — bodies of
+     * information about this page — so they live in the sidebar, and the menu
+     * entry is an accelerator to them rather than a second implementation.
+     * (NN/g and Apple HIG both call for exactly this: commands hidden in a menu
+     * should have a visible home elsewhere, and vice versa.)
+     *
+     * Order is load-bearing: set the tab, THEN open. PageDetailsSidebar applies
+     * `initialTab` on the closed->open edge only, so opening first would leave
+     * it on whatever tab was last shown.
+     *
+     * @param {string} tabId id of the NcAppSidebarTab to activate
      */
-    async goToTranslation(uniqueId) {
-      this.showTranslateDialog = false;
-      // The page list is per language, so a translation is not in it — resolve
-      // it the same way a cross-language link does.
-      await this.resolvePageById(uniqueId);
-      await this.selectPage(uniqueId);
-    },
-    /** Create the translation and open it, so the editor can start writing. */
-    async confirmTranslatePage() {
-      if (!this.translateLanguage) {
+    async openSidebarTab(tabId) {
+      if (!this.currentPage?.uniqueId) {
+        showError(this.t('intravox', 'Open a page first'));
         return;
       }
-      this.translateWorking = true;
-      try {
-        const url = generateUrl(
-          `/apps/intravox/api/pages/${encodeURIComponent(this.currentPage.uniqueId)}/translations/create`
-        );
-        const response = await axios.post(url, { language: this.translateLanguage });
-        const created = response?.data?.page;
-        this.showTranslateDialog = false;
-        showSuccess(this.t('intravox', 'Translation created as a draft'));
-
-        // The page list is per language, so the new page is not in it — resolve
-        // it through the API the same way a cross-language link does.
-        if (created?.uniqueId) {
-          await this.resolvePageById(created.uniqueId);
-          await this.selectPage(created.uniqueId);
-        }
-      } catch (err) {
-        showError(err.response?.data?.error
-          || this.t('intravox', 'Could not create the translation'));
-      } finally {
-        this.translateWorking = false;
+      // A tab that is conditionally rendered does not exist on every install,
+      // and NcAppSidebar silently falls back to the first tab rather than
+      // failing — the wrong destination with no explanation. Refuse instead.
+      if (tabId === 'translations-tab' && !this.isMultilingual) {
+        return;
       }
+
+      // Already open? The initialTab watcher deliberately refuses to act while
+      // the sidebar is open (so a prop change cannot override the tab the user
+      // picked). Close it first so the edge fires, rather than weakening that
+      // guard for everyone else.
+      if (this.showDetailsSidebar) {
+        this.showDetailsSidebar = false;
+        await this.$nextTick();
+      }
+
+      this.sidebarInitialTab = tabId;
+      this.showDetailsSidebar = true;
     },
     /**
      * Adopt the translation set after the editor linked or unlinked one, so the
@@ -1208,7 +1097,6 @@ export default {
           this.currentPage = cached;
           this.breadcrumb = cached.breadcrumb || [];
           this.isEditMode = false;
-          this.showPages = false;
           this.loading = false;
 
           // Update URL and metadata immediately from cache
@@ -1247,7 +1135,6 @@ export default {
         }
 
         this.isEditMode = false;
-        this.showPages = false;
 
         // Update cache
         CacheService.set(cacheKey, response.data);
@@ -1692,7 +1579,6 @@ export default {
             this.currentPage = newPage;
             this.breadcrumb = newPage.breadcrumb || [];
             this.isEditMode = false;
-            this.showPages = false;
 
             await this.$nextTick();
             await this.startEditMode();
@@ -1974,9 +1860,6 @@ export default {
         }
         if (done) done(false);
       }
-    },
-    showPageList() {
-      this.showPages = true;
     },
     async loadNavigation() {
       try {
@@ -2377,77 +2260,6 @@ export default {
   border: 1px solid var(--color-warning, #ffc107);
   text-transform: none;
   letter-spacing: 0;
-}
-
-/* Translate-page dialog */
-.translate-dialog {
-  padding: 8px 0 4px;
-}
-
-.translate-dialog__label {
-  display: block;
-  margin-bottom: 6px;
-  font-weight: 600;
-}
-
-.translate-dialog__select {
-  width: 100%;
-}
-
-.translate-dialog__hint,
-.translate-dialog__empty {
-  margin: 10px 0 0;
-  color: var(--color-text-maxcontrast, #767676);
-  font-size: 0.9em;
-}
-
-.translate-dialog__existing {
-  margin-bottom: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--color-border, #dbdbdb);
-}
-
-.translate-dialog__existing-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid var(--color-border, #dbdbdb);
-  border-radius: var(--border-radius, 8px);
-  background: var(--color-main-background, #fff);
-  color: var(--color-main-text, #222);
-  cursor: pointer;
-  text-align: left;
-  font-size: inherit;
-}
-
-.translate-dialog__existing-item + .translate-dialog__existing-item {
-  margin-top: 6px;
-}
-
-.translate-dialog__existing-item:hover,
-.translate-dialog__existing-item:focus-visible {
-  background: var(--color-background-hover, #f5f5f5);
-}
-
-.translate-dialog__existing-lang {
-  flex: 0 0 auto;
-  font-weight: 600;
-}
-
-.translate-dialog__existing-title {
-  flex: 1 1 auto;
-  color: var(--color-primary-element, #0082c9);
-}
-
-.translate-dialog__existing-draft {
-  flex: 0 0 auto;
-  padding: 1px 6px;
-  border-radius: var(--border-radius, 8px);
-  background: var(--color-warning-light, #fff3cd);
-  color: var(--color-warning-text, #6d5003);
-  font-size: 0.8em;
 }
 
 /* Reader notice: this page is not in your language. Informational rather than

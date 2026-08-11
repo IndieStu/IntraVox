@@ -26,38 +26,14 @@
       </div>
 
       <div v-else-if="metadata" class="metadata-container">
-        <!-- Editable Title -->
+        <!-- Name is READ-ONLY here. Renaming lives in the actions menu and the
+             page tree; a third path from this panel used a different endpoint
+             (PUT /metadata instead of the rename call), so two code paths could
+             drift apart for one action. The sidebar shows, the menu does. -->
         <div class="metadata-row">
           <label class="metadata-label">{{ t('intravox', 'Name') }}</label>
-          <div class="metadata-value metadata-editable">
-            <input
-              v-if="editingTitle"
-              v-model="editableTitle"
-              type="text"
-              class="title-input"
-              @keydown.enter="saveTitle"
-              @keydown.esc="cancelTitleEdit"
-            />
-            <span v-else class="metadata-text" :class="{ 'metadata-text--editable': canEditTitle }" @click="startTitleEdit">
-              {{ metadata.title || t('intravox', 'Untitled') }}
-            </span>
-            <NcButton
-              v-if="editingTitle"
-              type="primary"
-              @click="saveTitle"
-              :disabled="savingTitle"
-              size="small"
-            >
-              {{ t('intravox', 'Save') }}
-            </NcButton>
-            <NcButton
-              v-if="editingTitle"
-              type="secondary"
-              @click="cancelTitleEdit"
-              size="small"
-            >
-              {{ t('intravox', 'Cancel') }}
-            </NcButton>
+          <div class="metadata-value">
+            {{ metadata.title || t('intravox', 'Untitled') }}
           </div>
         </div>
 
@@ -98,25 +74,21 @@
           <label class="metadata-label">{{ t('intravox', 'UID') }}</label>
           <div class="metadata-value metadata-monospace">{{ metadata.uniqueId }}</div>
         </div>
-      </div>
-    </NcAppSidebarTab>
 
-    <!-- MetaVox Tab (only if MetaVox app is installed) -->
-    <NcAppSidebarTab
-      v-if="metaVoxInstalled"
-      id="metavox-tab"
-      :name="t('intravox', 'MetaVox')"
-      :order="2"
-    >
-      <template #icon>
-        <MetaVoxIcon :size="20" />
-      </template>
-      <div ref="metavoxContainer" class="metavox-container">
-        <div v-if="loadingMetaVox" class="loading">
-          {{ t('intravox', 'Loading MetaVox …') }}
-        </div>
-        <div v-else-if="!metaVoxInstalled" class="empty-state">
-          <p>{{ t('intravox', 'MetaVox app is not installed') }}</p>
+        <!-- MetaVox properties, as a SECTION rather than a fourth tab.
+             Nextcloud's own guideline: "Do not use more than 3 tabs in the
+             sidebar, the names of the tabs then start getting cut off." With
+             four tabs each label gets a quarter of the width and is truncated,
+             which is why an editor could not find Versions. Core folds Comments
+             into Activity for the same reason. Both this and Details describe
+             properties of the page, so the split was never meaningful anyway. -->
+        <div v-if="metaVoxInstalled" class="metadata-section">
+          <h3 class="metadata-section__title">{{ t('intravox', 'MetaVox') }}</h3>
+          <div ref="metavoxContainer" class="metavox-container">
+            <div v-if="loadingMetaVox" class="loading">
+              {{ t('intravox', 'Loading MetaVox …') }}
+            </div>
+          </div>
         </div>
       </div>
     </NcAppSidebarTab>
@@ -130,7 +102,7 @@
       v-if="isMultilingual"
       id="translations-tab"
       :name="t('intravox', 'Translations')"
-      :order="3"
+      :order="2"
     >
       <template #icon>
         <Translate :size="20" />
@@ -147,7 +119,7 @@
     <NcAppSidebarTab
       id="versions-tab"
       :name="t('intravox', 'Versions')"
-      :order="4"
+      :order="3"
     >
       <template #icon>
         <History :size="20" />
@@ -330,9 +302,6 @@ export default {
       metadata: null,
       loadingMetadata: false,
       metadataError: null,
-      editingTitle: false,
-      editableTitle: '',
-      savingTitle: false,
       metaVoxInstalled: false,
       loadingMetaVox: false,
       selectedVersion: null,
@@ -345,10 +314,6 @@ export default {
   computed: {
     pageSubtitle() {
       return this.t('intravox', 'Page details and history');
-    },
-    canEditTitle() {
-      // Check write permission using Nextcloud's permissions
-      return this.metadata?.permissions?.canWrite ?? this.metadata?.canEdit ?? false;
     },
     currentVersionDate() {
       // Use the relativeTime from currentVersion API response (like Files app)
@@ -381,7 +346,15 @@ export default {
         this.activeTab = this.initialTab || 'details-tab';
         // Only load metadata (for details tab - default)
         this.loadMetadata().catch(() => {});
-        this.checkMetaVoxInstalled();
+        // MetaVox is a section inside Details now, and Details is the tab the
+        // sidebar opens on. Dispatch explicitly rather than relying on a
+        // watcher: metaVoxInstalled may already be true from a previous open,
+        // in which case it never changes and the watcher never fires.
+        this.checkMetaVoxInstalled().then(() => {
+          this.$nextTick(() => {
+            this.dispatchMetaVoxUpdate();
+          });
+        });
       }
     },
     pageId() {
@@ -406,9 +379,13 @@ export default {
       if (newTab === 'versions-tab' && !this.versionsLoaded) {
         this.loadVersions();
         this.versionsLoaded = true;
-      } else if (newTab === 'details-tab' && !this.metadata) {
-        this.loadMetadata().catch(() => {});
-      } else if (newTab === 'metavox-tab' && this.metaVoxInstalled) {
+      } else if (newTab === 'details-tab') {
+        if (!this.metadata) {
+          this.loadMetadata().catch(() => {});
+        }
+        // MetaVox now renders as a SECTION inside Details rather than its own
+        // tab, so its mount has to be triggered here. Missing this left the
+        // MetaVox heading visible with nothing under it.
         this.$nextTick(() => {
           this.dispatchMetaVoxUpdate();
         });
@@ -423,7 +400,7 @@ export default {
     },
     metaVoxInstalled(newValue) {
       // If MetaVox just became available and the tab is already active, dispatch update
-      if (newValue && this.activeTab === 'metavox-tab') {
+      if (newValue && this.activeTab === 'details-tab') {
         this.$nextTick(() => {
           this.dispatchMetaVoxUpdate();
         });
@@ -561,7 +538,7 @@ export default {
       if (newTabId === 'versions-tab' && !this.versionsLoaded) {
         this.loadVersions();
         this.versionsLoaded = true;
-      } else if (newTabId === 'metavox-tab' && this.metaVoxInstalled) {
+      } else if (newTabId === 'details-tab' && this.metaVoxInstalled) {
         this.$nextTick(() => {
           this.dispatchMetaVoxUpdate();
         });
@@ -653,52 +630,6 @@ export default {
         this.metadataError = error.response?.data?.error || this.t('intravox', 'Failed to load properties');
       } finally {
         this.loadingMetadata = false;
-      }
-    },
-    startTitleEdit() {
-      // Check write permission using Nextcloud's permissions
-      const canWrite = this.metadata?.permissions?.canWrite ?? this.metadata?.canEdit ?? false;
-      if (!canWrite) {
-        return;
-      }
-      this.editableTitle = this.metadata.title;
-      this.editingTitle = true;
-      // Focus input after Vue updates the DOM
-      this.$nextTick(() => {
-        const input = this.$el.querySelector('.title-input');
-        if (input) {
-          input.focus();
-          input.select();
-        }
-      });
-    },
-    cancelTitleEdit() {
-      this.editingTitle = false;
-      this.editableTitle = '';
-    },
-    async saveTitle() {
-      if (!this.editableTitle.trim()) {
-        showError(this.t('intravox', 'Title cannot be empty'));
-        return;
-      }
-
-      this.savingTitle = true;
-
-      try {
-        const url = generateUrl(`/apps/intravox/api/pages/${this.pageId}/metadata`);
-        const response = await axios.put(url, {
-          title: this.editableTitle.trim()
-        });
-        this.metadata = response.data;
-        this.editingTitle = false;
-        showSuccess(this.t('intravox', 'Title updated'));
-      } catch (error) {
-        console.error('Failed to update title:', error);
-        showError(this.t('intravox', 'Failed to update title: {error}', {
-          error: error.response?.data?.error || error.message
-        }));
-      } finally {
-        this.savingTitle = false;
       }
     },
     async checkMetaVoxInstalled() {
