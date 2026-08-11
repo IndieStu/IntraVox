@@ -1686,6 +1686,13 @@ class PageService {
         }
 
         $created = $this->createPage($pageData, $parentPath);
+
+        // A translation starts as a copy of the source, so it needs the
+        // source's images too — the same way copyPage does it. Without this the
+        // text carried over but every image 404'd, because the JSON stores bare
+        // file names that resolve against the page being viewed.
+        $this->copyPageMedia($source['folder'] ?? null, $created['uniqueId'], 'createTranslation');
+
         $this->clearCache();
 
         return $created;
@@ -8847,23 +8854,7 @@ class PageService {
         $createdPage = $this->createPage($pageData, $parentPath);
 
         // Copy media assets from the source page folder into the copy.
-        try {
-            if (isset($source['folder']) && $source['folder']->nodeExists('_media')) {
-                $sourceMedia = $source['folder']->get('_media');
-                $newPageFolder = $this->findPageFolder($createdPage['uniqueId']);
-                if ($newPageFolder && $sourceMedia instanceof \OCP\Files\Folder) {
-                    if (!$newPageFolder->nodeExists('_media')) {
-                        $newPageFolder->newFolder('_media');
-                    }
-                    $targetMedia = $newPageFolder->get('_media');
-                    if ($targetMedia instanceof \OCP\Files\Folder) {
-                        $this->copyMediaFolderContents($sourceMedia, $targetMedia);
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            $this->logger->warning('copyPage: media copy failed', ['error' => $e->getMessage()]);
-        }
+        $this->copyPageMedia($source['folder'] ?? null, $createdPage['uniqueId'], 'copyPage');
 
         $this->clearCache();
 
@@ -8871,6 +8862,50 @@ class PageService {
             return $this->getPage($createdPage['uniqueId']);
         } catch (\Exception $e) {
             return $createdPage;
+        }
+    }
+
+    /**
+     * Give a newly derived page its own copy of the source page's media.
+     *
+     * A page's images live in a `_media` folder beside its JSON, and the JSON
+     * stores only the FILE NAME — the URL is built client-side from whichever
+     * page is being viewed (see WidgetEditor.vue:696). So a derived page needs
+     * the files themselves and nothing rewritten; without them every image
+     * resolves to a 404 under the new page id.
+     *
+     * Copies rather than shares the files, so editing or deleting an image on
+     * the translation cannot alter the original.
+     *
+     * Failure is logged, not thrown: losing the images is bad, but it is not
+     * worth discarding a page that was already written to disk.
+     *
+     * @param \OCP\Files\Folder|null $sourceFolder folder holding the source page
+     * @param string $newUniqueId the derived page
+     * @param string $context caller name, for the log line
+     */
+    private function copyPageMedia(?\OCP\Files\Folder $sourceFolder, string $newUniqueId, string $context): void {
+        try {
+            if ($sourceFolder === null || !$sourceFolder->nodeExists('_media')) {
+                return;
+            }
+            $sourceMedia = $sourceFolder->get('_media');
+            if (!($sourceMedia instanceof \OCP\Files\Folder)) {
+                return;
+            }
+            $newPageFolder = $this->findPageFolder($newUniqueId);
+            if ($newPageFolder === null) {
+                return;
+            }
+            if (!$newPageFolder->nodeExists('_media')) {
+                $newPageFolder->newFolder('_media');
+            }
+            $targetMedia = $newPageFolder->get('_media');
+            if ($targetMedia instanceof \OCP\Files\Folder) {
+                $this->copyMediaFolderContents($sourceMedia, $targetMedia);
+            }
+        } catch (\Exception $e) {
+            $this->logger->warning($context . ': media copy failed', ['error' => $e->getMessage()]);
         }
     }
 
