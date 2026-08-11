@@ -84,6 +84,7 @@
                          @save-as-template="showSaveAsTemplateModal = true"
                          @feed-settings="showFeedSettings = true"
                          @copy-page="copyCurrentPage"
+                         @show-details="openSidebarTab('details-tab')"
                          @translate-page="openSidebarTab('translations-tab')"
                          @version-history="openSidebarTab('versions-tab')"
                          @delete-page="deleteCurrentPage" />

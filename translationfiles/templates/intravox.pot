@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 2.0.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-11 06:05+0000\n"
+"POT-Creation-Date: 2026-08-11 06:44+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3676,9 +3676,6 @@ msgid "Total user count and active users"
 msgstr ""
 
 msgid "Tracking concerns"
-msgstr ""
-
-msgid "Translate page"
 msgstr ""
 
 msgid "Translation created as a draft"

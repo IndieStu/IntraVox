@@ -25,30 +25,6 @@
       {{ t('intravox', 'Copy page') }}
     </NcActionButton>
 
-    <!-- Sits beside "Copy page" because that is what editors reach for when
-         they want this page somewhere else. Only on multilingual intranets:
-         on a single-language site the whole concept is noise. -->
-    <NcActionButton v-if="isMultilingual && canPerformAction('createPage')"
-                    @click="emitAndClose('translate-page')">
-      <template #icon>
-        <Translate :size="20" />
-      </template>
-      {{ t('intravox', 'Translate page') }}
-    </NcActionButton>
-
-    <!-- Version history and Translate page both open the sidebar rather than
-         doing something here. They are INSPECTION, not actions — bodies of
-         information about this page — so the sidebar is their home and this is
-         an accelerator to it. Versions had no menu entry at all, and with four
-         sidebar tabs its label was being truncated, which is why an editor
-         could not find it. -->
-    <NcActionButton v-if="canPerformAction('editPage')"
-                    @click="emitAndClose('version-history')">
-      <template #icon>
-        <History :size="20" />
-      </template>
-      {{ t('intravox', 'Version history') }}
-    </NcActionButton>
 
     <NcActionButton v-if="canPerformAction('saveAsTemplate')"
                     @click="emitAndClose('save-as-template')">
@@ -58,8 +34,45 @@
       {{ t('intravox', 'Save as template') }}
     </NcActionButton>
 
-    <!-- Separator A → B: only between two non-empty groups -->
-    <NcActionSeparator v-if="hasPageGroup && (hasCreateGroup || hasUtilityGroup)" />
+    <!-- Separator A → INFO -->
+    <NcActionSeparator v-if="hasPageGroup && hasInfoGroup" />
+
+    <!-- ===== Group INFO — the sidebar =====
+         Every item here opens the SAME sidebar on a different tab. Grouped
+         rather than scattered because that is what the grouping says: these
+         belong together and lead to one place. Nextcloud Files puts its
+         "Details" entry straight in the action menu too (sidebarAction.ts,
+         order -50); the difference is that a page has three panels worth
+         reaching where a file row has one.
+
+         MetaVox deliberately has NO entry: the app may not be installed, and a
+         menu whose shape changes per install is exactly the inconsistency this
+         grouping exists to remove. Its fields live under Details, which is one
+         click away. -->
+    <NcActionButton @click="emitAndClose('show-details')">
+      <template #icon>
+        <InformationOutline :size="20" />
+      </template>
+      {{ t('intravox', 'Details') }}
+    </NcActionButton>
+
+    <NcActionButton v-if="isMultilingual"
+                    @click="emitAndClose('translate-page')">
+      <template #icon>
+        <Translate :size="20" />
+      </template>
+      {{ t('intravox', 'Translations') }}
+    </NcActionButton>
+
+    <NcActionButton @click="emitAndClose('version-history')">
+      <template #icon>
+        <History :size="20" />
+      </template>
+      {{ t('intravox', 'Version history') }}
+    </NcActionButton>
+
+    <!-- Separator INFO → B: only between two non-empty groups -->
+    <NcActionSeparator v-if="hasInfoGroup && (hasCreateGroup || hasUtilityGroup)" />
 
     <!-- ===== Group B — Site / structure ===== -->
     <NcActionButton v-if="canPerformAction('createPage')"
@@ -117,6 +130,7 @@ import ContentCopy from 'vue-material-design-icons/ContentCopy.vue';
 import Delete from 'vue-material-design-icons/Delete.vue';
 import Translate from 'vue-material-design-icons/Translate.vue';
 import History from 'vue-material-design-icons/History.vue';
+import InformationOutline from 'vue-material-design-icons/InformationOutline.vue';
 
 export default {
   name: 'PageActionsMenu',
@@ -133,7 +147,8 @@ export default {
     ContentCopy,
     Delete,
     Translate,
-    History
+    History,
+    InformationOutline
   },
   props: {
     isEditMode: {
@@ -164,7 +179,7 @@ export default {
       default: false
     }
   },
-  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'translate-page', 'version-history', 'delete-page'],
+  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'show-details', 'translate-page', 'version-history', 'delete-page'],
   computed: {
     // Group-presence flags drive the separators: a separator only renders
     // between two non-empty groups, so permission-gated hiding never leaves a
@@ -175,6 +190,11 @@ export default {
       return this.canPerformAction('editPage')
         || this.canPerformAction('createPage')
         || this.canPerformAction('saveAsTemplate');
+    },
+    // The sidebar group. Details and Versions are ungated — anyone who can read
+    // a page may inspect it — so this group is always present.
+    hasInfoGroup() {
+      return true;
     },
     // Group B — site/structure.
     hasCreateGroup() {

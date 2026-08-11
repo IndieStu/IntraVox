@@ -1,6 +1,6 @@
 {
-    "count": 1351,
-    "sha256": "f6004fcf013ca48294b589797d516f35854b306323ad64b21165e86b323600c8",
+    "count": 1350,
+    "sha256": "076f6cbf91377415f00565c836b591d177a42fc0c419871dd436a5d910f81ac6",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -1239,7 +1239,6 @@
         "Total",
         "Total user count and active users",
         "Tracking concerns",
-        "Translate page",
         "Translation created as a draft",
         "Translation linked",
         "Translation unlinked",
