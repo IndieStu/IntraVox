@@ -45,6 +45,7 @@ De Engelstalige referentie behandelt de volgende categorieën:
 | **Pages-API** | CRUD voor pagina's, layout, widgets |
 | **Page-layout & widgets** | Widget-types, JSON-schema's, voorbeelden |
 | **Media-API** | Upload, download en verwijderen van afbeeldingen, video, bestanden |
+| **Translations-API** | Vertalingen aanmaken/koppelen/ontkoppelen; kandidaten en beschikbare talen (sinds 2.0) |
 | **Versioning-API** | Pagina-versies tonen, preview, restore |
 | **Comments-API** | Comments aanmaken, bewerken, verwijderen |
 | **Reactions-API** | Emoji-reacties op pagina's en comments |

@@ -760,6 +760,45 @@ IntraVox/
         └── nieuwe-pagina.json
 ```
 
+## Vertalingen
+
+*Sinds 2.0.* Een pagina kan gekoppeld worden aan zijn versies in andere talen. Open de paginazijbalk (de ⓘ-knop, of **…-menu → Vertalingen**) en gebruik de tab **Vertalingen**. Op een eentalig intranet verschijnt dit alles niet.
+
+### Deze pagina in een andere taal aanmaken
+
+1. Kies een taal onder **Maak deze pagina in een andere taal**
+2. Klik op **Aanmaken**
+
+![De tab Vertalingen: gekoppelde versies, aanmaken-in-een-andere-taal en de melding over ontbrekende bovenliggende pagina's](../../screenshots/translations-create.png)
+
+De inhoud wordt als startpunt gekopieerd — inclusief de afbeeldingen van de pagina — en als **concept** opgeslagen op dezelfde plek in de boom van de doeltaal. Vanaf dat moment zijn beide pagina's volledig onafhankelijk: de één vertalen verandert nooit de ander. De nieuwe pagina wordt automatisch aan de bron gekoppeld, zodat lezers van beide versies de ander kunnen vinden.
+
+Bestaan bovenliggende pagina's nog niet in de doeltaal, dan meldt het paneel dat vóór het aanmaken. De nieuwe pagina landt evengoed op de juiste plek; de ontbrekende niveaus verschijnen in de paginaboom als grijze, niet-klikbare mapnamen tot je die pagina's ook vertaalt.
+
+![Een doorgeefniveau in de paginaboom: grijs, cursief, niet klikbaar](../../screenshots/tree-placeholder.png)
+
+### Bestaande pagina's koppelen
+
+Ooit beide versies handmatig geschreven? Koppel ze onder **Koppel een bestaande pagina als vertaling**. Alleen pagina's die niet al bij een andere vertaalset horen worden aangeboden, zodat koppelen nooit stilletjes een pagina uit een bestaande set trekt. Koppelen vereist bewerkrechten op **beide** pagina's.
+
+### Ontkoppelen
+
+**Ontkoppelen** haalt *deze* pagina uit zijn set; de andere versies blijven aan elkaar gekoppeld. Er wordt niets verwijderd.
+
+### Wat lezers zien
+
+![De lezersmelding met de wisselknop](../../screenshots/translation-reader-notice.png)
+
+Een lezer die een pagina in een andere taal opent, krijgt een korte melding boven de inhoud — en een één-klik-wissel **Lees in het …** wanneer er een versie in de eigen taal bestaat. Concept-vertalingen worden nooit aan lezers aangeboden; een onaffe vertaling blijft van jou tot je hem publiceert.
+
+## MetaVox-metadata
+
+![De MetaVox-tab in de paginazijbalk](../../screenshots/metavox-tab.png)
+
+Wanneer de app [MetaVox](https://apps.nextcloud.com/apps/metavox) geïnstalleerd is, krijgt de paginazijbalk een tab **MetaVox** met de metadatavelden die voor de Teammap zijn ingesteld — dezelfde velden, met hetzelfde gedrag, als het MetaVox-paneel van het bestand in de Bestanden-app. **Opslaan** verschijnt pas zodra je echt iets wijzigt.
+
+Een kopie of vertaling van een pagina begint met eigen, lege metadata: metadata beschrijft één pagina, en een nieuwe pagina is nog niet beschreven. Hetzelfde geldt voor reacties en emoji-reacties.
+
 ## Best practices
 
 ### Content-richtlijnen

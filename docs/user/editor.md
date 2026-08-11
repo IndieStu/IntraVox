@@ -718,6 +718,45 @@ IntraVox/
         └── new-page.json
 ```
 
+## Translations
+
+*Since 2.0.* A page can be linked to its versions in other languages. Open the page sidebar (the ⓘ button, or **… menu → Translations**) and use the **Translations** tab. On a single-language intranet none of this appears.
+
+### Creating a page in another language
+
+1. Pick a language under **Create this page in another language**
+2. Click **Create**
+
+![The Translations tab: linked versions, create-in-another-language and the missing-ancestors hint](../../screenshots/translations-create.png)
+
+The content is copied as a starting point — including the page's images — and saved as a **draft** in the same position in the target language's tree. From then on both pages are fully independent: translating one never changes the other. The new page is linked to the source automatically, so readers of either version can find the other.
+
+If parent pages do not exist in the target language yet, the panel says so before you create. The new page still lands in the right place; the missing levels show up in the page tree as grey, non-clickable folder names until you translate those pages too.
+
+![A placeholder level in the page tree: grey, italic, not clickable](../../screenshots/tree-placeholder.png)
+
+### Linking pages that already exist
+
+Wrote both versions by hand in the past? Link them under **Link an existing page as a translation**. Only pages that are not already part of another translation set are offered, so linking can never silently pull a page out of an existing set. Linking requires edit permission on **both** pages.
+
+### Unlinking
+
+**Unlink** detaches *this* page from its set; the other versions stay linked to each other. Nothing is deleted.
+
+### What readers see
+
+![The reader notice with its one-click switch](../../screenshots/translation-reader-notice.png)
+
+A reader who opens a page in another language gets a short notice above the content — and a one-click **Read it in …** switch when a version in their language exists. Draft translations are never offered to readers, so an unfinished translation stays yours until you publish it.
+
+## MetaVox metadata
+
+![The MetaVox tab in the page sidebar](../../screenshots/metavox-tab.png)
+
+When the [MetaVox](https://apps.nextcloud.com/apps/metavox) app is installed, the page sidebar gains a **MetaVox** tab showing the metadata fields configured for the Team Folder — the same fields, with the same behaviour, as the file's MetaVox panel in the Files app. **Save** only appears once you actually change something.
+
+A copy or translation of a page starts with empty metadata of its own: metadata describes one page, and a new page has not been described yet. The same applies to comments and reactions.
+
 ## Best Practices
 
 ### Content Guidelines

@@ -9,6 +9,7 @@ This document describes the IntraVox REST API for developers who want to integra
 - [Response Format](#response-format)
 - [Pages API](#pages-api)
 - [Media API](#media-api)
+- [Translations API](#translations-api)
 - [Versioning API](#versioning-api)
 - [Comments API](#comments-api)
 - [Reactions API](#reactions-api)
@@ -615,6 +616,66 @@ GET /ocs/v2.php/apps/intravox/api/v1/pages/{pageId}/media/{filename}
 ```
 
 Returns the media file content.
+
+---
+
+## Translations API
+
+*Since 2.0.* Pages in different languages can be linked as translations of each other via a shared, symmetric translation group — there is no "source" and no "copies". Every page response carries a `translations` array with its other language versions (`language`, `uniqueId`, `title`, `status`), filtered against the caller's own Team Folder access.
+
+### Create a Translation
+
+```
+POST /api/pages/{pageId}/translations/create
+```
+
+Copies the page — content, layout and its `_media` files — into the target language as a **draft**, mirrored to the same position in that language's tree, and links both pages in one group. The target language folder must already exist; missing ancestor levels are created as bare folders and render in the tree as non-clickable placeholders.
+
+**Body:**
+```json
+{
+  "language": "de",
+  "title": "Optional title for the new page"
+}
+```
+
+**Response:** `201` with `{ "success": true, "page": {…}, "translations": […] }`
+
+Errors: `400` (invalid or missing language), `403` (no create permission in the target language), `404` (page not found).
+
+### Link an Existing Page
+
+```
+POST /api/pages/{pageId}/translations
+```
+
+**Body:** `{ "targetUniqueId": "page-…" }`
+
+Joins two pages (in different languages) into one group, adopting an existing group when either side has one. Requires edit permission on **both** pages — checked before anything is written.
+
+### Unlink
+
+```
+DELETE /api/pages/{pageId}/translations
+```
+
+Gives *this* page a fresh group of its own; other members keep theirs. Nothing is deleted.
+
+### Translation Candidates
+
+```
+GET /api/pages/{pageId}/translation-candidates?language=de
+```
+
+Pages in other languages that could be linked — excludes pages already in a different group, so linking can never silently pull a page out of an existing set.
+
+### Translatable Languages
+
+```
+GET /api/pages/{pageId}/translatable-languages
+```
+
+Languages this page can still be created in. Each entry carries `code`, `name` and `missingAncestors` — how many parent pages do not exist in that language yet.
 
 ---
 

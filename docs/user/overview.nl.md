@@ -59,11 +59,13 @@ Sommige pagina's hebben een zijbalk voor snelle toegang tot gerelateerde content
 
 ## Taalkeuze
 
-Als je intranet meerdere talen ondersteunt:
+Je Nextcloud-weergavetaal (Persoonlijke instellingen → Taal) bepaalt welke inhoudstaal je ziet — er is geen aparte taalkiezer om naar te zoeken.
 
-1. Zoek de taalkiezer (meestal rechtsboven)
-2. Klik op je voorkeurstaal
-3. De pagina-inhoud wisselt naar die taal
+![De melding boven een pagina in een andere taal](../../screenshots/translation-reader-notice.png)
+
+Open je een link naar een pagina die in een andere taal geschreven is, dan vertelt een korte melding boven de inhoud je dat. Bestaat die pagina ook in jouw taal, dan biedt de melding **Lees in het …** voor een wissel met één klik. Links openen altijd precies de pagina waar ze naartoe wijzen; je wordt nooit ongevraagd ergens anders heen gestuurd.
+
+In de paginaboom zie je soms een grijze, niet-klikbare mapnaam: een niveau waarvan de pagina in een andere taal bestaat, maar (nog) niet in de jouwe. Pagina's daaronder blijven gewoon bereikbaar.
 
 Beschikbare talen hangen af van de opzet van je organisatie.
 
@@ -135,7 +137,7 @@ Klik op het info-icoon om te zien:
 
 Als je beheerder de [MetaVox](https://apps.nextcloud.com/apps/metavox)-app heeft geïnstalleerd, toont het zijpaneel ook een **MetaVox**-tab met custom metadata — gevoeligheid, afdeling, status, custom datums.
 
-![MetaVox-zijbalk op een IntraVox-pagina](../screenshots/IntraVox-MetaVox.png)
+![MetaVox-zijbalk op een IntraVox-pagina](../../screenshots/IntraVox-MetaVox.png)
 
 *De MetaVox-tab in het zijpaneel toont team-folder metadata (links) en per-pagina custom velden (rechts) zonder de pagina te verlaten.*
 

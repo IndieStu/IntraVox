@@ -62,9 +62,38 @@ Because the structure decides the language, editors need to notice when they are
 - It is shown only to users who can **edit** the page, exactly like the Draft badge: it is authoring information, not something a reader acts on.
 - On a single-language intranet it therefore never appears at all.
 
-The badge is an indicator only — it is not a language switcher. To work in another language, navigate to that language's pages.
+The badge is an indicator only — it is not a language switcher. To work in another language, navigate to that language's pages. Readers get their own, separate notice since 2.0 — see [Linked translations](#linked-translations) below.
 
 English cannot be removed: it's the guaranteed final fallback and the Transifex source language. The **Recommended language** dropdown only offers languages that actually have content (plus English), so you can't point the fallback at an empty language.
+
+## Linked translations
+
+*Since 2.0.* Pages in different languages can be linked as **translations of each other**. Linking says "these are the same subject" — nothing more. Each language keeps its own content, layout and publication state; editing one never changes the other.
+
+The model is deliberately symmetric: there is no "original" and no "copies". Removing one language version shrinks the set instead of breaking the others, and a page may exist in one language only.
+
+What it gives you:
+
+- **Readers are offered the version in their language.** Opening a page written in another language shows a short notice above the content; when a linked version in the reader's own language exists, one click switches to it. The shared link itself always opens the page it points to — never a silent redirect, so a link in a newsletter shows every recipient what the sender saw.
+- **Editors see what exists and what is missing** in the **Translations** tab of the page sidebar, and can create the page in another language from there — content and images are copied as a starting point and saved as a draft. See the [editor guide](../user/editor.md#translations).
+
+### Deep pages and missing ancestors
+
+Translating a page that sits three levels deep does not require translating its parents first. The new page lands **in the same position** in the target language; levels that have no page there yet appear in the page tree as grey, non-clickable folder labels until someone translates them too.
+
+![A placeholder level in the page tree](../../screenshots/tree-placeholder.png) The Translations tab says how many such levels are missing *before* you create.
+
+### Single-language intranets
+
+All of this stays invisible until a second language folder holds content: no Translations tab, no menu entry, no reader notices. Most intranets are single-language and should never carry multilingual UI they cannot use.
+
+### After restore or migration
+
+Translation links live in the page files themselves; the page index only mirrors them for speed. If pages behave as if they are missing, or translations do not show, rebuild the index:
+
+    occ intravox:reindex
+
+This is always safe: the index is a cache over the files, never the authority.
 
 ## Adding a language
 

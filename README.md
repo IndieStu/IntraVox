@@ -219,6 +219,15 @@ Full table editing in text widgets:
 - **Footer** - Editable footer section on the homepage
 - **Breadcrumb Navigation** - Automatic breadcrumb trail for easy navigation
 
+### Multilingual Content (2.0)
+
+- **Linked translations** - Pages link to their versions in other languages; the model is symmetric, so there is no "original" and removing one language never breaks the rest
+- **Reader language switcher** - Opening a page in another language shows a notice with a one-click switch to the reader's own language; shared links always open the page they point to
+- **Create in another language** - One click copies a page (content *and* images) as a draft into the same position in the target language's tree
+- **Deep pages just work** - Translating a page three levels deep does not require translating its parents first; missing levels render as non-clickable labels in the tree until they are translated too
+- **Invisible when unused** - Single-language intranets see none of this: no tab, no menu entry, no notices
+- **Fast at scale** - A page index answers lookups in one query where a 3,000-page intranet used to need thousands of file reads; `occ intravox:reindex` rebuilds it after a restore
+
 ### Security & Permissions
 
 - **Nextcloud Native Permissions** - Uses GroupFolder ACL for access control
@@ -268,7 +277,7 @@ Full table editing in text widgets:
 
 - **Nextcloud Unified Search** - Search pages via Ctrl+K with IntraVox app icon
 - **Nextcloud Comments API** - Reactions and comments use native Nextcloud infrastructure
-- **MetaVox Integration** - Add metadata to pages and filter News widgets (when MetaVox is installed)
+- **MetaVox Integration** - Pages get a MetaVox tab in their sidebar with the Team Folder's metadata fields — same fields and behaviour as the Files app, rendered from MetaVox's own API so it survives Nextcloud upgrades. Metadata also filters News, Photo Story and File Story widgets (when MetaVox is installed)
 - **Photo Story Widget** - Rich photo-album presentation with date + location headers, three visual styles (Magazine / Apple / Travelogue), interactive lightbox, and cross-folder filtering via MetaVox metadata
 - **Files App Integration** - Pages stored as JSON files in GroupFolder
 - **OpenAPI Documentation** - Complete API specification for third-party integration

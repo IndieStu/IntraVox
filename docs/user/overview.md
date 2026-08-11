@@ -61,11 +61,13 @@ Some pages have a sidebar for quick access to related content.
 
 ## Language Selection
 
-If your intranet supports multiple languages:
+Your Nextcloud display language (Personal settings → Language) decides which content language you see — there is no separate switcher to hunt for.
 
-1. Look for the language selector (usually top-right)
-2. Click your preferred language
-3. The page content switches to that language
+![The notice above a page in another language](../../screenshots/translation-reader-notice.png)
+
+When you open a link to a page written in another language, a short notice above the content tells you so. If that page also exists in your language, the notice offers **Read it in …** for a one-click switch. Links always open exactly the page they point to; you are never redirected somewhere else behind your back.
+
+In the page tree you may occasionally see a grey, non-clickable folder name: a level whose page exists in another language but not (yet) in yours. Pages underneath it remain reachable as usual.
 
 Available languages depend on your organization's setup.
 

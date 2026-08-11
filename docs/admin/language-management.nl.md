@@ -62,9 +62,38 @@ Omdat de structuur de taal bepaalt, moeten redacteuren merken wanneer ze ergens 
 - Het is alleen zichtbaar voor gebruikers die de pagina mogen **bewerken**, net als het Concept-label: het is informatie voor makers, niet iets waar een lezer iets mee moet.
 - Op een eentalig intranet verschijnt het dus nooit.
 
-Het label is uitsluitend een indicator — geen taalwisselaar. Wil je in een andere taal werken, navigeer dan naar de pagina's van die taal.
+Het label is uitsluitend een indicator — geen taalwisselaar. Wil je in een andere taal werken, navigeer dan naar de pagina's van die taal. Lezers krijgen sinds 2.0 hun eigen, aparte melding — zie [Gekoppelde vertalingen](#gekoppelde-vertalingen) hieronder.
 
 Engels kan niet worden verwijderd: het is de gegarandeerde laatste fallback en de Transifex-brontaal. De dropdown **Aanbevolen taal** biedt alleen talen aan die echt inhoud hebben (plus Engels), zodat je de fallback niet op een lege taal kunt zetten.
+
+## Gekoppelde vertalingen
+
+*Sinds 2.0.* Pagina's in verschillende talen kunnen aan elkaar gekoppeld worden als **vertalingen van elkaar**. Koppelen zegt "dit is hetzelfde onderwerp" — meer niet. Elke taal houdt zijn eigen inhoud, opmaak en publicatiestatus; de één bewerken verandert nooit de ander.
+
+Het model is bewust symmetrisch: er is geen "origineel" en geen "kopieën". Eén taalversie verwijderen maakt de set kleiner in plaats van de rest te breken, en een pagina mag in één taal bestaan.
+
+Wat het oplevert:
+
+- **Lezers krijgen de versie in hun eigen taal aangeboden.** Wie een pagina opent die in een andere taal geschreven is, ziet een korte melding boven de inhoud; bestaat er een gekoppelde versie in de eigen taal, dan wisselt één klik. De gedeelde link zelf opent altijd de pagina waar hij naartoe wijst — nooit een stille redirect, dus een link in een nieuwsbrief toont elke ontvanger wat de afzender zag.
+- **Redacteuren zien wat er bestaat en wat er ontbreekt** in de tab **Vertalingen** van de paginazijbalk, en maken de pagina van daaruit in een andere taal aan — inhoud en afbeeldingen worden als startpunt gekopieerd en als concept opgeslagen. Zie de [redacteursgids](../user/editor.nl.md#vertalingen).
+
+### Diepe pagina's en ontbrekende bovenliggende pagina's
+
+Een pagina die drie niveaus diep zit vertalen vereist niet dat je eerst de ouders vertaalt. De nieuwe pagina landt **op dezelfde plek** in de doeltaal; niveaus die daar nog geen pagina hebben verschijnen in de paginaboom als grijze, niet-klikbare maplabels tot iemand ze ook vertaalt.
+
+![Een doorgeefniveau in de paginaboom](../../screenshots/tree-placeholder.png) De tab Vertalingen meldt *vóór* het aanmaken hoeveel van zulke niveaus er ontbreken.
+
+### Eentalige intranetten
+
+Dit alles blijft onzichtbaar tot een tweede taalmap inhoud heeft: geen tab Vertalingen, geen menu-item, geen lezersmeldingen. De meeste intranetten zijn eentalig en horen geen meertalige UI te dragen die ze niet kunnen gebruiken.
+
+### Na een restore of migratie
+
+Vertaalkoppelingen staan in de paginabestanden zelf; de pagina-index spiegelt ze alleen voor snelheid. Gedragen pagina's zich alsof ze ontbreken, of verschijnen vertalingen niet, herbouw dan de index:
+
+    occ intravox:reindex
+
+Dit is altijd veilig: de index is een cache over de bestanden, nooit de autoriteit.
 
 ## Een taal toevoegen
 

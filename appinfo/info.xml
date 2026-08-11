@@ -27,6 +27,8 @@
 * Public sharing with optional password protection
 
 **Content management:**
+* Multilingual content — pages link to their versions in other languages, and readers opening a page in a foreign language get a one-click switch to their own; single-language intranets see none of this UI
+* MetaVox metadata as a page sidebar tab — the Team Folder's fields, same behaviour as the Files app (when MetaVox is installed)
 * Multi-language support — admins choose which Transifex-translated languages to enable
 * Navigation editor with megamenu and sidebar options
 * Full export/import to ZIP — including Confluence HTML import
@@ -68,6 +70,7 @@
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/calendarwidget-intro.gif</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/People-overview.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/Newswidget-carrousel.gif</screenshot>
+    <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/translations-create.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/Templates-Select-template.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/Engagement.png</screenshot>
     <dependencies>
