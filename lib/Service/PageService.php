@@ -2442,6 +2442,17 @@ class PageService {
                     if (!isset($decoded['fileId']) && $result['file'] instanceof \OCP\Files\File) {
                         $decoded['fileId'] = $result['file']->getId();
                     }
+                    // MetaVox availability is an install-wide fact and the
+                    // groupfolder id is a property of the file's mount, so
+                    // neither is cached — availability can change under a cache
+                    // entry when the app is enabled or disabled, and entries
+                    // written before these fields existed would otherwise never
+                    // gain them. Both are cheap: an in-memory app-manager lookup
+                    // and a regex over a path.
+                    $decoded['metaVoxAvailable'] = $this->isMetaVoxAvailable();
+                    if ($decoded['metaVoxAvailable'] && $result['file'] instanceof \OCP\Files\File) {
+                        $decoded['groupfolderId'] = $this->groupfolderIdForNode($result['file']);
+                    }
                     $this->pageDataCache[$originalId] = $decoded;
                     $this->pageDataCache[$uniqueId] = $decoded;
                     return $decoded;
@@ -2469,7 +2480,11 @@ class PageService {
         // fields (path/depth/parent/language/department) stay cached.
         if ($this->distributedCache !== null) {
             $cacheable = $sanitizedData;
-            unset($cacheable['permissions'], $cacheable['canEdit']);
+            // metaVoxAvailable is stripped for the same reason as permissions:
+            // enabling or disabling the app must take effect immediately rather
+            // than waiting out an hour-long cache entry. It is recomputed on
+            // every read above.
+            unset($cacheable['permissions'], $cacheable['canEdit'], $cacheable['metaVoxAvailable']);
             $this->distributedCache->set($contentCacheKey, json_encode($cacheable), 3600);
         }
 
@@ -2546,9 +2561,14 @@ class PageService {
             // assigned per groupfolder, and its groupfolder-scoped endpoint
             // returns exactly the fields for that folder — where the
             // auto-detecting variant returned every field of every folder.
+            //
+            // Derived from the file's mount path rather than from MetaVox's
+            // value table: that table only holds rows for files that already
+            // have values SAVED, so looking there would return nothing for a
+            // page whose fields are still empty — precisely the freshly copied
+            // and translated pages that need the form most.
             if ($page['metaVoxAvailable'] && $file instanceof \OCP\Files\File) {
-                $this->getMetaVoxDataForFiles([$file->getId()]);
-                $page['groupfolderId'] = $this->metaVoxGroupfolderByFile[$file->getId()] ?? null;
+                $page['groupfolderId'] = $this->groupfolderIdForNode($file);
             }
         } else {
             $page['permissions'] = $this->permissionsFromNode($folder);
@@ -5544,6 +5564,38 @@ class PageService {
      * @param \OCP\Files\Folder $folder The parent folder
      * @return int The actual file ID from the groupfolder storage
      */
+    /**
+     * The groupfolder a node lives in, or null when it is not in one.
+     *
+     * Read from the mount path (`/__groupfolders/{id}/…`) rather than from
+     * MetaVox's value table, which only lists files that already have values
+     * stored and so cannot answer this for a page with empty fields.
+     *
+     * @param \OCP\Files\Node $node
+     */
+    private function groupfolderIdForNode($node): ?int {
+        try {
+            // The mount knows its own folder id. Note that getPath() is NOT a
+            // source for this: it returns the per-user mount path
+            // (/Rik/files/IntraVox/…), not /__groupfolders/{id}/…, so parsing
+            // it yields nothing.
+            $mount = $node->getMountPoint();
+            if (method_exists($mount, 'getFolderId')) {
+                return (int)$mount->getFolderId();
+            }
+
+            // Fallback for mount types that do not expose it: the storage id
+            // still carries the folder id (local::…/__groupfolders/1/).
+            if (preg_match('#/__groupfolders/(\d+)/#', $node->getStorage()->getId(), $m)) {
+                return (int)$m[1];
+            }
+        } catch (\Throwable $e) {
+            // A node whose mount cannot be read is not worth failing the page
+            // response over; the MetaVox tab simply stays empty.
+        }
+        return null;
+    }
+
     private function getFileIdFromDatabase($file, $folder): int {
         try {
             $filePath = $file->getPath();
