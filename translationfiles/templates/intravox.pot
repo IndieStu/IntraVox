@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 2.0.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-11 11:03+0000\n"
+"POT-Creation-Date: 2026-08-11 14:29+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -3546,6 +3546,9 @@ msgstr ""
 msgid "This is a visibility filter, not a permission. The page file keeps the folder's normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on it for confidential content."
 msgstr ""
 
+msgid "This level has no page in this language yet"
+msgstr ""
+
 msgid "This link shares all {language} pages"
 msgstr ""
 
@@ -4092,6 +4095,11 @@ msgstr[1] ""
 
 msgid "%n page"
 msgid_plural "%n pages"
+msgstr[0] ""
+msgstr[1] ""
+
+msgid "%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too."
+msgid_plural "%n parent pages do not exist in this language yet — the new page will appear in the same place, with non-clickable levels until you translate those too."
 msgstr[0] ""
 msgstr[1] ""
 

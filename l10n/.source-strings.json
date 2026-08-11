@@ -1,6 +1,6 @@
 {
-    "count": 1355,
-    "sha256": "ef14dc333105330269b066e028ce9825a8df4aef1eb8a42f5e756e4194a43c79",
+    "count": 1357,
+    "sha256": "3eeddcbae61ebf5530b7580e39c46c11469847fe396fd4c10c745f372ca5a8e5",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -26,6 +26,7 @@
         "%n minute ago",
         "%n new connection will be added.",
         "%n page",
+        "%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too.",
         "+ Add connection",
         "+ Add filter field",
         "+ Add header",
@@ -1195,6 +1196,7 @@
         "This instance has {total} accounts, more than the {cap} this widget scans. Filter counts will be approximate and shown as \"~12\".",
         "This intranet has no pages in {language} yet.",
         "This is a visibility filter, not a permission. The page file keeps the folder's normal access rights, so anyone who can read the folder can still open it via Files, WebDAV, search or a sync client. Do not rely on it for confidential content.",
+        "This level has no page in this language yet",
         "This link shares all {language} pages",
         "This link shares only this page",
         "This link shares the \"{section}\" section",

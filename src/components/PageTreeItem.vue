@@ -13,8 +13,20 @@
       </button>
       <span v-else class="tree-toggle-spacer"></span>
 
+      <!-- Pass-through level: a folder whose page does not exist in this
+           language (a deep page was translated before its ancestors). Same
+           rule as the breadcrumb — a missing ancestor is a label, not a
+           wall — so it is not clickable and offers no actions, but its
+           children stay reachable. -->
+      <span v-if="isPlaceholder"
+            class="tree-item-content tree-item-content--placeholder"
+            :title="t('intravox', 'This level has no page in this language yet')">
+        <FolderOutline :size="18" class="tree-icon" />
+        <span class="tree-item-title">{{ item.title }}</span>
+      </span>
+
       <!-- Page icon and title -->
-      <button class="tree-item-content" @click="$emit('navigate', item.uniqueId)">
+      <button v-else class="tree-item-content" @click="$emit('navigate', item.uniqueId)">
         <FileDocument :size="18" class="tree-icon" />
         <span class="tree-item-title">{{ item.title }}</span>
         <span v-if="isThisHomepage" class="home-badge">{{ t('intravox', 'Home') }}</span>
@@ -24,7 +36,7 @@
       <!-- Manage actions (issue #69). Each action is gated on the permission the
            backend actually enforces, so the UI never offers something that 403s
            (issue #86): reorder/move need write on the page, copy needs create. -->
-      <div v-if="manageMode" class="tree-item-actions">
+      <div v-if="manageMode && !isPlaceholder" class="tree-item-actions">
         <button
           v-if="canWrite"
           class="tree-action"
@@ -130,6 +142,7 @@ import { translate, translatePlural } from '@nextcloud/l10n';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import FileDocument from 'vue-material-design-icons/FileDocument.vue';
+import FolderOutline from 'vue-material-design-icons/FolderOutline.vue';
 import ArrowUp from 'vue-material-design-icons/ArrowUp.vue';
 import ArrowDown from 'vue-material-design-icons/ArrowDown.vue';
 import FolderMove from 'vue-material-design-icons/FolderMove.vue';
@@ -144,6 +157,7 @@ export default {
     ChevronRight,
     ChevronDown,
     FileDocument,
+    FolderOutline,
     ArrowUp,
     ArrowDown,
     FolderMove,
@@ -196,6 +210,9 @@ export default {
     };
   },
   computed: {
+    isPlaceholder() {
+      return this.item.isPlaceholder === true;
+    },
     hasChildren() {
       return this.item.children && this.item.children.length > 0;
     },
@@ -308,6 +325,18 @@ export default {
 
 .tree-item-content:hover {
   background: var(--color-background-dark);
+}
+
+/* Pass-through level: readable but visibly not a page — muted, no pointer,
+   no hover-invite. The span already inherits the flex layout above. */
+.tree-item-content--placeholder {
+  cursor: default;
+  color: var(--color-text-maxcontrast);
+  font-style: italic;
+}
+
+.tree-item-content--placeholder:hover {
+  background: none;
 }
 
 .tree-icon {

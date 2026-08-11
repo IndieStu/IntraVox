@@ -1758,10 +1758,53 @@ class PageService {
             $languages[] = [
                 'code' => $code,
                 'name' => $this->languageDisplayName($code),
+                // How many of this page's ancestors do not exist as pages in
+                // that language yet. The translation still lands mirrored
+                // (createTranslation creates the missing levels as bare
+                // folders, and the tree renders those as non-clickable
+                // pass-through nodes) — but the editor deserves to know
+                // BEFORE creating, not by discovering grey levels afterwards.
+                'missingAncestors' => $this->countMissingAncestors($result['folder'], $code),
             ];
         }
 
         return $languages;
+    }
+
+    /**
+     * How many ancestor PAGES a mirrored translation would lack in a language.
+     *
+     * Walks the source page's parent segments and checks, per level, whether
+     * {lang}/{path}/{segment}.json exists — the page file, not just the
+     * folder, since a bare folder is exactly what "missing" means here. Cost
+     * is one nodeExists per ancestor level, bounded by tree depth.
+     */
+    private function countMissingAncestors(\OCP\Files\Folder $sourceFolder, string $targetLanguage): int {
+        try {
+            $relative = $this->getRelativePathFromRoot($sourceFolder);
+            $segments = explode('/', $relative);
+            // Drop the language segment and the page's own folder; what
+            // remains are the ancestor levels.
+            array_shift($segments);
+            array_pop($segments);
+            if ($segments === []) {
+                return 0;
+            }
+
+            $base = $this->getIntraVoxFolder();
+            $missing = 0;
+            $path = $targetLanguage;
+            foreach ($segments as $segment) {
+                $path .= '/' . $segment;
+                if (!$base->nodeExists($path . '/' . $segment . '.json')) {
+                    $missing++;
+                }
+            }
+            return $missing;
+        } catch (\Throwable $e) {
+            // A hint must never break the language list.
+            return 0;
+        }
     }
 
     /**
@@ -6761,10 +6804,21 @@ class PageService {
                 continue;
             }
 
+            // Underscore- and dot-prefixed folders are infrastructure (_media,
+            // _resources, _templates, hidden dirs). They never held pages, but
+            // the placeholder recursion below WOULD walk into them — and
+            // _templates does contain page-shaped JSON that must never surface
+            // as tree nodes — so they are excluded by name shape, not by list.
+            if (str_starts_with($folderName, '_') || str_starts_with($folderName, '.')) {
+                continue;
+            }
+
             // Skip folders starting with emoji (images folders)
             if (preg_match('/^[\x{1F300}-\x{1F9FF}]/u', $folderName)) {
                 continue;
             }
+
+            $foundPage = false;
 
             // Look for {foldername}.json inside the folder
             try {
@@ -6819,12 +6873,59 @@ class PageService {
                     $this->buildPageTree($item, $pageNode['children'], $currentPageId, $language);
 
                     $nodes[] = $pageNode;
+                    $foundPage = true;
                 }
             } catch (\Exception $e) {
                 // This folder doesn't contain a valid page or can't be read, continue
             } catch (\Throwable $e) {
                 // Catch any other errors
                 continue;
+            }
+
+            // A folder without a page of its own can still hold pages below it —
+            // exactly what translating a deep page before its ancestors produces:
+            // createTranslation mirrors the source path and creates the missing
+            // levels as bare folders. Skipping such a folder made every page
+            // underneath unreachable in the tree, while search, breadcrumb and
+            // direct links all still worked — a ghost page for anyone browsing.
+            //
+            // The breadcrumb already renders a missing ancestor as a plain,
+            // non-clickable label; the tree now applies the same rule: recurse,
+            // and when pages exist below, emit a non-navigable pass-through
+            // node. A bare folder with nothing underneath still renders nothing.
+            if (!$foundPage) {
+                try {
+                    $perm = $this->permissionsFromNode($item);
+                    if (!$perm['canRead']) {
+                        continue;
+                    }
+                    $children = [];
+                    $this->buildPageTree($item, $children, $currentPageId, $language);
+                    if ($children !== []) {
+                        $nodes[] = [
+                            // Synthetic, stable identity: never navigable, but
+                            // the tree needs a key for expand/collapse state
+                            // and list rendering. The 'folder:' prefix cannot
+                            // collide with real ids, which are 'page-…'.
+                            'uniqueId' => 'folder:' . $this->getRelativePathFromRoot($item),
+                            // Same label derivation the breadcrumb uses for a
+                            // missing ancestor. This is the SOURCE-language
+                            // slug until the ancestor is translated — accepted,
+                            // and itself a nudge to translate it.
+                            'title' => ucfirst(str_replace('-', ' ', $folderName)),
+                            'status' => 'published',
+                            'isPlaceholder' => true,
+                            'fileId' => null,
+                            'path' => $this->getRelativePathFromRoot($item),
+                            'language' => $language ?? $this->getUserLanguage(),
+                            'isCurrent' => false,
+                            'children' => $children,
+                            'permissions' => $perm,
+                        ];
+                    }
+                } catch (\Throwable $e) {
+                    continue;
+                }
             }
         }
 

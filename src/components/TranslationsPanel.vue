@@ -69,6 +69,16 @@
 						{{ t('intravox', 'Create') }}
 					</button>
 				</div>
+				<!-- A deep page translated before its ancestors lands mirrored,
+				     with the missing levels shown as non-clickable folders in the
+				     tree. Say so BEFORE creating — grey levels should never be a
+				     surprise. -->
+				<p v-if="missingAncestorCount > 0" class="translations-create__ancestors">
+					{{ n('intravox',
+						'%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too.',
+						'%n parent pages do not exist in this language yet — the new page will appear in the same place, with non-clickable levels until you translate those too.',
+						missingAncestorCount) }}
+				</p>
 				<p class="translations-create__hint">
 					{{ t('intravox', 'The content is copied as a starting point and saved as a draft. From then on both pages are independent — translating one never changes the other.') }}
 				</p>
@@ -115,7 +125,7 @@
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { showError, showSuccess } from '@nextcloud/dialogs'
-import { translate } from '@nextcloud/l10n'
+import { translate, translatePlural } from '@nextcloud/l10n'
 
 /**
  * Manage which pages are language versions of each other.
@@ -155,6 +165,14 @@ export default {
 		}
 	},
 	computed: {
+		/**
+		 * Ancestors the selected target language is missing, from the
+		 * translatable-languages response. 0 when nothing is selected.
+		 */
+		missingAncestorCount() {
+			const lang = this.availableLanguages.find(l => l.code === this.createLanguage)
+			return lang?.missingAncestors ?? 0
+		},
 		selectId() {
 			return `translation-target-${this.pageId}`
 		},
@@ -174,6 +192,9 @@ export default {
 	methods: {
 		t(app, text, vars) {
 			return translate(app, text, vars)
+		},
+		n(app, singular, plural, count, vars) {
+			return translatePlural(app, singular, plural, count, vars)
 		},
 		/**
 		 * Display name for a CONTENT language.
@@ -397,6 +418,14 @@ export default {
 	margin: 8px 0 0;
 	font-size: 0.9em;
 	color: var(--color-text-maxcontrast, #767676);
+}
+
+/* Informative, not alarming: missing ancestors are a normal state the tree
+   handles, the editor just deserves to know before creating. */
+.translations-create__ancestors {
+	margin: 8px 0 0;
+	font-size: 0.9em;
+	color: var(--color-warning-text, var(--color-main-text));
 }
 
 .translations-add {

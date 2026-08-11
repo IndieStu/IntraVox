@@ -126,6 +126,7 @@ interface Node {
     public function getType(): int;
     public function getId(): int;
     public function getPermissions(): int;
+    public function isReadable(): bool;
     public function isUpdateable(): bool;
     public function isCreatable(): bool;
     public function isDeletable(): bool;

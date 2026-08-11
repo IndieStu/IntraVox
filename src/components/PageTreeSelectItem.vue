@@ -21,8 +21,18 @@
       </button>
       <span v-else class="toggle-spacer"></span>
 
+      <!-- Pass-through level without a page in this language: shown so its
+           children stay reachable, but a picker must not offer it — there is
+           no page to link to. -->
+      <span v-if="item.isPlaceholder"
+            class="item-content item-content--placeholder"
+            :title="t('intravox', 'This level has no page in this language yet')">
+        <FolderOutline :size="16" class="item-icon folder-icon" />
+        <span class="item-title">{{ item.title }}</span>
+      </span>
+
       <!-- Page item -->
-      <button class="item-content" @click="$emit('select', item)">
+      <button v-else class="item-content" @click="$emit('select', item)">
         <FolderOutline v-if="hasChildren" :size="16" class="item-icon folder-icon" />
         <FileDocument v-else :size="16" class="item-icon" />
         <span class="item-title">{{ item.title }}</span>
@@ -199,6 +209,16 @@ export default {
   color: var(--color-main-text);
   font-size: 13px;
   min-width: 0;
+}
+
+.item-content--placeholder {
+  cursor: default;
+  color: var(--color-text-maxcontrast);
+  font-style: italic;
+}
+
+.item-content--placeholder:hover {
+  background: none;
 }
 
 .item-icon {

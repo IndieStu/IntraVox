@@ -348,7 +348,9 @@ export default {
     selectFocused() {
       if (this.focusedId) {
         const page = this.flatPages.find(p => p.uniqueId === this.focusedId);
-        if (page) {
+        // A pass-through level is focusable (arrow keys walk the list)
+        // but not selectable: there is no page behind it.
+        if (page && !page.isPlaceholder) {
           this.selectPage(page);
         }
       }
