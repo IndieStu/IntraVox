@@ -1,8 +1,7 @@
 {
-    "count": 1358,
-    "sha256": "3ddf84c98833f35a6ff6f4cc2cf3e7bb544fb773547408438589ca23905edc8a",
+    "count": 1355,
+    "sha256": "ef14dc333105330269b066e028ce9825a8df4aef1eb8a42f5e756e4194a43c79",
     "strings": [
-        "— none —",
         "— Not configured —",
         "… and {n} more",
         "(has child pages)",
@@ -380,7 +379,6 @@
         "Edit links",
         "Edit navigation",
         "Edit page",
-        "Edit this field type in the Files app",
         "Edit this page",
         "Edit widget",
         "edited",
@@ -826,7 +824,6 @@
         "Not available",
         "Not connected",
         "Not installed",
-        "Not set",
         "Now",
         "Number of documents shown per page. Older documents stay reachable via the page buttons.",
         "Number of events",
