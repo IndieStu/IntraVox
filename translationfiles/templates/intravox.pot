@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 2.0.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-10 16:38+0000\n"
+"POT-Creation-Date: 2026-08-11 04:32+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -301,6 +301,9 @@ msgid "Already exists"
 msgstr ""
 
 msgid "Already in every language"
+msgstr ""
+
+msgid "Also create it in:"
 msgstr ""
 
 msgid "Alt text:"
@@ -3534,6 +3537,12 @@ msgstr ""
 msgid "The video format is not supported by your browser."
 msgstr ""
 
+msgid "There are no other languages left to translate into."
+msgstr ""
+
+msgid "There is no other language with content to translate into yet."
+msgstr ""
+
 msgid "This action cannot be undone."
 msgstr ""
 
@@ -3573,7 +3582,7 @@ msgstr ""
 msgid "This month"
 msgstr ""
 
-msgid "This page already exists in every language that has content."
+msgid "This page already exists in:"
 msgstr ""
 
 msgid "This page also exists in:"

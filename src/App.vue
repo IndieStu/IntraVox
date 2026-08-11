@@ -317,12 +317,37 @@
               size="normal"
               @closing="showTranslateDialog = false">
       <div class="translate-dialog">
+        <!-- What already exists comes FIRST. Asking to translate a page that is
+             already translated is a fair question — the honest answer is "it
+             exists, here it is" rather than an empty picker or a dead end. Shown
+             as links rather than navigating automatically: the editor asked to
+             translate, not to be moved somewhere else. -->
+        <div v-if="existingTranslations.length > 0" class="translate-dialog__existing">
+          <p class="translate-dialog__label">
+            {{ t('intravox', 'This page already exists in:') }}
+          </p>
+          <button v-for="item in existingTranslations"
+                  :key="item.uniqueId"
+                  class="translate-dialog__existing-item"
+                  @click="goToTranslation(item.uniqueId)">
+            <span class="translate-dialog__existing-lang">{{ contentLanguageName(item.language) }}</span>
+            <span class="translate-dialog__existing-title">{{ item.title }}</span>
+            <span v-if="item.status === 'draft'" class="translate-dialog__existing-draft">
+              {{ t('intravox', 'Draft') }}
+            </span>
+          </button>
+        </div>
+
         <p v-if="translateLanguages.length === 0" class="translate-dialog__empty">
-          {{ t('intravox', 'This page already exists in every language that has content.') }}
+          {{ existingTranslations.length > 0
+            ? t('intravox', 'There are no other languages left to translate into.')
+            : t('intravox', 'There is no other language with content to translate into yet.') }}
         </p>
         <template v-else>
           <label class="translate-dialog__label" for="translate-language">
-            {{ t('intravox', 'Create this page in:') }}
+            {{ existingTranslations.length > 0
+              ? t('intravox', 'Also create it in:')
+              : t('intravox', 'Create this page in:') }}
           </label>
           <select id="translate-language"
                   v-model="translateLanguage"
@@ -578,6 +603,10 @@ export default {
     isMultilingual() {
       const langs = this.languageContentStatus?.languagesWithContent;
       return Array.isArray(langs) && langs.length > 1;
+    },
+    /** Language versions of this page that already exist, for the dialog. */
+    existingTranslations() {
+      return this.currentPage?.translations || [];
     },
     /**
      * The `lang` for the content region.
@@ -1023,6 +1052,20 @@ export default {
         showError(this.t('intravox', 'Could not load the available languages'));
         this.showTranslateDialog = false;
       }
+    },
+    /**
+     * Open an existing translation from the dialog.
+     *
+     * Explicit click, never automatic: the editor asked to translate this page,
+     * so being silently moved to another one would be the same surprise a
+     * language redirect on a shared link causes.
+     */
+    async goToTranslation(uniqueId) {
+      this.showTranslateDialog = false;
+      // The page list is per language, so a translation is not in it — resolve
+      // it the same way a cross-language link does.
+      await this.resolvePageById(uniqueId);
+      await this.selectPage(uniqueId);
     },
     /** Create the translation and open it, so the editor can start writing. */
     async confirmTranslatePage() {
@@ -2356,6 +2399,55 @@ export default {
   margin: 10px 0 0;
   color: var(--color-text-maxcontrast, #767676);
   font-size: 0.9em;
+}
+
+.translate-dialog__existing {
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--color-border, #dbdbdb);
+}
+
+.translate-dialog__existing-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border, #dbdbdb);
+  border-radius: var(--border-radius, 8px);
+  background: var(--color-main-background, #fff);
+  color: var(--color-main-text, #222);
+  cursor: pointer;
+  text-align: left;
+  font-size: inherit;
+}
+
+.translate-dialog__existing-item + .translate-dialog__existing-item {
+  margin-top: 6px;
+}
+
+.translate-dialog__existing-item:hover,
+.translate-dialog__existing-item:focus-visible {
+  background: var(--color-background-hover, #f5f5f5);
+}
+
+.translate-dialog__existing-lang {
+  flex: 0 0 auto;
+  font-weight: 600;
+}
+
+.translate-dialog__existing-title {
+  flex: 1 1 auto;
+  color: var(--color-primary-element, #0082c9);
+}
+
+.translate-dialog__existing-draft {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border-radius: var(--border-radius, 8px);
+  background: var(--color-warning-light, #fff3cd);
+  color: var(--color-warning-text, #6d5003);
+  font-size: 0.8em;
 }
 
 /* Reader notice: this page is not in your language. Informational rather than
