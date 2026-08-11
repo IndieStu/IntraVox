@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "IntraVox API",
-        "version": "1.9.6",
+        "version": "2.0.0",
         "description": "IntraVox is a modern intranet page builder for Nextcloud. This API provides endpoints for managing pages, media, navigation, comments, reactions, the Photo Story widget (galleries with EXIF, maps and lightbox) and the File Story widget (document libraries with MetaVox-aware filtering and federated-share awareness).",
         "license": {
             "name": "AGPL-3.0",
@@ -3530,6 +3530,313 @@
                     }
                 }
             }
+        },
+        "/api/pages/{pageId}/translations": {
+            "post": {
+                "operationId": "link-translation",
+                "summary": "Link an existing page as a translation",
+                "description": "Joins two pages (in different languages) into one translation group. Requires edit permission on BOTH pages, checked before anything is written. Adopts an existing group when either side has one.",
+                "tags": [
+                    "Translations"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "targetUniqueId"
+                                ],
+                                "properties": {
+                                    "targetUniqueId": {
+                                        "type": "string",
+                                        "description": "uniqueId of the page in the other language"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Linked",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "translationGroup": {
+                                            "type": "string",
+                                            "example": "tg-..."
+                                        },
+                                        "translations": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Translation"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input"
+                    },
+                    "403": {
+                        "description": "No edit permission"
+                    },
+                    "404": {
+                        "description": "Page not found"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "unlink-translation",
+                "summary": "Unlink this page from its translation group",
+                "description": "Gives this page a fresh group of its own; the other members keep theirs. Symmetric model: unlinking one member shrinks the group, nothing dangles.",
+                "tags": [
+                    "Translations"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Unlinked",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "translations": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Translation"
+                                            },
+                                            "description": "Always empty after unlink"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "No edit permission"
+                    },
+                    "404": {
+                        "description": "Page not found"
+                    }
+                }
+            }
+        },
+        "/api/pages/{pageId}/translations/create": {
+            "post": {
+                "operationId": "create-translation",
+                "summary": "Create this page in another language",
+                "description": "Copies the page (content, layout and its media files) into the target language folder as a DRAFT, mirrors its position in that language's tree, and links both pages in one translation group. The target language folder must already exist.",
+                "tags": [
+                    "Translations"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "language"
+                                ],
+                                "properties": {
+                                    "language": {
+                                        "type": "string",
+                                        "pattern": "^[a-z]{2,3}$",
+                                        "example": "de"
+                                    },
+                                    "title": {
+                                        "type": "string",
+                                        "description": "Optional title for the new page; defaults to the source title"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "page": {
+                                            "type": "object",
+                                            "description": "The created page"
+                                        },
+                                        "translations": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Translation"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid input"
+                    },
+                    "403": {
+                        "description": "No edit permission"
+                    },
+                    "404": {
+                        "description": "Page not found"
+                    }
+                }
+            }
+        },
+        "/api/pages/{pageId}/translation-candidates": {
+            "get": {
+                "operationId": "get-translation-candidates",
+                "summary": "Pages that could be linked as a translation",
+                "description": "Pages in other languages that are not already a member of a different translation group. Languages the caller's mount does not grant are excluded.",
+                "tags": [
+                    "Translations"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "language",
+                        "in": "query",
+                        "required": false,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Candidates",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "candidates": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Translation"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Page not found"
+                    }
+                }
+            }
+        },
+        "/api/pages/{pageId}/translatable-languages": {
+            "get": {
+                "operationId": "get-translatable-languages",
+                "summary": "Languages this page can still be created in",
+                "description": "Languages with a content folder, excluding the page's own language and languages that already hold a version of this page.",
+                "tags": [
+                    "Translations"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Languages",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "languages": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "code": {
+                                                        "type": "string",
+                                                        "example": "de"
+                                                    },
+                                                    "name": {
+                                                        "type": "string",
+                                                        "example": "Deutsch"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Page not found"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -4617,6 +4924,30 @@
                         ],
                         "default": "sidebar",
                         "description": "Panel beside or above the results."
+                    }
+                }
+            },
+            "Translation": {
+                "type": "object",
+                "description": "Another language version of a page, from its translation group. Filtered against the caller's own Team Folder access.",
+                "properties": {
+                    "language": {
+                        "type": "string",
+                        "example": "de"
+                    },
+                    "uniqueId": {
+                        "type": "string",
+                        "example": "page-1b2c3d4e-..."
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "published",
+                            "draft"
+                        ]
                     }
                 }
             }

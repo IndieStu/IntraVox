@@ -22,11 +22,17 @@ This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and re
 
 - **`occ intravox:reindex`** rebuilds the page index from the page files. Use it after a restore or migration, or whenever pages behave as if they are missing while the files are plainly there.
 
+- **MetaVox metadata is back as its own tab in the page sidebar — and now survives Nextcloud upgrades.** The old integration borrowed a Files-app hook (`OCA.Files.Sidebar`) to host MetaVox's panel, and Nextcloud 34 removed that hook, leaving the panel empty. IntraVox now renders the fields itself from MetaVox's own API: the same field types, the same behaviour as in the Files sidebar — including the Save button appearing only once something actually changed — without MetaVox needing a single change. Requires MetaVox ≥ 1.1.1; without MetaVox the tab simply is not there. As a side effect, pages no longer load a MetaVox script and stylesheet they never used.
+
+- **Every sidebar tab now has a direct entry in the page menu.** Details, MetaVox, Translations and Version history sit together in their own menu group, and an entry appears exactly when its tab does: no MetaVox installed → no MetaVox entry, one content language → no Translations entry. The menu can never promise a tab the sidebar does not have.
+
 ### Changed
 
 - **Large intranets are dramatically faster.** Finding a page used to read and parse every page file in every language folder. On a 3,000-page, 3-language intranet that was up to 7,500 file reads for a single page view; it is now one indexed lookup. The page list no longer reads every file either.
 
 - **Saving a page that someone else changed in the meantime is now refused instead of silently overwriting it.** Pages are stored whole, so the second of two concurrent saves used to erase everything the first had written. Editors are asked to reload; the existing page lock still prevents the common case.
+
+- **Linking two pages as translations requires edit permission on both pages**, and that is checked before anything is written — a half-made link cannot occur.
 
 ### Fixed
 
@@ -37,6 +43,10 @@ This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and re
 - **Search missed the fast path for anyone with a regional locale** (`nl_NL`, `de_DE`, …), quietly falling back to a full scan on every query.
 
 - Moving or deleting a page left its sub-pages pointing at folders that no longer existed, and imported pages never entered the index at all.
+
+- **Creating a page in another language now brings the source page's images along.** The text was copied but the images were not — a page's images are stored beside it, so every image on the new translation answered 404. Copying a page already did this correctly; translating now uses the same mechanism.
+
+- **Translation lists respect per-folder access.** The titles of a page's other language versions are filtered against the viewer's own Team Folder access before being shown or cached, so an ACL that hides a folder also hides the titles inside it. Large files in a page copy or translation are now streamed instead of loaded into memory whole.
 
 ### Upgrade notes
 

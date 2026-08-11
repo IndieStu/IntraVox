@@ -90,6 +90,7 @@ campagne, en de ontvanger krijgt iets anders te zien.
 | C3 | Bekijk de talenlijst | Alleen talen waarin de pagina nog **niet** bestaat |
 | C4 | Kijk naar de taalnamen | `English`, `Nederlands` — **niet** `English (US)` of `Deutsch (Persönlich: Du)` |
 | C5 | Kies een taal → Aanmaken | Nieuwe pagina opent, inhoud gekopieerd |
+| C5b | Vertaal een pagina **met afbeeldingen** | Alle afbeeldingen zichtbaar op de vertaling (geen 404's — check ook het netwerktabblad) |
 | C6 | Kijk naar de status-badge | **Concept**, niet gepubliceerd |
 | C7 | Open het `…`-menu op de nieuwe pagina | "Pagina vertalen" biedt de brontaal niet meer aan |
 | C8 | Wijzig iets in de vertaling en sla op | Bronpagina blijft **onveranderd** |
@@ -235,6 +236,40 @@ Test op een **kopie** van een bestaande installatie, niet op productie.
 
 ---
 
+## M. MetaVox-integratie
+
+**Waarom deze sectie bestaat:** de oude integratie leende een Files-app-hook die
+Nextcloud 34 verwijderde — de tab was leeg zonder foutmelding. De nieuwe rendert
+de velden zelf uit MetaVox' API. Tijdens de bouw zaten hier drie stille bugs
+(ontbrekende props, cache die het veld opslokte, initial state op één van vijf
+routes), dus: **klikken, niet aannemen.**
+
+**Opzet:** MetaVox ≥ 1.1.1 geïnstalleerd, minstens één groupfolder met
+toegewezen velden (dev: groupfolder 1, 5 velden).
+
+| # | Stap | Verwacht |
+|---|---|---|
+| M1 | Open een pagina → ⓘ | **Vier** tabs: Details · MetaVox · Vertalingen · Versies |
+| M2 | `…`-menu | **MetaVox**-item in de INFO-groep, opent de tab direct |
+| M3 | Open de MetaVox-tab | Zelfde velden en invoertypes als hetzelfde bestand in de **Files**-app |
+| M4 | Bekijk het formulier ongewijzigd | **Geen** Opslaan-knop zichtbaar (verschijnt pas bij een wijziging — zoals in Files) |
+| M5 | Wijzig een veld → Opslaan | Bevestiging; herladen → waarde staat er nog |
+| M6 | Zelfde bestand in de Files-app | Zelfde waarde zichtbaar |
+| M7 | Onbekend veldtype (dev: "Primary driver" [person]) | "Unknown field type: person" — zelfde tekst als in Files |
+| M8 | Kopieer of vertaal een pagina → MetaVox-tab | Velden **leeg** (eigen fileId), comments/reacties ook leeg |
+| M9 | `occ app:disable metavox` → herlaad | Geen tab, geen menu-item, rest werkt; daarna weer enablen → terug zonder herstart |
+| M10 | Netwerktabblad bij openen zijbalk | Geen `/api/metavox/status`-call (het veld lift mee op de paginarespons) |
+
+> **M9 is de belangrijkste**: beschikbaarheid komt via initial state op élke
+> route (directe URL, taal-URL, share). Test M1 daarom ook eens via een direct
+> `#page-…`-adres in een nieuw tabblad, niet alleen via navigatie.
+
+**NC32-restrisico (bewust, genoteerd):** de oude script-injectie is verwijderd;
+op NC32 bestond die route nog. Het nieuwe paneel is versie-onafhankelijk, maar
+er is geen NC32-omgeving om dat aan te tonen.
+
+---
+
 ## Niet gedekt — bewust
 
 Zaken die dit plan **niet** aantoont, en waarvoor apart werk nodig is:
@@ -259,7 +294,9 @@ Noteer per sectie: geslaagd / gefaald + wat je zag. Bij een fout:
    zichtbaar in de console
 4. `occ log:tail` of `data/nextcloud.log`
 
-**Blokkerend voor release:** elke fout in **A**, **B**, **F**, **J3** of **K**.
+**Blokkerend voor release:** elke fout in **A**, **B**, **F**, **J3** of **K**;
+plus **M1/M5** wanneer MetaVox geïnstalleerd is (een lege of niet-opslaande
+metadata-tab was precies de klacht die dit werk startte).
 Dat zijn de secties waar een fout betekent dat het intranet niet werkt, dat
 gedeelde links kapot zijn, dat eentalige klanten last hebben, of dat een
 upgrade schade doet.
