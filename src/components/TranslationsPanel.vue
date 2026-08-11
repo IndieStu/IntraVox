@@ -14,7 +14,11 @@
 					 :key="item.uniqueId"
 					 class="translation-row">
 					<span class="translation-language">{{ languageName(item.language) }}</span>
+					<!-- lang: this title is written in the TARGET language, not the
+					     UI language — WCAG 3.1.2 wants that asserted so screen
+					     readers switch pronunciation. -->
 					<button class="translation-title"
+							:lang="item.language"
 							:title="t('intravox', 'Open this translation')"
 							@click="$emit('navigate', item.uniqueId)">
 						{{ item.title }}
@@ -84,9 +88,12 @@
 							? t('intravox', 'No pages available to link')
 							: t('intravox', 'Choose a page …') }}
 					</option>
+					<!-- lang: name and title are both in the candidate's own
+					     language (language names are autonyms: "Français"). -->
 					<option v-for="c in candidates"
 							:key="c.uniqueId"
-							:value="c.uniqueId">
+							:value="c.uniqueId"
+							:lang="c.language">
 						{{ languageName(c.language) }} — {{ c.title }}
 					</option>
 				</select>
