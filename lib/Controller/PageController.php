@@ -65,6 +65,28 @@ class PageController extends Controller {
     }
 
     /**
+     * Initial state every render of the app template needs.
+     *
+     * This controller renders the template from seven entry points (index,
+     * show, showByUniqueId, languagePage, shareAccess, shareAuthenticate),
+     * and state set in only one of them is state the app does not have when
+     * reached by any other route — which is exactly how the MetaVox tab went
+     * missing on a direct page URL. Call this before every TemplateResponse.
+     */
+    private function provideAppInitialState(): void {
+        // isEnabledForUser() needs a user; for an anonymous share visitor there
+        // is none, and MetaVox editing is not offered on public shares anyway.
+        $user = $this->userSession->getUser();
+
+        $this->initialState->provideInitialState(
+            'metaVoxAvailable',
+            $user !== null
+                && $this->appManager->isInstalled('metavox')
+                && $this->appManager->isEnabledForUser('metavox', $user)
+        );
+    }
+
+    /**
      * Build CSP with video domain whitelist
      */
     private function buildContentSecurityPolicy(): ContentSecurityPolicy {
@@ -177,12 +199,7 @@ class PageController extends Controller {
         // carry none at all, leaving the tab missing until the cache expired.
         // Initial state is rendered fresh into every page load and costs no
         // extra request.
-        $this->initialState->provideInitialState(
-            'metaVoxAvailable',
-            $this->appManager->isInstalled('metavox')
-                && !$isAnonymous
-                && $this->appManager->isEnabledForUser('metavox')
-        );
+        $this->provideAppInitialState();
 
         // Render as public only for anonymous users
         $renderAs = ($isAnonymous && $isShareAccess)
@@ -270,6 +287,8 @@ class PageController extends Controller {
         $renderAs = $isAnonymous
             ? TemplateResponse::RENDER_AS_PUBLIC
             : TemplateResponse::RENDER_AS_USER;
+
+        $this->provideAppInitialState();
 
         $response = new TemplateResponse('intravox', 'main', [
             'isPublicShare' => true,
@@ -417,6 +436,8 @@ class PageController extends Controller {
         Util::addScript('intravox', 'intravox-main');
         Util::addStyle('intravox', 'main');
 
+        $this->provideAppInitialState();
+
         $response = new TemplateResponse('intravox', 'main');
         $response->setContentSecurityPolicy($this->buildContentSecurityPolicy());
 
@@ -435,6 +456,8 @@ class PageController extends Controller {
         Util::addScript('intravox', 'intravox-shared');
         Util::addScript('intravox', 'intravox-main');
         Util::addStyle('intravox', 'main');
+
+        $this->provideAppInitialState();
 
         $response = new TemplateResponse('intravox', 'main');
         $response->setContentSecurityPolicy($this->buildContentSecurityPolicy());
@@ -472,6 +495,8 @@ class PageController extends Controller {
         } catch (\Exception $e) {
             // Page not found - silently fall back to default title
         }
+
+        $this->provideAppInitialState();
 
         $response = new TemplateResponse('intravox', 'main', [
             'pageData' => $pageData,
