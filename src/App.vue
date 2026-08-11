@@ -326,6 +326,7 @@
 <script>
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
+import { loadState } from '@nextcloud/initial-state';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { showSuccess, showError } from '@nextcloud/dialogs';
 import PageTreeSelect from './components/PageTreeSelect.vue';
@@ -412,6 +413,10 @@ export default {
   },
   data() {
     return {
+      // Whether MetaVox is installed. Read once at boot from initial state —
+      // it cannot change while the page is open, and unlike the page response
+      // it is never served from a client-side cache.
+      metaVoxInstalled: loadState('intravox', 'metaVoxAvailable', false),
       pages: [],
       currentPage: null,
       originalPage: null, // For rollback
@@ -525,17 +530,20 @@ export default {
     },
     /**
      * Whether MetaVox is installed, gating both its sidebar tab and its menu
-     * entry. Rides along on the page response rather than a status call of its
-     * own: server-side it is an in-memory app-manager lookup, so it costs
-     * nothing here, where the sidebar previously spent an HTTP round trip on
-     * it every time it opened.
+     * entry.
+     *
+     * Read from initial state, NOT from the page response: this is a fact
+     * about the installation rather than about a page, and page responses are
+     * cached client-side. Taking it from a cached page meant a page visited
+     * before MetaVox existed kept reporting it absent, which is exactly how
+     * the tab went missing.
      *
      * Same rule as isMultilingual above: a tab that exists gets a menu entry,
      * and when the tab is absent the entry is too — so the menu always matches
      * what the sidebar shows.
      */
     metaVoxAvailable() {
-      return this.currentPage?.metaVoxAvailable === true;
+      return this.metaVoxInstalled;
     },
     /**
      * The `lang` for the content region.

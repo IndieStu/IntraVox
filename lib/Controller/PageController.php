@@ -34,6 +34,8 @@ class PageController extends Controller {
     private IThrottler $throttler;
     private ISession $session;
     private IURLGenerator $urlGenerator;
+    private \OCP\AppFramework\Services\IInitialState $initialState;
+    private \OCP\App\IAppManager $appManager;
 
     public function __construct(
         string $appName,
@@ -45,9 +47,13 @@ class PageController extends Controller {
         IUserSession $userSession,
         IThrottler $throttler,
         ISession $session,
-        IURLGenerator $urlGenerator
+        IURLGenerator $urlGenerator,
+        \OCP\AppFramework\Services\IInitialState $initialState,
+        \OCP\App\IAppManager $appManager
     ) {
         parent::__construct($appName, $request);
+        $this->initialState = $initialState;
+        $this->appManager = $appManager;
         $this->pageService = $pageService;
         $this->publicShareService = $publicShareService;
         $this->logger = $logger;
@@ -162,6 +168,21 @@ class PageController extends Controller {
         Util::addScript('intravox', 'intravox-shared');
         Util::addScript('intravox', 'intravox-main');
         Util::addStyle('intravox', 'main');
+
+        // Whether MetaVox is installed, which gates its sidebar tab and menu
+        // entry. Delivered as initial state rather than as a field on the page
+        // response: it is a property of the INSTALLATION, not of a page, and
+        // page responses are cached client-side — so a cached page would carry
+        // a stale answer, and pages cached before this field existed would
+        // carry none at all, leaving the tab missing until the cache expired.
+        // Initial state is rendered fresh into every page load and costs no
+        // extra request.
+        $this->initialState->provideInitialState(
+            'metaVoxAvailable',
+            $this->appManager->isInstalled('metavox')
+                && !$isAnonymous
+                && $this->appManager->isEnabledForUser('metavox')
+        );
 
         // Render as public only for anonymous users
         $renderAs = ($isAnonymous && $isShareAccess)
