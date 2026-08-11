@@ -172,21 +172,14 @@ class Application extends App implements IBootstrap {
             );
         }
 
-        $appManager = $container->get(\OCP\App\IAppManager::class);
-        $request = $container->get(\OCP\IRequest::class);
-        $requestUri = $request->getRequestUri();
-
-        // Don't load external scripts on admin/settings pages - OC object is not available there
-        $isAdminPage = str_contains($requestUri, '/settings/') || str_contains($requestUri, '/admin/');
-
-        if (!$isAdminPage) {
-            // Load MetaVox scripts if installed (for IntraVox sidebar integration)
-            // MetaVox's filesplugin.js has its own duplicate registration check,
-            // so loading it here is safe even if MetaVox also loads it in Files app.
-            if ($appManager->isInstalled('metavox') && $appManager->isEnabledForUser('metavox')) {
-                \OCP\Util::addScript('metavox', 'filesplugin');
-                \OCP\Util::addStyle('metavox', 'files');
-            }
-        }
+        // MetaVox's filesplugin.js used to be injected here so its tab would
+        // register into a mock Files sidebar that IntraVox built. That route is
+        // gone: Nextcloud 34 removed the global `OCA.Files.Sidebar` the plugin
+        // registers against, leaving an empty tab rather than a working one.
+        // IntraVox now renders MetaVox fields itself from MetaVox's OCS API
+        // (see MetaVoxPanel.vue), which is a MetaVox API rather than a
+        // Nextcloud one and so survives Nextcloud upgrades. Injecting the
+        // plugin here is therefore no longer needed — and dropping it saves a
+        // script and a stylesheet on every page load where MetaVox is present.
     }
 }

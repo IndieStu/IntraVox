@@ -45,15 +45,23 @@
          order -50); the difference is that a page has three panels worth
          reaching where a file row has one.
 
-         MetaVox deliberately has NO entry: the app may not be installed, and a
-         menu whose shape changes per install is exactly the inconsistency this
-         grouping exists to remove. Its fields live under Details, which is one
-         click away. -->
+         The rule is: every tab that exists has an entry here, and when the tab
+         is absent so is the entry — so the menu always matches what the sidebar
+         shows. MetaVox and Translations are both gated that way; Details and
+         Version history are always present. -->
     <NcActionButton @click="emitAndClose('show-details')">
       <template #icon>
         <InformationOutline :size="20" />
       </template>
       {{ t('intravox', 'Details') }}
+    </NcActionButton>
+
+    <NcActionButton v-if="metaVoxAvailable"
+                    @click="emitAndClose('metavox')">
+      <template #icon>
+        <MetaVoxIcon :size="20" />
+      </template>
+      {{ t('intravox', 'MetaVox') }}
     </NcActionButton>
 
     <NcActionButton v-if="isMultilingual"
@@ -131,6 +139,7 @@ import Delete from 'vue-material-design-icons/Delete.vue';
 import Translate from 'vue-material-design-icons/Translate.vue';
 import History from 'vue-material-design-icons/History.vue';
 import InformationOutline from 'vue-material-design-icons/InformationOutline.vue';
+import MetaVoxIcon from './icons/MetaVoxIcon.vue';
 
 export default {
   name: 'PageActionsMenu',
@@ -148,7 +157,8 @@ export default {
     Delete,
     Translate,
     History,
-    InformationOutline
+    InformationOutline,
+    MetaVoxIcon
   },
   props: {
     isEditMode: {
@@ -177,9 +187,17 @@ export default {
     isMultilingual: {
       type: Boolean,
       default: false
+    },
+    /**
+     * Whether MetaVox is installed. Gates its menu entry exactly as the sidebar
+     * gates its tab, so the two can never disagree about what exists.
+     */
+    metaVoxAvailable: {
+      type: Boolean,
+      default: false
     }
   },
-  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'show-details', 'translate-page', 'version-history', 'delete-page'],
+  emits: ['edit-navigation', 'create-page', 'rename-page', 'page-settings', 'save-as-template', 'feed-settings', 'copy-page', 'show-details', 'metavox', 'translate-page', 'version-history', 'delete-page'],
   computed: {
     // Group-presence flags drive the separators: a separator only renders
     // between two non-empty groups, so permission-gated hiding never leaves a

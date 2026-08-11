@@ -74,23 +74,26 @@
           <label class="metadata-label">{{ t('intravox', 'UID') }}</label>
           <div class="metadata-value metadata-monospace">{{ metadata.uniqueId }}</div>
         </div>
-
-        <!-- MetaVox properties, as a SECTION rather than a fourth tab.
-             Nextcloud's own guideline: "Do not use more than 3 tabs in the
-             sidebar, the names of the tabs then start getting cut off." With
-             four tabs each label gets a quarter of the width and is truncated,
-             which is why an editor could not find Versions. Core folds Comments
-             into Activity for the same reason. Both this and Details describe
-             properties of the page, so the split was never meaningful anyway. -->
-        <div v-if="metaVoxInstalled" class="metadata-section">
-          <h3 class="metadata-section__title">{{ t('intravox', 'MetaVox') }}</h3>
-          <div ref="metavoxContainer" class="metavox-container">
-            <div v-if="loadingMetaVox" class="loading">
-              {{ t('intravox', 'Loading MetaVox …') }}
-            </div>
-          </div>
-        </div>
       </div>
+    </NcAppSidebarTab>
+
+    <!-- MetaVox Tab. Its own tab rather than a section under Details because
+         it is EDITABLE — Details is read-only facts, this is a form you fill
+         in and save. Rendered from MetaVox's OCS API; MetaVox itself contains
+         no IntraVox code and needs none. -->
+    <NcAppSidebarTab
+      v-if="metaVoxAvailable"
+      id="metavox-tab"
+      :name="t('intravox', 'MetaVox')"
+      :order="2"
+    >
+      <template #icon>
+        <MetaVoxIcon :size="20" />
+      </template>
+      <MetaVoxPanel
+        :file-id="fileId"
+        :groupfolder-id="groupfolderId"
+        @saved="$emit('metadata-saved')" />
     </NcAppSidebarTab>
 
     <!-- Translations Tab.
@@ -102,7 +105,7 @@
       v-if="isMultilingual"
       id="translations-tab"
       :name="t('intravox', 'Translations')"
-      :order="2"
+      :order="3"
     >
       <template #icon>
         <Translate :size="20" />
@@ -119,7 +122,7 @@
     <NcAppSidebarTab
       id="versions-tab"
       :name="t('intravox', 'Versions')"
-      :order="3"
+      :order="4"
     >
       <template #icon>
         <History :size="20" />
@@ -229,6 +232,7 @@ import Restore from 'vue-material-design-icons/Restore.vue';
 import Translate from 'vue-material-design-icons/Translate.vue';
 import MetaVoxIcon from './icons/MetaVoxIcon.vue';
 import TranslationsPanel from './TranslationsPanel.vue';
+import MetaVoxPanel from './MetaVoxPanel.vue';
 
 export default {
   name: 'PageDetailsSidebar',
@@ -242,7 +246,8 @@ export default {
     MetaVoxIcon,
     Restore,
     Translate,
-    TranslationsPanel
+    TranslationsPanel,
+    MetaVoxPanel
   },
   props: {
     isOpen: {
@@ -302,8 +307,6 @@ export default {
       metadata: null,
       loadingMetadata: false,
       metadataError: null,
-      metaVoxInstalled: false,
-      loadingMetaVox: false,
       selectedVersion: null,
       editingLabel: null,
       editableLabel: '',
@@ -346,15 +349,6 @@ export default {
         this.activeTab = this.initialTab || 'details-tab';
         // Only load metadata (for details tab - default)
         this.loadMetadata().catch(() => {});
-        // MetaVox is a section inside Details now, and Details is the tab the
-        // sidebar opens on. Dispatch explicitly rather than relying on a
-        // watcher: metaVoxInstalled may already be true from a previous open,
-        // in which case it never changes and the watcher never fires.
-        this.checkMetaVoxInstalled().then(() => {
-          this.$nextTick(() => {
-            this.dispatchMetaVoxUpdate();
-          });
-        });
       }
     },
     pageId() {
@@ -383,12 +377,6 @@ export default {
         if (!this.metadata) {
           this.loadMetadata().catch(() => {});
         }
-        // MetaVox now renders as a SECTION inside Details rather than its own
-        // tab, so its mount has to be triggered here. Missing this left the
-        // MetaVox heading visible with nothing under it.
-        this.$nextTick(() => {
-          this.dispatchMetaVoxUpdate();
-        });
       }
     },
     versions(newVersions) {
@@ -397,21 +385,12 @@ export default {
       if (this.activeTab === 'versions-tab' && newVersions.length > 0 && !this.isRestoring && !this.selectedVersion) {
         this.autoSelectFirstVersion();
       }
-    },
-    metaVoxInstalled(newValue) {
-      // If MetaVox just became available and the tab is already active, dispatch update
-      if (newValue && this.activeTab === 'details-tab') {
-        this.$nextTick(() => {
-          this.dispatchMetaVoxUpdate();
-        });
-      }
     }
   },
   mounted() {
     if (this.isOpen) {
       // Only load metadata at mount (details tab is default)
       this.loadMetadata().catch(() => {});
-      this.checkMetaVoxInstalled();
     }
 
     // Listen for page save events to refresh versions
@@ -538,10 +517,6 @@ export default {
       if (newTabId === 'versions-tab' && !this.versionsLoaded) {
         this.loadVersions();
         this.versionsLoaded = true;
-      } else if (newTabId === 'details-tab' && this.metaVoxInstalled) {
-        this.$nextTick(() => {
-          this.dispatchMetaVoxUpdate();
-        });
       }
     },
     async loadVersions() {
@@ -631,35 +606,6 @@ export default {
       } finally {
         this.loadingMetadata = false;
       }
-    },
-    async checkMetaVoxInstalled() {
-      try {
-        const url = generateUrl('/apps/intravox/api/metavox/status');
-        const response = await axios.get(url);
-        this.metaVoxInstalled = response.data.installed === true;
-      } catch (error) {
-        this.metaVoxInstalled = false;
-      }
-    },
-    dispatchMetaVoxUpdate() {
-      if (!this.metaVoxInstalled) {
-        return;
-      }
-
-      if (!this.$refs.metavoxContainer) {
-        return;
-      }
-
-      // Dispatch custom event for MetaVox to listen to
-      const event = new CustomEvent('intravox:metavox:update', {
-        detail: {
-          pageId: this.pageId,
-          pageName: this.pageName,
-          container: this.$refs.metavoxContainer,
-          metadata: this.metadata
-        }
-      });
-      window.dispatchEvent(event);
     },
     formatBytes(bytes) {
       if (bytes === 0) return '0 Bytes';

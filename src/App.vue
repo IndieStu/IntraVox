@@ -77,6 +77,7 @@
                          :permissions="pagePermissions"
                          :is-home="isCurrentPageHome"
                          :is-multilingual="isMultilingual"
+                         :meta-vox-available="metaVoxAvailable"
                          @edit-navigation="showNavigationEditor = true"
                          @create-page="createNewPage"
                          @rename-page="renameCurrentPage"
@@ -85,6 +86,7 @@
                          @feed-settings="showFeedSettings = true"
                          @copy-page="copyCurrentPage"
                          @show-details="openSidebarTab('details-tab')"
+                         @metavox="openSidebarTab('metavox-tab')"
                          @translate-page="openSidebarTab('translations-tab')"
                          @version-history="openSidebarTab('versions-tab')"
                          @delete-page="deleteCurrentPage" />
@@ -231,6 +233,9 @@
         :translations="currentPage?.translations || []"
         :language-names="languageContentStatus?.languageNames || {}"
         :is-multilingual="isMultilingual"
+        :meta-vox-available="metaVoxAvailable"
+        :file-id="currentPage?.fileId || null"
+        :groupfolder-id="currentPage?.groupfolderId || null"
         @close="handleCloseSidebar"
         @version-restored="handleVersionRestored"
         @version-selected="handleVersionSelected"
@@ -341,7 +346,6 @@ import Breadcrumb from './components/Breadcrumb.vue';
 import ShareButton from './components/ShareButton.vue';
 import CacheService from './services/CacheService.js';
 import { isSectionAnchor, scrollToHashAnchor } from './utils/headingAnchors.js';
-import './metavox-integration.js'; // Load MetaVox integration
 
 // Lazy-loaded components (only loaded when needed)
 // This reduces initial bundle size and improves first load performance
@@ -518,6 +522,20 @@ export default {
     isMultilingual() {
       const langs = this.languageContentStatus?.languagesWithContent;
       return Array.isArray(langs) && langs.length > 1;
+    },
+    /**
+     * Whether MetaVox is installed, gating both its sidebar tab and its menu
+     * entry. Rides along on the page response rather than a status call of its
+     * own: server-side it is an in-memory app-manager lookup, so it costs
+     * nothing here, where the sidebar previously spent an HTTP round trip on
+     * it every time it opened.
+     *
+     * Same rule as isMultilingual above: a tab that exists gets a menu entry,
+     * and when the tab is absent the entry is too — so the menu always matches
+     * what the sidebar shows.
+     */
+    metaVoxAvailable() {
+      return this.currentPage?.metaVoxAvailable === true;
     },
     /**
      * The `lang` for the content region.

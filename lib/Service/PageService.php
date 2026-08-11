@@ -2534,6 +2534,22 @@ class PageService {
                 $page['translationGroup'] ?? null,
                 $page['uniqueId'] ?? null
             );
+
+            // Whether the MetaVox tab and its menu entry should exist at all.
+            // Rides along on a response the client already fetches: this is an
+            // in-memory app-manager lookup, no query and no HTTP, so it is
+            // cheaper than the separate /api/metavox/status call the sidebar
+            // used to make every time it opened.
+            $page['metaVoxAvailable'] = $this->isMetaVoxAvailable();
+
+            // The groupfolder holding this page. MetaVox's field definitions are
+            // assigned per groupfolder, and its groupfolder-scoped endpoint
+            // returns exactly the fields for that folder — where the
+            // auto-detecting variant returned every field of every folder.
+            if ($page['metaVoxAvailable'] && $file instanceof \OCP\Files\File) {
+                $this->getMetaVoxDataForFiles([$file->getId()]);
+                $page['groupfolderId'] = $this->metaVoxGroupfolderByFile[$file->getId()] ?? null;
+            }
         } else {
             $page['permissions'] = $this->permissionsFromNode($folder);
             $page['canEdit'] = $folder->isUpdateable();
