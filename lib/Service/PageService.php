@@ -1554,6 +1554,18 @@ class PageService {
             );
         }
 
+        // BOTH sides must be writable before either is written. The order
+        // matters more than it looks: the group is adopted from whichever side
+        // already has one, so writing A first and then failing on B would leave
+        // A a member of B's existing group — a link B's editors never made,
+        // created by someone without write access to B. Checking up front makes
+        // denial happen before any state changes.
+        foreach ([$a, $b] as $side) {
+            if (!$side['file']->isUpdateable()) {
+                throw new ForbiddenException('You need edit permission on both pages to link them');
+            }
+        }
+
         // Adopt an existing group when there is one, so linking is additive.
         $dataA = json_decode($a['file']->getContent(), true);
         $dataB = json_decode($b['file']->getContent(), true);
@@ -1654,6 +1666,11 @@ class PageService {
         // Assign the group up front so both sides land linked in one write
         // each, rather than being linked afterwards as a second step that
         // could half-fail.
+        //
+        // Known half-state: if createPage() below fails, the SOURCE keeps this
+        // fresh group as its only member. That is harmless by construction —
+        // resolveTranslations() excludes the page itself, so a singleton group
+        // renders nothing — and the next successful link or unlink rewrites it.
         if (empty($group)) {
             $group = 'tg-' . $this->generateUUID();
             $this->writeTranslationGroup($source, $group);
@@ -1773,6 +1790,14 @@ class PageService {
         $ownGroup = is_array($ownData) ? ($ownData['translationGroup'] ?? null) : null;
 
         // Languages to offer: everything with content except this page's own.
+        //
+        // ACL boundary: this listing goes through the caller's OWN mount, so a
+        // language folder their ACLs deny never appears — language-level access
+        // is enforced here for free. Deliberately NOT re-checked per candidate
+        // row below: that would cost one filecache lookup per page in the
+        // language (hundreds+), for an editor-facing dialog. The accepted bound
+        // is that ACLs on a SUBFOLDER within a readable language can still
+        // surface a title here.
         $languages = [];
         foreach ($this->getCachedDirectoryListing($this->getIntraVoxFolder()) as $node) {
             if (!($node instanceof \OCP\Files\Folder)) {
@@ -1921,6 +1946,16 @@ class PageService {
                 continue;
             }
             if (empty($row['language']) || empty($row['unique_id'])) {
+                continue;
+            }
+            // The index is shared by every user, but readability is not:
+            // GroupFolder ACLs can deny this caller the folder a group member
+            // lives in, and its title/status must not leak past that. Resolve
+            // the row's folder through the caller's OWN mount — same rule
+            // listPagesFromIndex states for permissions — and skip what the
+            // mount does not grant. Costs one filecache lookup per group
+            // member, bounded by the number of languages, not pages.
+            if ($this->folderFromAbsolutePath((string)($row['path'] ?? '')) === null) {
                 continue;
             }
             $translations[] = [
@@ -2460,6 +2495,16 @@ class PageService {
                     if ($decoded['metaVoxAvailable'] && $result['file'] instanceof \OCP\Files\File) {
                         $decoded['groupfolderId'] = $this->groupfolderIdForNode($result['file']);
                     }
+                    // Translations are ACL-filtered per user (resolveTranslations
+                    // skips group members the caller's mount does not grant), so
+                    // one user's list must never be served to another. Stripped
+                    // from the shared cache on write — recomputed here on every
+                    // hit: one indexed query plus a filecache lookup per group
+                    // member.
+                    $decoded['translations'] = $this->resolveTranslations(
+                        $decoded['translationGroup'] ?? null,
+                        $decoded['uniqueId'] ?? null
+                    );
                     $this->pageDataCache[$originalId] = $decoded;
                     $this->pageDataCache[$uniqueId] = $decoded;
                     return $decoded;
@@ -2491,7 +2536,10 @@ class PageService {
             // enabling or disabling the app must take effect immediately rather
             // than waiting out an hour-long cache entry. It is recomputed on
             // every read above.
-            unset($cacheable['permissions'], $cacheable['canEdit'], $cacheable['metaVoxAvailable']);
+            // translations joins the per-user list: it is ACL-filtered through
+            // the caller's mount, so caching it would leak one user's view to
+            // another. Recomputed on every cache hit above.
+            unset($cacheable['permissions'], $cacheable['canEdit'], $cacheable['metaVoxAvailable'], $cacheable['translations']);
             $this->distributedCache->set($contentCacheKey, json_encode($cacheable), 3600);
         }
 
@@ -8926,10 +8974,25 @@ class PageService {
                 }
 
                 if ($item instanceof \OCP\Files\File) {
-                    // Copy file
+                    // Copy STREAMED, never via getContent(): that buffers the
+                    // whole file in RAM, and media folders hold videos — a
+                    // 2 GB file would hit memory_limit halfway through a copy
+                    // or translation. putContent() accepts a resource and
+                    // pipes it chunk-wise.
                     try {
-                        $newFile = $target->newFile($name);
-                        $newFile->putContent($item->getContent());
+                        $stream = $item->fopen('rb');
+                        if ($stream === false) {
+                            // Storage without stream support; small-file path.
+                            $target->newFile($name)->putContent($item->getContent());
+                        } else {
+                            try {
+                                $target->newFile($name)->putContent($stream);
+                            } finally {
+                                if (is_resource($stream)) {
+                                    fclose($stream);
+                                }
+                            }
+                        }
                     } catch (\Exception $e) {
                         $this->logger->warning('Failed to copy media file: ' . $name . ' - ' . $e->getMessage());
                     }

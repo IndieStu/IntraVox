@@ -33,13 +33,13 @@ class PageTranslationGroupTest extends TestCase {
         $this->writes = [];
     }
 
-    private function makeFile(string $path, array $json): File {
+    private function makeFile(string $path, array $json, bool $updateable = true): File {
         $file = $this->createMock(File::class);
         $file->method('getName')->willReturn(basename($path));
         $file->method('getType')->willReturn(FileInfo::TYPE_FILE);
         $file->method('getPath')->willReturn($path);
         $file->method('getId')->willReturn(abs(crc32($path)));
-        $file->method('isUpdateable')->willReturn(true);
+        $file->method('isUpdateable')->willReturn($updateable);
         $file->method('getMTime')->willReturn(1000);
         // Reads reflect earlier writes, so a link followed by a read sees it.
         $file->method('getContent')->willReturnCallback(
@@ -74,12 +74,12 @@ class PageTranslationGroupTest extends TestCase {
     }
 
     /** Two languages, one page each: nl/over-ons and de/ueber-uns. */
-    private function makeService(?array $nlJson = null, ?array $deJson = null): PageService {
+    private function makeService(?array $nlJson = null, ?array $deJson = null, bool $deUpdateable = true): PageService {
         $nlJson ??= ['uniqueId' => 'page-nl', 'title' => 'Over ons'];
         $deJson ??= ['uniqueId' => 'page-de', 'title' => 'Über uns'];
 
         $nlFile = $this->makeFile('/IntraVox/nl/over-ons.json', $nlJson);
-        $deFile = $this->makeFile('/IntraVox/de/ueber-uns.json', $deJson);
+        $deFile = $this->makeFile('/IntraVox/de/ueber-uns.json', $deJson, $deUpdateable);
 
         $nl = $this->makeFolder('/IntraVox/nl', [
             'over-ons.json' => $nlFile,
@@ -181,6 +181,54 @@ class PageTranslationGroupTest extends TestCase {
         $this->assertMatchesRegularExpression('/^tg-[a-f0-9-]{36}$/', $group);
         $this->assertSame($group, $this->writtenGroup('/IntraVox/nl/over-ons.json'));
         $this->assertSame($group, $this->writtenGroup('/IntraVox/de/ueber-uns.json'));
+    }
+
+    /**
+     * Denial must come before ANY write. The group is adopted from whichever
+     * side already has one, so writing A first and only then failing on B
+     * would leave A a member of B's existing group — a link created by
+     * someone without write access to B. (2.0 audit, finding M2.)
+     */
+    public function testLinkRefusedBeforeAnyWriteWhenOneSideIsReadOnly(): void {
+        $svc = $this->makeService(
+            null,
+            ['uniqueId' => 'page-de', 'title' => 'Über uns', 'translationGroup' => 'tg-existing'],
+            false // de is read-only for this user
+        );
+
+        try {
+            $svc->linkTranslation('page-nl', 'page-de');
+            $this->fail('Expected ForbiddenException');
+        } catch (\OCA\IntraVox\Exception\ForbiddenException $e) {
+            // expected
+        }
+
+        $this->assertSame([], $this->writes, 'nothing may be written when either side is read-only');
+    }
+
+    /**
+     * The index is shared by every user, but readability is not: a group
+     * member whose folder the caller's mount does not grant must not surface
+     * its title, status or uniqueId in the translations list. (2.0 audit,
+     * finding M1.)
+     */
+    public function testResolveTranslationsSkipsRowsTheMountDoesNotGrant(): void {
+        $svc = $this->makeService();
+        $mock = $this->createMock(PageIndexService::class);
+        $mock->method('findByTranslationGroup')->willReturn([
+            ['unique_id' => 'page-de', 'language' => 'de', 'title' => 'Über uns',
+                'status' => 'published', 'path' => '/IntraVox/de/ueber-uns'],
+            // fr/ is not mounted for this user — the ACL-denied case.
+            ['unique_id' => 'page-fr', 'language' => 'fr', 'title' => 'Secret FR',
+                'status' => 'published', 'path' => '/IntraVox/fr/secret'],
+        ]);
+        (new \ReflectionProperty(PageService::class, 'pageIndexService'))->setValue($svc, $mock);
+
+        $m = new \ReflectionMethod(PageService::class, 'resolveTranslations');
+        $rows = $m->invoke($svc, 'tg-x', 'page-nl');
+
+        $this->assertCount(1, $rows, 'the fr row resolves to no folder on this mount and must be skipped');
+        $this->assertSame('page-de', $rows[0]['uniqueId']);
     }
 
     /**
