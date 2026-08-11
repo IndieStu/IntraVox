@@ -281,6 +281,24 @@ export default {
       type: Boolean,
       default: false
     },
+    /**
+     * Whether MetaVox is installed. Gates its tab exactly as the action menu
+     * gates its entry, so the two can never disagree about what exists.
+     */
+    metaVoxAvailable: {
+      type: Boolean,
+      default: false
+    },
+    /** Nextcloud file id of the page JSON, for MetaVox lookups. */
+    fileId: {
+      type: Number,
+      default: null
+    },
+    /** Groupfolder holding the page; MetaVox assigns its fields per folder. */
+    groupfolderId: {
+      type: Number,
+      default: null
+    },
     initialTab: {
       type: String,
       default: 'details-tab'
