@@ -118,6 +118,17 @@ export default {
       type: String,
       default: null
     },
+    /**
+     * Language tree to show. Follows the language of the page being VIEWED,
+     * not the viewer's profile language — the 1.9.6 rule ('the structure you
+     * are looking at decides') applied to reading. Without this, opening the
+     * structure while on a French page showed the English tree, and a freshly
+     * created French translation was nowhere to be found in it.
+     */
+    language: {
+      type: String,
+      default: null
+    },
     shareToken: {
       type: String,
       default: null
@@ -171,6 +182,13 @@ export default {
       return !!this.rootPermissions.canCreate;
     }
   },
+  watch: {
+    // Navigating from inside the tree can land on a page in another language;
+    // the tree must swap along with it rather than keep showing the old one.
+    language() {
+      this.loadTree();
+    }
+  },
   async mounted() {
     await this.loadTree();
   },
@@ -183,7 +201,13 @@ export default {
       this.error = null;
 
       try {
-        const params = this.currentPageId ? { currentPageId: this.currentPageId } : {};
+        const params = {};
+        if (this.currentPageId) {
+          params.currentPageId = this.currentPageId;
+        }
+        if (this.language) {
+          params.language = this.language;
+        }
         let url;
         if (this.shareToken) {
           url = generateUrl('/apps/intravox/api/share/{token}/tree', { token: this.shareToken });

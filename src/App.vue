@@ -251,6 +251,7 @@
       v-if="showPageTree"
       ref="pageTreeModal"
       :current-page-id="currentPage?.uniqueId"
+      :language="currentPage?.language || null"
       :can-manage="canEditNavigation"
       @close="showPageTree = false"
       @navigate="selectPage"
