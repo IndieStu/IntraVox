@@ -180,6 +180,7 @@ OC.L10N.register(
     "Admin" : "管理",
     "Organization" : "组织",
     "News" : "新闻",
+    "Announcement" : "公告",
     "Forum" : "论坛",
     "Code" : "代码",
     "Folder" : "文件夹",

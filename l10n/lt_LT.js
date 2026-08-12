@@ -161,6 +161,7 @@ OC.L10N.register(
     "Previous page" : "Ankstesnis puslapis",
     "Next page" : "Kitas puslapis",
     "Timeline" : "Laiko skalė",
+    "Grouped" : "Sugrupuota",
     "Small" : "Mažas",
     "Medium" : "Vidutinis",
     "Large" : "Didelis",
