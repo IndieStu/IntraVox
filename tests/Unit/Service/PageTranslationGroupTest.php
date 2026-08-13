@@ -207,6 +207,39 @@ class PageTranslationGroupTest extends TestCase {
     }
 
     /**
+     * Adopting an existing group must not smuggle in a duplicate language.
+     * The same-language guard compares only the two pages being linked; the
+     * ADOPTED group can hold members neither of them — linking nl-A to en-B
+     * whose group already contains nl-C would give the group two Dutch
+     * versions, making the reader switcher ambiguous. Found in live data via
+     * a screenshot during the 2.0 screenshot round.
+     */
+    public function testLinkRefusesWhenAdoptedGroupAlreadyHoldsThatLanguage(): void {
+        $svc = $this->makeService(
+            null,
+            // de-side already belongs to a group…
+            ['uniqueId' => 'page-de', 'title' => 'Über uns', 'translationGroup' => 'tg-existing']
+        );
+        // …and that group already contains ANOTHER nl page.
+        $mock = $this->createMock(PageIndexService::class);
+        $mock->method('findByUniqueId')->willReturn(null);
+        $mock->method('findByTranslationGroup')->willReturnCallback(fn($g) => $g === 'tg-existing' ? [
+            ['unique_id' => 'page-de', 'language' => 'de'],
+            ['unique_id' => 'page-nl-other', 'language' => 'nl'],
+        ] : []);
+        (new \ReflectionProperty(PageService::class, 'pageIndexService'))->setValue($svc, $mock);
+
+        try {
+            $svc->linkTranslation('page-nl', 'page-de');
+            $this->fail('Expected InvalidArgumentException');
+        } catch (\InvalidArgumentException $e) {
+            $this->assertStringContainsString('already has a version', $e->getMessage());
+        }
+
+        $this->assertSame([], $this->writes, 'refusal must come before any write');
+    }
+
+    /**
      * The index is shared by every user, but readability is not: a group
      * member whose folder the caller's mount does not grant must not surface
      * its title, status or uniqueId in the translations list. (2.0 audit,

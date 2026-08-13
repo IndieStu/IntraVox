@@ -1573,6 +1573,29 @@ class PageService {
             ?: (is_array($dataB) ? ($dataB['translationGroup'] ?? null) : null)
             ?: 'tg-' . $this->generateUUID();
 
+        // Adoption must not smuggle in a language the group already has. The
+        // same-language check above only compares A against B — but the ADOPTED
+        // group can hold members neither of them: linking a Dutch page to an
+        // English one whose group already contained another Dutch page produced
+        // a group with two nl members, which is exactly the ambiguity (which
+        // "Dutch version" does the switcher offer?) the one-page-per-language
+        // rule exists to prevent. Caught in the wild by a screenshot.
+        $addedIds = [$uniqueIdA, $uniqueIdB];
+        foreach ($this->pageIndexService->findByTranslationGroup($group) as $member) {
+            $memberId = (string)($member['unique_id'] ?? '');
+            $memberLang = (string)($member['language'] ?? '');
+            if (in_array($memberId, $addedIds, true) || $memberLang === '') {
+                continue; // the pages being linked may of course be members already
+            }
+            foreach ([[$uniqueIdA, $langA], [$uniqueIdB, $langB]] as [$id, $lang]) {
+                if ($lang !== null && $lang === $memberLang) {
+                    throw new \InvalidArgumentException(
+                        'That group already has a version in that language.'
+                    );
+                }
+            }
+        }
+
         $this->writeTranslationGroup($a, $group);
         $this->writeTranslationGroup($b, $group);
         $this->clearCache();
@@ -1832,6 +1855,17 @@ class PageService {
         $ownData = json_decode($result['file']->getContent(), true);
         $ownGroup = is_array($ownData) ? ($ownData['translationGroup'] ?? null) : null;
 
+        // Languages this page's group already covers — candidates in those
+        // languages are filtered below, one indexed query for the whole list.
+        $takenLanguages = [];
+        if (!empty($ownGroup)) {
+            foreach ($this->pageIndexService->findByTranslationGroup($ownGroup) as $member) {
+                if (($member['unique_id'] ?? null) !== $pageId && !empty($member['language'])) {
+                    $takenLanguages[(string)$member['language']] = true;
+                }
+            }
+        }
+
         // Languages to offer: everything with content except this page's own.
         //
         // ACL boundary: this listing goes through the caller's OWN mount, so a
@@ -1868,6 +1902,20 @@ class PageService {
                 // silently removing it from that group.
                 $group = $row['translation_group'] ?? null;
                 if (!empty($group) && $group !== $ownGroup && $this->groupHasOtherMembers($group, $uniqueId)) {
+                    continue;
+                }
+
+                // Already a member of THIS page's group — linking it again is a
+                // no-op that only clutters the picker.
+                if (!empty($group) && $group === $ownGroup) {
+                    continue;
+                }
+
+                // The group already holds a version in this candidate's
+                // language: offering it would produce the two-Dutch-versions
+                // ambiguity linkTranslation now refuses. Filter here too, so
+                // the picker never offers something that errors when chosen.
+                if (isset($takenLanguages[$code])) {
                     continue;
                 }
 
@@ -3022,6 +3070,15 @@ class PageService {
             throw new ForbiddenException('You do not have permission to create a page here');
         }
 
+        // The folder whose path the index must store: the one holding the page
+        // JSON. For home that is the language root itself; for every other page
+        // it is the page's OWN folder, set in the else-branch below. Indexing
+        // the PARENT here made every freshly created page unresolvable via the
+        // index (the lookup derives candidates from this path and the verify
+        // step then rejects them), silently demoting each first lookup to the
+        // full scan until the next save or reindex repaired the row.
+        $indexFolder = $targetFolder;
+
         // Special handling for home page (always at root)
         if ($pageId === 'home') {
             $file = $targetFolder->newFile('home.json');
@@ -3073,7 +3130,9 @@ class PageService {
             // Cache the folder reference for immediate reuse (e.g., when copying media from template)
             if (isset($data['uniqueId'])) {
                 $this->pageFolderCache[$data['uniqueId']] = $pageFolder;
-            }
+                $indexFolder = $pageFolder;
+        }
+            $indexFolder = $pageFolder;
         }
 
         // Update page metadata index (non-blocking — page was already saved).
@@ -3087,11 +3146,11 @@ class PageService {
         // index lookup (it resolves the stored path) and repathSubtree() (it
         // matches on a path prefix).
         try {
-            $language = $this->languageOfFolder($targetFolder) ?? $this->getUserLanguage();
+            $language = $this->languageOfFolder($indexFolder) ?? $this->getUserLanguage();
             $this->pageIndexService->indexPage(
                 $data,
                 $language,
-                $targetFolder->getPath(),
+                $indexFolder->getPath(),
                 $file->getId()
             );
         } catch (\Exception $e) {
