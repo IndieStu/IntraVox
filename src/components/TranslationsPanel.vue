@@ -73,11 +73,13 @@
 				     with the missing levels shown as non-clickable folders in the
 				     tree. Say so BEFORE creating — grey levels should never be a
 				     surprise. -->
+				<!-- Kept on ONE line deliberately: Nextcloud's translation bot
+				     extracts strings with a regex that misses multi-line
+				     t()/n() calls. This exact string was absent from Transifex
+				     while every single-line sibling in this file made it. -->
+				<!-- eslint-disable-next-line max-len -->
 				<p v-if="missingAncestorCount > 0" class="translations-create__ancestors">
-					{{ n('intravox',
-						'%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too.',
-						'%n parent pages do not exist in this language yet — the new page will appear in the same place, with non-clickable levels until you translate those too.',
-						missingAncestorCount) }}
+					{{ n('intravox', '%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too.', '%n parent pages do not exist in this language yet — the new page will appear in the same place, with non-clickable levels until you translate those too.', missingAncestorCount) }}
 				</p>
 				<p class="translations-create__hint">
 					{{ t('intravox', 'The content is copied as a starting point and saved as a draft. From then on both pages are independent — translating one never changes the other.') }}
