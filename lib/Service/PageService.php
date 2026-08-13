@@ -1374,7 +1374,7 @@ class PageService {
             // Collect subfolders for later recursive search
             if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
                 // Skip media folders and special folders
-                if ($itemName !== '_media' && $itemName !== 'images' && $itemName !== '.nomedia') {
+                if (!PagePathHelper::isInfrastructureFolder($itemName)) {
                     $subfolderItems[] = $item;
                 }
                 continue;
@@ -2356,8 +2356,13 @@ class PageService {
             if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
                 $folderName = $item->getName();
 
-                // Skip special folders
-                if (in_array($folderName, ['_media', 'images', 'files'])) {
+                // Skip asset and infrastructure folders. The underscore rule
+                // matters: _templates holds page-shaped JSON, and every walker
+                // that forgot to skip it served TEMPLATES as pages — search
+                // returned "Knowledge Base" the template above the real page,
+                // and an empty index made them appear in the page list. One
+                // rule for every walker, same as buildPageTree.
+                if (PagePathHelper::isInfrastructureFolder($folderName)) {
                     continue;
                 }
 
@@ -2442,7 +2447,7 @@ class PageService {
                 $folderName = $item->getName();
 
                 // Skip special folders
-                if (in_array($folderName, ['_media', 'images', 'files'])) {
+                if (PagePathHelper::isInfrastructureFolder($folderName)) {
                     continue;
                 }
 
@@ -6149,9 +6154,7 @@ class PageService {
 
         foreach ($subfolders as $name => $node) {
             // Media, asset and infrastructure folders hold no pages.
-            if (in_array($name, ['images', 'files'], true)
-                || str_starts_with($name, '_')
-                || str_starts_with($name, '.')) {
+            if (PagePathHelper::isInfrastructureFolder($name)) {
                 continue;
             }
             $this->rebuildIndexInFolder($node, $language, $dryRun, $stats);
@@ -6887,7 +6890,7 @@ class PageService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['images', 'files', '.nomedia'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -7803,7 +7806,7 @@ class PageService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['_media', '_resources', 'images', 'files'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -8578,7 +8581,7 @@ class PageService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['_media', '_resources', 'images', 'files'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -8619,7 +8622,7 @@ class PageService {
                 $subFolderName = $item->getName();
 
                 // Skip special folders
-                if (in_array($subFolderName, ['_media', '_resources', 'images', 'files'])) {
+                if (PagePathHelper::isInfrastructureFolder($subFolderName)) {
                     continue;
                 }
 

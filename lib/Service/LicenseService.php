@@ -10,6 +10,7 @@ use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * Service for license management and page counting
@@ -456,7 +457,7 @@ class LicenseService {
                 $folderName = $node->getName();
 
                 // Skip special folders
-                if (in_array($folderName, ['_media', '_resources', '_versions', '_templates'])) {
+                if (PagePathHelper::isInfrastructureFolder($folderName)) {
                     continue;
                 }
 

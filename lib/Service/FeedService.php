@@ -10,6 +10,7 @@ use OCP\IConfig;
 use OCP\IURLGenerator;
 use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * Service for generating RSS feeds from IntraVox pages.
@@ -23,7 +24,6 @@ class FeedService {
     private const DEFAULT_LIMIT = 20;
     private const MAX_LIMIT = 50;
     private const EXCERPT_LENGTH = 300;
-    private const SKIP_FOLDERS = ['_media', '_resources', '_templates', 'images', 'files', '.nomedia'];
 
     public function __construct(
         private IRootFolder $rootFolder,
@@ -191,7 +191,7 @@ class FeedService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, self::SKIP_FOLDERS, true)) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -268,7 +268,7 @@ class FeedService {
             }
 
             $folderName = $item->getName();
-            if (in_array($folderName, self::SKIP_FOLDERS, true)) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -548,7 +548,7 @@ class FeedService {
             }
 
             $folderName = $item->getName();
-            if (in_array($folderName, self::SKIP_FOLDERS, true)) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 

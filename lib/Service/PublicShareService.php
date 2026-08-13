@@ -13,6 +13,7 @@ use OCP\Share\IShare;
 use OCP\Security\IHasher;
 use OCP\Share\Exceptions\ShareNotFound;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * PublicShareService handles detection and validation of NC share links for IntraVox pages.
@@ -626,7 +627,7 @@ class PublicShareService {
 
             if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
                 // Skip special folders
-                if (in_array($name, ['_media', '_resources', 'images', '.nomedia'], true)) {
+                if (PagePathHelper::isInfrastructureFolder($name)) {
                     continue;
                 }
                 // Recurse
@@ -883,7 +884,7 @@ class PublicShareService {
             $name = $item->getName();
 
             if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                if (in_array($name, ['_media', '_resources', 'images', '.nomedia'], true)) {
+                if (PagePathHelper::isInfrastructureFolder($name)) {
                     continue;
                 }
                 $this->collectChildPages($item, $children, $depth + 1, $maxChildren);
@@ -988,7 +989,7 @@ class PublicShareService {
                 $name = $item->getName();
 
                 // Skip special folders
-                if (in_array($name, ['_media', '_resources', 'images', '.nomedia'], true)) {
+                if (PagePathHelper::isInfrastructureFolder($name)) {
                     continue;
                 }
 

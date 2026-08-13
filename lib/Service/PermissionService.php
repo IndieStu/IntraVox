@@ -15,6 +15,7 @@ use OCP\IDBConnection;
 use OCP\App\IAppManager;
 use OCP\Constants;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * PermissionService handles authorization based on GroupFolder ACL permissions.
@@ -693,7 +694,7 @@ class PermissionService {
 
             if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
                 // Skip special folders
-                if (in_array($name, ['_media', '_resources', 'images', '.nomedia'], true)) {
+                if (PagePathHelper::isInfrastructureFolder($name)) {
                     continue;
                 }
 

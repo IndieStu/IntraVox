@@ -486,58 +486,40 @@ git push gitea main --tags
 
 ## Deferred work — pick up right after 2.0.0
 
-### Folder-skip rule is inconsistent across the tree walkers (stashed)
+### Folder-skip rule unified across every tree walker — DONE (in 2.0)
 
-**Tracked as [#96](https://github.com/nextcloud/IntraVox/issues/96).**
+**Tracked as [#96](https://github.com/nextcloud/IntraVox/issues/96) — closable.**
 
-**Status:** started, deliberately held back from 2.0. Lives in `stash@{0}`:
-`folder-skip walkers: unify _-prefix rule (4 of 10 sites done, …)`.
-Restore with `git stash pop` (check `git stash list` first — an older,
-unrelated `WIP on main` stash sits below it).
+Shipped after all: the J3 round of the 2.0 test plan measured the bug live
+(search returned the "Knowledge Base" TEMPLATE above the real page; an empty
+index put templates in the page list), which moved it from annoying to
+release-relevant.
 
-**The bug.** Pages are folders, so every function that walks the tree has to
-decide per folder "is this a page or infrastructure?". That decision is
-hand-copied in ten places with *different* lists. Where `_templates` is
-missing from the list, templates get served as real pages — search returned
-the "Knowledge Base" template above the actual page, and with an empty index
-they showed up in the page list too.
+The fix is the one this section asked for: a single shared rule,
+`PagePathHelper::isInfrastructureFolder()` — skip `images`/`files` plus any
+`_`- or `.`-prefixed name — applied at **20 call sites** across PageService,
+SystemFileService, PermissionService, PublicShareService, LicenseService,
+ImportService and FeedService (whose private SKIP_FOLDERS const is gone).
+A new `_folder` never needs twenty edits again.
 
-**What the stash already does.** Replaces the hardcoded list with one rule —
-skip `images`/`files`, plus anything starting with `_` or `.` — in four
-`PageService.php` walkers: `findPagesInFolder`, `findPagesWithContentInFolder`,
-`findNewsPagesInFolder`, `getNewsSourcFolders`. Also adds the missing strict
-flag to `in_array`.
+Reviewed and deliberately NOT converted: the walkers in ExportService,
+DemoDataService and OrphanedDataService. Those are copy/cleanup decisions,
+not "is this a page?" decisions — export and demo-install must WALK
+`_templates`, cleanup has its own scope. Converting them would have silently
+dropped templates from exports.
 
-**What is still open — six sites:**
+The unit net this section asked for exists: `PageWalkerSkipTest` pins the
+helper's contract and the search walker (the one that shipped the bug), with
+`_templates` and `_resources` in the fixture.
 
-| File | Function | Skips `_templates` today? |
-|---|---|---|
-| `lib/Service/PageService.php:6871` | `buildPageTree` | **no** |
-| `lib/Service/SystemFileService.php:304` | `buildPageTreeRecursive` | **no** |
-| `lib/Service/SystemFileService.php:491` | `findPageFolderByUniqueId` | no |
-| `lib/Service/SystemFileService.php:543` | `findNewsPagesRecursive` | no |
-| `lib/Service/ImportService.php:1232` | `searchForPagePath` | no |
-| `lib/Service/LicenseService.php:459` | — | yes, explicitly |
+`.nomedia` was checked as instructed: the explicit test in the page-locator
+was a folder-skip (now covered by the `.`-prefix rule); the marker-file
+checks use `nodeExists` on files and are untouched.
 
-Note the stashed comment claims "same as buildPageTree" — that is wrong;
-`buildPageTree` is one of the walkers still missing the rule. Fix the comment
-along with the code.
-
-**How to finish it:**
-
-1. One shared helper (e.g. `isSkippableFolder(string $name): bool`) instead of
-   ten copies of the condition — that is the actual fix; a new `_folder`
-   should never need ten edits again.
-2. Before writing it, check `.nomedia`: some lists name it, others don't, and
-   the `.`-prefix rule swallows it automatically. `PageService.php:1377` tests
-   for it explicitly, so it carries meaning somewhere — confirm no walker
-   depends on seeing it.
-3. Add a unit test with a `_templates` folder in the fixture. There is none
-   today, which is why this drifted in the first place.
-
-**Why it waited.** Half-done, touching `PageService.php` (2.0's most heavily
-changed file, +1669 lines) on release day, with no test covering it. The
-symptom is a template appearing where it shouldn't — annoying, not data loss.
+*(Process note: the first four-site version of this fix was accidentally
+`git stash`ed by a second session sharing this worktree and sat in
+`stash@{0}` while the checklist said "deferred". Two sessions, one checkout:
+don't run git state operations while the other is mid-edit.)*
 
 ---
 

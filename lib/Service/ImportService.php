@@ -9,6 +9,7 @@ use OCP\Files\Folder;
 use OCP\ITempManager;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * Service for importing IntraVox pages and media from ZIP exports
@@ -1229,7 +1230,7 @@ class ImportService {
             $folderName = $node->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['_media', 'images', 'files', '.nomedia'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 

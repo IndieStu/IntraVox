@@ -52,6 +52,28 @@ final class PagePathHelper {
     }
 
     /**
+     * Whether a folder name is infrastructure rather than (possibly) a page.
+     *
+     * THE one rule for every tree walker. It used to be hand-copied in
+     * thirteen places with different lists (#96), and every divergence was a
+     * bug in waiting: walkers that forgot `_templates` served template pages
+     * as real ones — search returned the "Knowledge Base" TEMPLATE above the
+     * actual page — and walkers that forgot `_resources` surfaced library
+     * files as ghost pages.
+     *
+     * Underscore- and dot-prefixed folders are infrastructure by convention
+     * (`_media`, `_resources`, `_templates`, `_versions`, `.nomedia`, …);
+     * `images` and `files` are legacy asset-folder names that predate the
+     * underscore convention.
+     */
+    public static function isInfrastructureFolder(string $name): bool {
+        return $name === 'images'
+            || $name === 'files'
+            || str_starts_with($name, '_')
+            || str_starts_with($name, '.');
+    }
+
+    /**
      * Depth of the page relative to its language root. The leading
      * "departments/{dept}" prefix doesn't count as depth, mirroring how
      * the UI nests pages under a department dashboard.

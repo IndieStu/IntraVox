@@ -6,6 +6,7 @@ namespace OCA\IntraVox\Service;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Service\Path\PagePathHelper;
 
 /**
  * SystemFileService provides system-level file access for shared resources.
@@ -301,7 +302,7 @@ class SystemFileService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['images', 'files', '.nomedia'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -488,7 +489,7 @@ class SystemFileService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['images', 'files', '_media', '_resources', '.nomedia'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
@@ -540,7 +541,7 @@ class SystemFileService {
             $folderName = $item->getName();
 
             // Skip special folders
-            if (in_array($folderName, ['_media', '_resources', 'images', 'files', '.nomedia'])) {
+            if (PagePathHelper::isInfrastructureFolder($folderName)) {
                 continue;
             }
 
