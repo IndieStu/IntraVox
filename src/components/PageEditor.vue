@@ -191,6 +191,19 @@
           </template>
           {{ t('intravox', 'Right column') }}
         </NcButton>
+        <!-- The per-row "Insert row" button lives inside the rows v-for, so it
+             disappears once the last row is gone. Without this the main grid is
+             unrecoverable while the side-column buttons above still suggest
+             otherwise. See issue #94. -->
+        <NcButton v-if="!localPage.layout.rows.length"
+                  @click="addRow"
+                  type="secondary"
+                  :aria-label="t('intravox', 'Insert row')">
+          <template #icon>
+            <TableRowPlusAfter :size="20" />
+          </template>
+          {{ t('intravox', 'Insert row') }}
+        </NcButton>
       </div>
 
       <!-- Page Grid -->
@@ -991,7 +1004,9 @@ export default {
     deleteRow(rowIndex) {
       this.showDeleteDialog = true;
       this.deleteDialogTitle = this.t('intravox', 'Delete row');
-      this.deleteDialogMessage = this.t('intravox', 'Are you sure you want to delete this row?');
+      this.deleteDialogMessage = this.localPage.layout.rows.length === 1
+        ? this.t('intravox', 'This is the last row on the page. Deleting it leaves the page empty — you can add a new row afterwards.')
+        : this.t('intravox', 'Are you sure you want to delete this row?');
       this.deleteCallback = () => {
         this.localPage.layout.rows.splice(rowIndex, 1);
         // Reinitialize column arrays to reflect the deleted row

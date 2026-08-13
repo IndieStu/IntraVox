@@ -270,6 +270,47 @@ er is geen NC32-omgeving om dat aan te tonen.
 
 ---
 
+## N. Pagina-editor: rijen, kolommen en widgets
+
+**Waarom deze sectie bestaat:** `PageEditor.vue` is in 2.0 *niet* gewijzigd —
+het bestand is byte-identiek aan v1.9.7. Maar de laag eronder wél: `App.vue`
+groeide met ruim 400 regels en de opslagroute is herbouwd rond de page-index en
+conflictdetectie (`PageConflictException`). De editor zit daar direct op. Een
+ongewijzigde editor op een herbouwde opslagroute is precies het gat waar de 491
+unit-tests niets zeggen: die zijn allemaal server-side met mocks.
+
+Aanleiding is daarnaast issue #94: een gebruiker verwijderde de laatste rij en
+kwam op een leeg canvas terecht waar de knoppen *Linkerkolom* / *Rechterkolom* /
+*Koprij* nog wél stonden, maar het hoofdraster niet meer terug te krijgen was.
+N5–N7 dekken die fix af.
+
+| # | Stap | Verwacht |
+|---|---|---|
+| N1 | Nieuwe pagina → bewerken → widget toevoegen → opslaan | Widget staat er na herladen |
+| N2 | Rij toevoegen via **Rij invoegen** onder een bestaande rij | Nieuwe rij op de juiste plek, 1 kolom |
+| N3 | Zet een rij op 3 kolommen, vul alle drie → terug naar 1 kolom | **Geen** widget verdwenen; alles staat in de overgebleven kolom, in volgorde |
+| N4 | Rij dupliceren met widgets erin | Kopie met eigen widget-id's; bewerken van de kopie raakt het origineel niet |
+| N5 | Verwijder de **laatste** rij van een pagina | Bevestiging meldt expliciet dat dit de laatste rij is en dat je erna een nieuwe kunt toevoegen |
+| N6 | Bevestig → leeg canvas | Knop **Rij invoegen** staat naast Linkerkolom/Rechterkolom |
+| N7 | Klik **Rij invoegen** op het lege canvas → widget toevoegen → opslaan | Pagina is normaal bruikbaar; herladen toont de widget |
+| N8 | Rijen slepen (drag handle) → opslaan → herladen | Volgorde blijft staan |
+| N9 | Zijkolom toevoegen, vullen, verwijderen, opnieuw toevoegen | Nieuwe zijkolom is leeg; pagina blijft opslaanbaar |
+| N10 | Koprij toevoegen en verwijderen | Idem, geen resten in de opgeslagen JSON |
+| N11 | Structurele wijziging (rij weg) → **Annuleren** i.p.v. opslaan | Pagina staat er weer volledig; **niets** opgeslagen |
+| N12 | Twee browsers, beide in bewerkmodus op dezelfde pagina, beide een rij wijzigen → beide opslaan | Tweede opslag wordt **geweigerd** (conflict), niet stil overschreven — zie ook G |
+| N13 | Na een structurele wijziging + opslaan: ⓘ → Versies → herstel de vorige versie | Oude indeling terug, inclusief rijen en kolommen |
+
+> **N3, N11 en N13 zijn de belangrijkste.** N3 omdat kolomreductie widgets
+> verplaatst in plaats van verwijdert — dat mag niet stilletjes misgaan. N11 en
+> N13 zijn de enige twee vangnetten die er zijn: er is **geen undo** in de
+> editor (Ctrl+Z werkt alleen binnen één tekstwidget).
+
+**Bewust niet gedekt:** de generieke bevestigingsteksten zeggen niet hóéveel
+widgets een actie weggooit, en `Annuleren` vraagt zelf niets. Beide zijn bekend
+en staan los van 2.0.
+
+---
+
 ## Niet gedekt — bewust
 
 Zaken die dit plan **niet** aantoont, en waarvoor apart werk nodig is:
