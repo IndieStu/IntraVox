@@ -484,6 +484,61 @@ git push gitea main --tags
 
 ---
 
+## Deferred work — pick up right after 2.0.0
+
+### Folder-skip rule is inconsistent across the tree walkers (stashed)
+
+**Status:** started, deliberately held back from 2.0. Lives in `stash@{0}`:
+`folder-skip walkers: unify _-prefix rule (4 of 10 sites done, …)`.
+Restore with `git stash pop` (check `git stash list` first — an older,
+unrelated `WIP on main` stash sits below it).
+
+**The bug.** Pages are folders, so every function that walks the tree has to
+decide per folder "is this a page or infrastructure?". That decision is
+hand-copied in ten places with *different* lists. Where `_templates` is
+missing from the list, templates get served as real pages — search returned
+the "Knowledge Base" template above the actual page, and with an empty index
+they showed up in the page list too.
+
+**What the stash already does.** Replaces the hardcoded list with one rule —
+skip `images`/`files`, plus anything starting with `_` or `.` — in four
+`PageService.php` walkers: `findPagesInFolder`, `findPagesWithContentInFolder`,
+`findNewsPagesInFolder`, `getNewsSourcFolders`. Also adds the missing strict
+flag to `in_array`.
+
+**What is still open — six sites:**
+
+| File | Function | Skips `_templates` today? |
+|---|---|---|
+| `lib/Service/PageService.php:6871` | `buildPageTree` | **no** |
+| `lib/Service/SystemFileService.php:304` | `buildPageTreeRecursive` | **no** |
+| `lib/Service/SystemFileService.php:491` | `findPageFolderByUniqueId` | no |
+| `lib/Service/SystemFileService.php:543` | `findNewsPagesRecursive` | no |
+| `lib/Service/ImportService.php:1232` | `searchForPagePath` | no |
+| `lib/Service/LicenseService.php:459` | — | yes, explicitly |
+
+Note the stashed comment claims "same as buildPageTree" — that is wrong;
+`buildPageTree` is one of the walkers still missing the rule. Fix the comment
+along with the code.
+
+**How to finish it:**
+
+1. One shared helper (e.g. `isSkippableFolder(string $name): bool`) instead of
+   ten copies of the condition — that is the actual fix; a new `_folder`
+   should never need ten edits again.
+2. Before writing it, check `.nomedia`: some lists name it, others don't, and
+   the `.`-prefix rule swallows it automatically. `PageService.php:1377` tests
+   for it explicitly, so it carries meaning somewhere — confirm no walker
+   depends on seeing it.
+3. Add a unit test with a `_templates` folder in the fixture. There is none
+   today, which is why this drifted in the first place.
+
+**Why it waited.** Half-done, touching `PageService.php` (2.0's most heavily
+changed file, +1669 lines) on release day, with no test covering it. The
+symptom is a template appearing where it shouldn't — annoying, not data loss.
+
+---
+
 ## Notes
 
 - **App ID:** `intravox`
@@ -502,4 +557,4 @@ git push gitea main --tags
 
 ---
 
-*Last updated: 2026-07-07 (later same day) — §2: added "Transifex account & team access" — uploading translations (not just reading) needs language-team membership (Translator role) in the Nextcloud org + a write-capable token; a read-only token 403s on upload. Applies to every VoxCloud app on the shared `o:nextcloud:p:nextcloud` org. Documented the safe fill-only PO upload (proven on IntraVox de/fr in #63: de 45→94%, fr 323→94%, `translations_updated: 0` = no community work overwritten) and the intravox-vs-introvox resource-slug trap. Earlier same day — §2 REWRITTEN around a durable source-string guard. Root cause of the recurring release breakage: new feature strings were added in code but `npm run pot` + committing the POT was skipped, so the Nextcloud bot never saw them → translators couldn't translate them → every bot sync deleted them from `l10n/<lang>.{js,json}`. The old `-X ours` merge + hand re-adding strings was a workaround that also desynced `.js` from `.json`. Fix: a committed manifest `l10n/.source-strings.json` (sha256 + sorted msgid list, written by `extract-en-json.js`) and a prebuild guard `scripts/check-l10n-sync.js` (wired into `prebuild`, standalone as `npm run lint:l10n`) that FAILS the build whenever code's string set diverges from the manifest — making "push strings to Transifex" (`npm run l10n:push`, decoupled from release) unmissable. Releases are now a plain `git merge github/main` (no `-X ours`, no re-add) with a green-guard assertion. The bare `npm run l10n` footgun (lossy json→js regen) is renamed to `l10n:generate-js`. A check-only `.github/workflows/l10n.yml` runs the guard on push as a backstop (never auto-commits). de_DE/fr/nl policy unchanged (follow the bot). §5/§7/§9 cross-refs updated; `.source-strings.json` added to the tarball scrub. Earlier history condensed: v1.7.0 dropped the stale per-lang targets after the #63 resource re-provision; 2026-06-18 reverted POT generation to the en.json+lib/xgettext extractor (bare xgettext drops ~700 Vue strings); `l10n/en.json`/`en.js` are gitignored artefacts; `npm run release` is Gitea-only, not the App Store flow.*
+*Last updated: 2026-08-13 — added "Deferred work — pick up right after 2.0.0": the folder-skip rule is hand-copied across ten tree walkers with differing lists, so `_templates` gets served as a real page in search and (with an empty index) the page list. Four `PageService.php` walkers are fixed in `stash@{0}`; six sites remain, listed with file:line. Held back from 2.0 because it is half-done, touches the release's most heavily changed file, and has no test. Finish it with a shared `isSkippableFolder()` helper plus a fixture test. Earlier — 2026-07-07 (later same day) — §2: added "Transifex account & team access" — uploading translations (not just reading) needs language-team membership (Translator role) in the Nextcloud org + a write-capable token; a read-only token 403s on upload. Applies to every VoxCloud app on the shared `o:nextcloud:p:nextcloud` org. Documented the safe fill-only PO upload (proven on IntraVox de/fr in #63: de 45→94%, fr 323→94%, `translations_updated: 0` = no community work overwritten) and the intravox-vs-introvox resource-slug trap. Earlier same day — §2 REWRITTEN around a durable source-string guard. Root cause of the recurring release breakage: new feature strings were added in code but `npm run pot` + committing the POT was skipped, so the Nextcloud bot never saw them → translators couldn't translate them → every bot sync deleted them from `l10n/<lang>.{js,json}`. The old `-X ours` merge + hand re-adding strings was a workaround that also desynced `.js` from `.json`. Fix: a committed manifest `l10n/.source-strings.json` (sha256 + sorted msgid list, written by `extract-en-json.js`) and a prebuild guard `scripts/check-l10n-sync.js` (wired into `prebuild`, standalone as `npm run lint:l10n`) that FAILS the build whenever code's string set diverges from the manifest — making "push strings to Transifex" (`npm run l10n:push`, decoupled from release) unmissable. Releases are now a plain `git merge github/main` (no `-X ours`, no re-add) with a green-guard assertion. The bare `npm run l10n` footgun (lossy json→js regen) is renamed to `l10n:generate-js`. A check-only `.github/workflows/l10n.yml` runs the guard on push as a backstop (never auto-commits). de_DE/fr/nl policy unchanged (follow the bot). §5/§7/§9 cross-refs updated; `.source-strings.json` added to the tarball scrub. Earlier history condensed: v1.7.0 dropped the stale per-lang targets after the #63 resource re-provision; 2026-06-18 reverted POT generation to the en.json+lib/xgettext extractor (bare xgettext drops ~700 Vue strings); `l10n/en.json`/`en.js` are gitignored artefacts; `npm run release` is Gitea-only, not the App Store flow.*
