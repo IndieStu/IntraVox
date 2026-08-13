@@ -56,6 +56,8 @@ Sites with a single content language see no translation features anywhere.
 
 ## [1.9.8] - 2026-08-09 — Moving, copying and version tools work across languages
 
+*Not published separately — shipped as part of 2.0.0.*
+
 ### Fixed
 
 - **Moving a page could silently move it into another language.** Since pages became findable across language folders (1.9.6), a move to the top level sent the page to the root of *your own* language rather than its own — so an editor working in German could drag an English page to the top level and relocate that page, with everything nested under it, into the German intranet. Nothing warned, nothing was logged, and there was no undo. In a bulk move this applied to every selected page at once.
