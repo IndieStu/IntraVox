@@ -6137,23 +6137,49 @@ class PageService {
         bool $dryRun,
         array &$stats
     ): void {
-        foreach ($this->getCachedDirectoryListing($folder) as $node) {
+        // Two passes over one listing: subfolder names first, because whether a
+        // JSON file IS a page depends on them (see below).
+        $listing = $this->getCachedDirectoryListing($folder);
+        $subfolders = [];
+        foreach ($listing as $node) {
             if ($node instanceof \OCP\Files\Folder) {
-                $name = $node->getName();
-                // Media and asset folders hold no pages.
-                if (in_array($name, ['_media', '_resources', '_templates', 'images', 'files'], true)) {
-                    continue;
-                }
-                $this->rebuildIndexInFolder($node, $language, $dryRun, $stats);
+                $subfolders[$node->getName()] = $node;
+            }
+        }
+
+        foreach ($subfolders as $name => $node) {
+            // Media, asset and infrastructure folders hold no pages.
+            if (in_array($name, ['images', 'files'], true)
+                || str_starts_with($name, '_')
+                || str_starts_with($name, '.')) {
                 continue;
             }
+            $this->rebuildIndexInFolder($node, $language, $dryRun, $stats);
+        }
 
+        foreach ($listing as $node) {
             if (!($node instanceof \OCP\Files\File) || !str_ends_with($node->getName(), '.json')) {
                 continue;
             }
             // Per-language config files are not pages.
             if (in_array($node->getName(), ['navigation.json', 'footer.json', 'homepage.json'], true)) {
                 continue;
+            }
+
+            // Only files that fit the PAGE MODEL are pages. Indexing every JSON
+            // in sight put loose files (POC data dropped beside a real page)
+            // into the index, and since 2.0 serves the page list FROM the
+            // index, those rows became ghost entries that 404 when clicked —
+            // the tree never showed them and getPage cannot resolve them.
+            $base = substr($node->getName(), 0, -5);
+            if ($base === $folder->getName()) {
+                $pageFolder = $folder;               // {slug}/{slug}.json — canonical
+            } elseif ($node->getName() === 'home.json' && $folder->getName() === $language) {
+                $pageFolder = $folder;               // language-root homepage
+            } elseif (isset($subfolders[$base])) {
+                $pageFolder = $subfolders[$base];    // legacy beside-layout: {slug}.json next to {slug}/
+            } else {
+                continue;                            // loose JSON — not a page
             }
 
             $stats['scanned']++;
@@ -6167,7 +6193,9 @@ class PageService {
                     $this->pageIndexService->indexPage(
                         $data,
                         $language,
-                        $folder->getPath(),
+                        // The page's OWN folder, matching createPage/updatePage —
+                        // locateViaIndex derives its candidates from this path.
+                        $pageFolder->getPath(),
                         $node->getId()
                     );
                 }

@@ -235,7 +235,15 @@ class PageIndexLanguageTest extends TestCase {
     public function testRebuildIndexesEveryPageUnderItsOwnLanguage(): void {
         $en = $this->makeFolder('/IntraVox/en', [
             'home.json' => $this->makeFile('/IntraVox/en/home.json', ['uniqueId' => 'page-en-home', 'title' => 'Home']),
-            'about.json' => $this->makeFile('/IntraVox/en/about.json', ['uniqueId' => 'page-en-about', 'title' => 'About']),
+            // Canonical page shape: {slug}/{slug}.json.
+            'about' => $this->makeFolder('/IntraVox/en/about', [
+                'about.json' => $this->makeFile('/IntraVox/en/about/about.json', ['uniqueId' => 'page-en-about', 'title' => 'About']),
+            ]),
+            // A LOOSE json beside real pages is not a page: the tree cannot
+            // show it and getPage cannot resolve it, so indexing it created
+            // ghost list entries that 404 when clicked (the en/fleet POC files
+            // on dev, found by the J3 test round).
+            'stray-poc.json' => $this->makeFile('/IntraVox/en/stray-poc.json', ['uniqueId' => 'page-loose-poc', 'title' => 'POC']),
             // Per-language config files are not pages and must be skipped.
             'navigation.json' => $this->makeFile('/IntraVox/en/navigation.json', ['items' => []]),
             'footer.json' => $this->makeFile('/IntraVox/en/footer.json', ['columns' => []]),
@@ -265,6 +273,11 @@ class PageIndexLanguageTest extends TestCase {
             $byId,
             'JSON inside _media is not a page'
         );
+        $this->assertArrayNotHasKey(
+            'page-loose-poc',
+            $byId,
+            'a loose JSON without its own page folder is not a page'
+        );
     }
 
     /** A dry run reports the same counts but writes nothing. */
@@ -288,7 +301,10 @@ class PageIndexLanguageTest extends TestCase {
     public function testRebuildSkipsFilesWithoutAUniqueId(): void {
         $en = $this->makeFolder('/IntraVox/en', [
             'home.json' => $this->makeFile('/IntraVox/en/home.json', ['uniqueId' => 'page-ok', 'title' => 'Home']),
-            'broken.json' => $this->makeFile('/IntraVox/en/broken.json', ['title' => 'No id']),
+            // Page-model file (own folder) without a uniqueId: scanned, not indexed.
+            'broken' => $this->makeFolder('/IntraVox/en/broken', [
+                'broken.json' => $this->makeFile('/IntraVox/en/broken/broken.json', ['title' => 'No id']),
+            ]),
         ]);
 
         $svc = $this->makeService($en, [$en]);
