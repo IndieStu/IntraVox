@@ -190,8 +190,6 @@ OC.L10N.register(
     "Password" : "Пароль",
     "Template name" : "Назва шаблона",
     "Description" : "Апісанне",
-    "Searching …" : "Пошук …",
-    "No results found" : "Вынікаў не знойдзена",
     "Public link" : "Публічная спасылка",
     "Link copied to clipboard" : "Спасылка скапіявана ў буфер абмену",
     "Copy public link" : "Скапіяваць публічную спасылку",

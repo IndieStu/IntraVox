@@ -125,6 +125,7 @@ OC.L10N.register(
     "Upload" : "Augšupielādēt",
     "Select" : "Atzīmēt",
     "File already exists" : "Datne jau pastāv",
+    "Saving …" : "Saglabā ...",
     "Collapse" : "Sakļaut",
     "Now" : "Tagad",
     "Modified" : "Mainīts",

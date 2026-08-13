@@ -79,6 +79,7 @@ OC.L10N.register(
     "Icon:" : "Ikon:",
     "Upload" : "Last opp",
     "Select" : "Vel",
+    "Saving …" : "Lagrar …",
     "Create" : "Opprett",
     "Modified" : "Endra",
     "Location" : "Stad",

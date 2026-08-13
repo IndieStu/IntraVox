@@ -78,6 +78,7 @@ OC.L10N.register(
     "Add link" : "Ouzhpnna ul liamm",
     "Upload" : "Enporzhiañ",
     "Select" : "Diuzañ",
+    "Saving …" : "Orc'h enrolliñ",
     "Modified" : "Cheñchet",
     "Location" : "Lec'hiadur",
     "Versions" : "Stumm",

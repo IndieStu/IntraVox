@@ -152,6 +152,7 @@ OC.L10N.register(
     "Default" : "Por omisión",
     "Upload" : "Cargar",
     "Select" : "Seleccionar",
+    "Saving …" : "Guardando ...",
     "Collapse" : "Colapsar",
     "Custom URL" : "URL personalizada",
     "Create" : "Crear",

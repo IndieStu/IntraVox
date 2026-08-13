@@ -206,6 +206,7 @@
     "Select" : "选择",
     "File already exists" : "文件已存在",
     "Overwrite" : "覆盖",
+    "Saving …" : "保存中……",
     "Collapse" : "折叠",
     "Expand" : "展开",
     "Custom URL" : "自定义URL",
@@ -265,9 +266,6 @@
     "Password" : "密码",
     "Template name" : "模板名称",
     "Description" : "描述",
-    "Search results" : "搜索结果",
-    "Searching …" : "正在搜索 …",
-    "No results found" : "未找到结果",
     "Public link" : "公开链接",
     "Link copied to clipboard" : "链接已复制到剪贴板",
     "Password protected" : "受密码保护",
@@ -288,6 +286,7 @@
     "Save & activate" : "保存并激活",
     "Remove subscription key" : "移除订阅密钥",
     "Advanced" : "高级",
+    "Unlink" : "取消关联",
     "No users found" : "未找到用户",
     "Domain" : "域名",
     "Image:" : "图片：",
@@ -313,6 +312,7 @@
     "_%n day ago_::_%n days ago_" : ["%n 天前"],
     "edited" : "已编辑",
     "Edit" : "编辑",
+    "Reply" : "回复",
     "Write a comment …" : "写评论 …",
     "Send" : "发送"
 },"pluralForm" :"nplurals=1; plural=0;"

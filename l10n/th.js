@@ -94,6 +94,7 @@ OC.L10N.register(
     "Upload" : "อัปโหลด",
     "Select" : "เลือก",
     "File already exists" : "ไฟล์นี้มีอยู่แล้ว",
+    "Saving …" : "กำลังบันทึก …",
     "Collapse" : "ย่อ",
     "Create" : "สร้าง",
     "Now" : "ตอนนี้",

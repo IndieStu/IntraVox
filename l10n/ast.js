@@ -202,7 +202,6 @@ OC.L10N.register(
     "Password" : "Contraseña",
     "Template name" : "Nome de la plantía",
     "Description" : "Descripción",
-    "No results found" : "Nun s'atopó nengún resultáu",
     "Public link" : "Enllaz públicu",
     "Link copied to clipboard" : "L'enllaz copióse nel cartafueyu",
     "Password protected" : "Proteición con contraseña",

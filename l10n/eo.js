@@ -106,6 +106,7 @@ OC.L10N.register(
     "Upload" : "Alŝuti",
     "Select" : "Elekti",
     "File already exists" : "La dosiero jam ekzistas",
+    "Saving …" : "Konservado...",
     "Collapse" : "Maletendi",
     "Custom URL" : "Propra retadreso",
     "Modified" : "Modifita",
