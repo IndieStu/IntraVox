@@ -727,7 +727,7 @@ IntraVox/
 1. Pick a language under **Create this page in another language**
 2. Click **Create**
 
-![The Translations tab: linked versions, create-in-another-language and the missing-ancestors hint](../../screenshots/translations-create.png)
+![The Translations tab: linked versions and create-in-another-language](../../screenshots/translations-create.png)
 
 The content is copied as a starting point — including the page's images — and saved as a **draft** in the same position in the target language's tree. From then on both pages are fully independent: translating one never changes the other. The new page is linked to the source automatically, so readers of either version can find the other.
 

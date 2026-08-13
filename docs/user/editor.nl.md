@@ -769,7 +769,7 @@ IntraVox/
 1. Kies een taal onder **Maak deze pagina in een andere taal**
 2. Klik op **Aanmaken**
 
-![De tab Vertalingen: gekoppelde versies, aanmaken-in-een-andere-taal en de melding over ontbrekende bovenliggende pagina's](../../screenshots/translations-create.png)
+![De tab Vertalingen: gekoppelde versies en aanmaken-in-een-andere-taal](../../screenshots/translations-create.png)
 
 De inhoud wordt als startpunt gekopieerd — inclusief de afbeeldingen van de pagina — en als **concept** opgeslagen op dezelfde plek in de boom van de doeltaal. Vanaf dat moment zijn beide pagina's volledig onafhankelijk: de één vertalen verandert nooit de ander. De nieuwe pagina wordt automatisch aan de bron gekoppeld, zodat lezers van beide versies de ander kunnen vinden.
 
