@@ -488,6 +488,8 @@ git push gitea main --tags
 
 ### Folder-skip rule is inconsistent across the tree walkers (stashed)
 
+**Tracked as [#96](https://github.com/nextcloud/IntraVox/issues/96).**
+
 **Status:** started, deliberately held back from 2.0. Lives in `stash@{0}`:
 `folder-skip walkers: unify _-prefix rule (4 of 10 sites done, …)`.
 Restore with `git stash pop` (check `git stash list` first — an older,
