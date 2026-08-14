@@ -59,6 +59,7 @@ OC.L10N.register(
     "Add link" : "Voeg skakel toe",
     "Select an icon" : "Kies ’n ikoon",
     "Upload" : "Oplaai",
+    "Saving …" : "Bewaar tans…",
     "Collapse" : "Vou In",
     "Modified" : "Gewysig",
     "Versions" : "Weergawes",

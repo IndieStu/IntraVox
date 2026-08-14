@@ -374,6 +374,7 @@ OC.L10N.register(
     "Sending …" : "Odesílání …",
     "Simple" : "Jednoduchý",
     "Advanced" : "Pokročilé",
+    "Unlink" : "Odpojit",
     "No users found" : "Nenalezeni žádní uživatelé",
     "No users selected" : "Nevybráni žádní uživatelé",
     "Configure settings" : "Konfigurovat nastavení",

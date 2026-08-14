@@ -150,6 +150,7 @@ OC.L10N.register(
     "Select" : "Выбраць",
     "Remove file" : "Выдаліць файл",
     "File already exists" : "Файл ужо існуе",
+    "Saving …" : "Захаванне …",
     "Collapse" : "Згарнуць",
     "Expand" : "Разгарнуць",
     "Item title" : "Назва элемента",

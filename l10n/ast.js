@@ -157,6 +157,7 @@ OC.L10N.register(
     "Upload" : "Xunir",
     "Select" : "Seleicionar",
     "File already exists" : "El ficheru yá esiste",
+    "Saving …" : "Guardando…",
     "Collapse" : "Contrayer",
     "Expand" : "Espander",
     "Item title" : "Títulu del llibru",

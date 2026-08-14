@@ -265,6 +265,7 @@ OC.L10N.register(
     "Total" : "Total",
     "Subscription key" : "Clau de subscripció",
     "Advanced" : "Avançat",
+    "Unlink" : "Desenllaça",
     "No users found" : "No s'ha trobat cap usuari",
     "Domain" : "Domini",
     "Size:" : "Mida:",
