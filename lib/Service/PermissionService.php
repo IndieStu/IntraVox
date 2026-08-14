@@ -44,6 +44,15 @@ class PermissionService {
     private ?ICache $distributedCache = null;
     private ?string $userId;
 
+    /**
+     * Per-request cache of raw node permission bitmasks, keyed by node path.
+     * One cache, one owner: PageService used to keep its own copy of this,
+     * which meant two permission cache layers that had to be invalidated in
+     * step. PageService::clearCache() calls
+     * {@see clearNodePermissionsCache()} instead.
+     */
+    private array $nodePermissionsCache = [];
+
     /** Distributed cache TTL for the per-language page path map (5 minutes). */
     private const PAGE_PATH_MAP_TTL = 300;
 
@@ -507,6 +516,85 @@ class PermissionService {
             'isAdmin' => $this->isAdmin($userId),
             'raw' => $perms
         ];
+    }
+
+    /**
+     * Raw permission bitmask for a node, cached per request by node path.
+     */
+    public function getNodePermissions(Node $node): int {
+        $path = $node->getPath();
+        if (!isset($this->nodePermissionsCache[$path])) {
+            $this->nodePermissionsCache[$path] = $node->getPermissions();
+        }
+        return $this->nodePermissionsCache[$path];
+    }
+
+    /**
+     * Build the canRead/canWrite/canCreate/canDelete/canShare permission object
+     * for a node from Nextcloud's filesystem view — the single source of truth
+     * used by getPage(), getFolderPermissions(), the page tree and listings.
+     *
+     * canWrite/canCreate/canDelete AND the raw permission bit with the node's
+     * capability method. For a read-only GroupFolder / Team Folder member WITHOUT
+     * Advanced Permissions (ACLs), getPermissions() can still report UPDATE/CREATE
+     * because the group read-only toggle is enforced on the mount mask, not always
+     * reflected per child node (issue #70). isUpdateable()/isCreatable()/
+     * isDeletable() DO account for mount writability and are already trusted
+     * elsewhere (canEdit, template creation, NavigationService/FooterService
+     * canEdit). Under ACLs the bitmask is already correct and these methods reflect
+     * it, so AND-ing can only ever REMOVE a wrongly-granted capability, never grant
+     * one — it never turns a genuinely writable folder read-only. `raw` is kept
+     * un-AND-ed for API back-compat.
+     */
+    public function permissionsFromNode(Node $node): array {
+        $perms = $this->getNodePermissions($node);
+        return [
+            'canRead' => ($perms & 1) !== 0,
+            'canWrite' => ($perms & 2) !== 0 && $node->isUpdateable(),
+            'canCreate' => ($perms & 4) !== 0 && $node->isCreatable(),
+            'canDelete' => ($perms & 8) !== 0 && $node->isDeletable(),
+            'canShare' => ($perms & 16) !== 0,
+            'raw' => $perms,
+        ];
+    }
+
+    /**
+     * Permissions for a single page, where "write" is gated on the page FILE and
+     * the remaining capabilities describe operations on the page FOLDER.
+     *
+     * Why the split: editing a page writes its JSON file (updatePage preflights
+     * $file->isUpdateable() and then putContent()s the file). In a read-only
+     * Team Folder without ACLs the FOLDER can report isUpdateable()=true while
+     * the FILE reports false, so a folder-derived canWrite showed an "Edit page"
+     * button that then 403'd on save (issue #70). canCreate/canDelete stay
+     * folder-derived: creating a child or removing the page are folder-level
+     * operations, consistent with the tree/listing builders.
+     */
+    public function permissionsForPage(Node $folder, Node $file): array {
+        $perms = $this->permissionsFromNode($folder);
+        $filePerms = $this->getNodePermissions($file);
+        $perms['canWrite'] = ($filePerms & 2) !== 0 && $file->isUpdateable();
+        return $perms;
+    }
+
+    /**
+     * Drop the per-request node permission cache. Called by
+     * PageService::clearCache() whenever the filesystem view mutates.
+     */
+    public function clearNodePermissionsCache(): void {
+        $this->nodePermissionsCache = [];
+    }
+
+    /**
+     * Clear this service's whole distributed cache namespace (page-path maps
+     * included). PageService::clearCache() calls this on page mutations; it
+     * used to reach into the cache through its own handle to the same
+     * namespace, which was the second of two permission cache layers.
+     */
+    public function clearDistributedCache(): void {
+        if ($this->distributedCache !== null) {
+            $this->distributedCache->clear();
+        }
     }
 
     /**

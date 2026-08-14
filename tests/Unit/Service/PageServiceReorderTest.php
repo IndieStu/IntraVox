@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace OCA\IntraVox\Tests\Unit\Service;
 
 use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Service\PermissionService;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\Files\Folder;
@@ -79,6 +80,11 @@ class PageServiceReorderTest extends TestCase {
                 return $this->homeId !== null && $uniqueId === $this->homeId;
             }
         };
+        (new \ReflectionProperty(PageService::class, 'permissionService'))
+            ->setValue($svc, new class extends PermissionService {
+                public function __construct() {
+                }
+            });
         return $svc;
     }
 

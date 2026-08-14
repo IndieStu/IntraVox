@@ -73,7 +73,6 @@ class PageService {
     private PageIndexService $pageIndexService;
     private ?IVersionManager $versionManager = null;
     private ?ICache $distributedCache = null;
-    private ?ICache $permissionsDistributedCache = null;
     private array $pageFolderCache = [];
 
     /** @var array Request-level cache for page data */
@@ -87,9 +86,6 @@ class PageService {
 
     /** @var array Request-level cache for directory listings */
     private array $directoryListingCache = [];
-
-    /** @var array Request-level cache for folder permissions */
-    private array $permissionsCache = [];
 
     /** @var array Request-level cache for file contents */
     private array $fileContentCache = [];
@@ -183,7 +179,7 @@ class PageService {
             $this->pageFolderCache = [];
             $this->folderPathCache = [];
             $this->directoryListingCache = [];
-            $this->permissionsCache = [];
+            $this->permissionService->clearNodePermissionsCache();
             $this->fileContentCache = [];
         }
         $this->listPagesCache = null;
@@ -210,9 +206,7 @@ class PageService {
         }
         // The per-language page-path map cached in PermissionService is also
         // invalidated by any page create/update/delete.
-        if ($this->permissionsDistributedCache !== null) {
-            $this->permissionsDistributedCache->clear();
-        }
+        $this->permissionService->clearDistributedCache();
     }
 
     /**
@@ -360,68 +354,6 @@ class PageService {
     }
 
     /**
-     * Get cached permissions for a node (folder or file)
-     */
-    private function getCachedPermissions(\OCP\Files\Node $node): int {
-        $path = $node->getPath();
-        if (!isset($this->permissionsCache[$path])) {
-            $this->permissionsCache[$path] = $node->getPermissions();
-        }
-        return $this->permissionsCache[$path];
-    }
-
-    /**
-     * Build the canRead/canWrite/canCreate/canDelete/canShare permission object
-     * for a node from Nextcloud's filesystem view — the single source of truth
-     * used by getPage(), getFolderPermissions(), the page tree and listings.
-     *
-     * canWrite/canCreate/canDelete AND the raw permission bit with the node's
-     * capability method. For a read-only GroupFolder / Team Folder member WITHOUT
-     * Advanced Permissions (ACLs), getPermissions() can still report UPDATE/CREATE
-     * because the group read-only toggle is enforced on the mount mask, not always
-     * reflected per child node (issue #70). isUpdateable()/isCreatable()/
-     * isDeletable() DO account for mount writability and are already trusted
-     * elsewhere (canEdit below, template creation, NavigationService/FooterService
-     * canEdit). Under ACLs the bitmask is already correct and these methods reflect
-     * it, so AND-ing can only ever REMOVE a wrongly-granted capability, never grant
-     * one — it never turns a genuinely writable folder read-only. `raw` is kept
-     * un-AND-ed for API back-compat.
-     *
-     * `protected` (not private) only to give unit tests a seam; no runtime
-     * behaviour depends on the visibility.
-     */
-    protected function permissionsFromNode(\OCP\Files\Node $node): array {
-        $perms = $this->getCachedPermissions($node);
-        return [
-            'canRead' => ($perms & 1) !== 0,
-            'canWrite' => ($perms & 2) !== 0 && $node->isUpdateable(),
-            'canCreate' => ($perms & 4) !== 0 && $node->isCreatable(),
-            'canDelete' => ($perms & 8) !== 0 && $node->isDeletable(),
-            'canShare' => ($perms & 16) !== 0,
-            'raw' => $perms,
-        ];
-    }
-
-    /**
-     * Permissions for a single page, where "write" is gated on the page FILE and
-     * the remaining capabilities describe operations on the page FOLDER.
-     *
-     * Why the split: editing a page writes its JSON file (updatePage preflights
-     * $file->isUpdateable() and then putContent()s the file). In a read-only
-     * Team Folder without ACLs the FOLDER can report isUpdateable()=true while
-     * the FILE reports false, so a folder-derived canWrite showed an "Edit page"
-     * button that then 403'd on save (issue #70). canCreate/canDelete stay
-     * folder-derived: creating a child or removing the page are folder-level
-     * operations, consistent with the tree/listing builders.
-     */
-    protected function permissionsForPage(\OCP\Files\Node $folder, \OCP\Files\Node $file): array {
-        $perms = $this->permissionsFromNode($folder);
-        $filePerms = $this->getCachedPermissions($file);
-        $perms['canWrite'] = ($filePerms & 2) !== 0 && $file->isUpdateable();
-        return $perms;
-    }
-
-    /**
      * Get cached file content (prevents repeated reads of same file within request)
      */
     private function getCachedFileContent(\OCP\Files\File $file): string {
@@ -446,6 +378,7 @@ class PageService {
     private LanguageService $languageService;
     private HomepageService $homepageService;
     private NavigationService $navigationService;
+    private PermissionService $permissionService;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -472,6 +405,7 @@ class PageService {
         LanguageService $languageService,
         HomepageService $homepageService,
         NavigationService $navigationService,
+        PermissionService $permissionService,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -498,15 +432,12 @@ class PageService {
         $this->languageService = $languageService;
         $this->homepageService = $homepageService;
         $this->navigationService = $navigationService;
+        $this->permissionService = $permissionService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
         if ($cacheFactory->isAvailable()) {
             $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
-            // Mutations also invalidate the per-language path map cached
-            // alongside PermissionService; we hold a thin handle to it here
-            // rather than circular-injecting that service.
-            $this->permissionsDistributedCache = $cacheFactory->createDistributed('intravox-permissions');
         }
 
         // Lazy load version manager (files_versions may not be enabled)
@@ -1305,7 +1236,7 @@ class PageService {
             }
 
             $folder = $userFolder->get($intraVoxPath);
-            return $this->permissionsFromNode($folder);
+            return $this->permissionService->permissionsFromNode($folder);
         } catch (\Exception $e) {
             // If folder doesn't exist, return no permissions
             $this->logger->debug('getFolderPermissions failed for path: ' . $relativePath . ' - ' . $e->getMessage());
@@ -1499,7 +1430,7 @@ class PageService {
                     'title' => $data['title'],
                     'modified' => $data['modified'] ?? $homeFile->getMTime(),
                     'status' => $data['status'] ?? 'published',
-                    'permissions' => $this->permissionsFromNode($folder)
+                    'permissions' => $this->permissionService->permissionsFromNode($folder)
                 ];
             }
         } catch (NotFoundException $e) {
@@ -2142,7 +2073,7 @@ class PageService {
                 'title' => (string)($row['title'] ?? ''),
                 'modified' => (int)($row['modified_at'] ?? 0),
                 'status' => (string)($row['status'] ?? 'published'),
-                'permissions' => $this->permissionsFromNode($pageFolder),
+                'permissions' => $this->permissionService->permissionsFromNode($pageFolder),
             ];
         }
 
@@ -2392,7 +2323,7 @@ class PageService {
                             'title' => $data['title'],
                             'modified' => $data['modified'] ?? $jsonFile->getMTime(),
                             'status' => $data['status'] ?? 'published',
-                            'permissions' => $this->permissionsFromNode($item)
+                            'permissions' => $this->permissionService->permissionsFromNode($item)
                         ];
                     }
                 } catch (\Exception $e) {
@@ -2573,7 +2504,7 @@ class PageService {
                     // another (issue #70). $result['file']/['folder'] are already
                     // resolved above. This also overwrites any stale permissions
                     // baked in by pre-fix cache entries, so no flush is needed.
-                    $decoded['permissions'] = $this->permissionsForPage($result['folder'], $result['file']);
+                    $decoded['permissions'] = $this->permissionService->permissionsForPage($result['folder'], $result['file']);
                     $decoded['canEdit'] = $result['file']->isUpdateable();
                     // fileId is user-independent but may be absent from older cache
                     // entries; ensure it's present so the publication gate works.
@@ -2675,7 +2606,7 @@ class PageService {
         // FILE (the real edit target) rather than the folder, so the "Edit page"
         // affordance matches what the write path actually allows (issue #70).
         if ($file !== null) {
-            $page['permissions'] = $this->permissionsForPage($folder, $file);
+            $page['permissions'] = $this->permissionService->permissionsForPage($folder, $file);
             $page['canEdit'] = $file->isUpdateable();
             // Expose the page file's id so the publication gate can resolve the
             // scheduled-publish MetaVox fields (publish/expiration) for this page.
@@ -2722,7 +2653,7 @@ class PageService {
                 $page['groupfolderId'] = $this->groupfolderIdForNode($file);
             }
         } else {
-            $page['permissions'] = $this->permissionsFromNode($folder);
+            $page['permissions'] = $this->permissionService->permissionsFromNode($folder);
             $page['canEdit'] = $folder->isUpdateable();
         }
 
@@ -6928,7 +6859,7 @@ class PageService {
                     'language' => $lang,
                     'isCurrent' => false, // Will be set by markCurrentPageInTree
                     'children' => [],
-                    'permissions' => $this->permissionsFromNode($folder)
+                    'permissions' => $this->permissionService->permissionsFromNode($folder)
                 ];
             }
         } catch (NotFoundException $e) {
@@ -7113,7 +7044,7 @@ class PageService {
 
                 if ($data && isset($data['uniqueId'], $data['title'])) {
                     // Folder permissions (respects ACLs + mount writability).
-                    $perm = $this->permissionsFromNode($item);
+                    $perm = $this->permissionService->permissionsFromNode($item);
 
                     // Skip if user can't read this folder
                     if (!$perm['canRead']) {
@@ -7166,7 +7097,7 @@ class PageService {
             // node. A bare folder with nothing underneath still renders nothing.
             if (!$foundPage) {
                 try {
-                    $perm = $this->permissionsFromNode($item);
+                    $perm = $this->permissionService->permissionsFromNode($item);
                     if (!$perm['canRead']) {
                         continue;
                     }
@@ -7888,7 +7819,7 @@ class PageService {
 
                 if ($data && isset($data['uniqueId'], $data['title'])) {
                     // Get folder permissions
-                    $folderPerms = $this->getCachedPermissions($sourcePageData['folder']);
+                    $folderPerms = $this->permissionService->getNodePermissions($sourcePageData['folder']);
 
                     // Only add if user can read
                     if (($folderPerms & 1) !== 0) {
@@ -8011,7 +7942,7 @@ class PageService {
 
                 if ($data && isset($data['uniqueId'], $data['title'])) {
                     // Get folder permissions
-                    $folderPerms = $this->getCachedPermissions($item);
+                    $folderPerms = $this->permissionService->getNodePermissions($item);
 
                     // Skip if user can't read
                     if (($folderPerms & 1) === 0) {

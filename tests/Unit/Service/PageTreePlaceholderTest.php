@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace OCA\IntraVox\Tests\Unit\Service;
 
 use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Service\PermissionService;
 use OCP\Files\File;
 use OCP\Files\FileInfo;
 use OCP\Files\Folder;
@@ -98,6 +99,11 @@ class PageTreePlaceholderTest extends TestCase {
         };
         (new \ReflectionProperty(PageService::class, 'logger'))
             ->setValue($svc, $this->createMock(\Psr\Log\LoggerInterface::class));
+        (new \ReflectionProperty(PageService::class, 'permissionService'))
+            ->setValue($svc, new class extends PermissionService {
+                public function __construct() {
+                }
+            });
 
         $m = new \ReflectionMethod(PageService::class, 'buildPageTree');
         $tree = [];

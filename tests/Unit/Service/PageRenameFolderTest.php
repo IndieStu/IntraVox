@@ -5,6 +5,7 @@ namespace OCA\IntraVox\Tests\Unit\Service;
 
 use OCA\IntraVox\Service\PageIndexService;
 use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Service\PermissionService;
 use OCA\IntraVox\Service\Util\PageIdUtils;
 use OCP\Files\File;
 use OCP\Files\Folder;
@@ -37,6 +38,11 @@ class PageRenameFolderTest extends TestCase {
             ->setValue($svc, new PageIdUtils());
         (new \ReflectionProperty(PageService::class, 'pageIndexService'))
             ->setValue($svc, $index);
+        (new \ReflectionProperty(PageService::class, 'permissionService'))
+            ->setValue($svc, new class extends PermissionService {
+                public function __construct() {
+                }
+            });
         return $svc;
     }
 
