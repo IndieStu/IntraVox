@@ -6,7 +6,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: IntraVox 2.0.0\n"
 "Report-Msgid-Bugs-To: translations@nextcloud.com\n"
-"POT-Creation-Date: 2026-08-14 07:44+0000\n"
+"POT-Creation-Date: 2026-08-14 13:03+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -301,6 +301,9 @@ msgid "Already exists"
 msgstr ""
 
 msgid "Already in every language"
+msgstr ""
+
+msgid "Also rename the page's folder"
 msgstr ""
 
 msgid "Alt text:"
@@ -2466,6 +2469,9 @@ msgstr ""
 msgid "OIDC auto-connect (zero-click SSO)"
 msgstr ""
 
+msgid "Old links that use the folder name will stop working. Links that use the page ID keep working."
+msgstr ""
+
 msgid "Oldest first"
 msgstr ""
 
@@ -2569,6 +2575,9 @@ msgid "Page"
 msgstr ""
 
 msgid "Page {current} of {total}"
+msgstr ""
+
+msgid "Page and folder renamed"
 msgstr ""
 
 msgid "Page buttons"
@@ -3505,6 +3514,9 @@ msgid "The full URL of your SharePoint site. Found in your browser address bar."
 msgstr ""
 
 msgid "The IntraVox Team folder will be created automatically when you install demo data."
+msgstr ""
+
+msgid "The page was renamed, but its folder could not be renamed."
 msgstr ""
 
 msgid "The telemetry server returned an error:"
