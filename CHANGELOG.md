@@ -4,7 +4,7 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [2.0.0] - 2026-08-10 — Pages know their translations, and large intranets stay fast
+## [2.0.0] - 2026-08-14 — Pages know their translations, and large intranets stay fast
 
 This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and rebuilds the foundation it rests on. Upgrading needs no action: the database change is a single optional column, and nothing has to be converted.
 
@@ -19,6 +19,8 @@ This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and re
   The link always wins: a page you share opens the page you shared, never a redirect to something else. That matters for anyone sending a link in a newsletter or campaign — the recipient sees what the sender saw.
 
   The content region now also carries the correct language for screen readers, which previously pronounced a foreign-language page with the wrong phonemes.
+
+- **Translating a deeply nested page no longer strands it.** The new page lands in the mirrored spot in the other language, and the page tree shows any not-yet-translated parent levels as non-clickable folder placeholders instead of hiding the page. The create panel says up front how many parent pages are still missing in that language, so editors know what they are getting into before clicking Create.
 
 - **`occ intravox:reindex`** rebuilds the page index from the page files. Use it after a restore or migration, or whenever pages behave as if they are missing while the files are plainly there.
 
@@ -41,6 +43,10 @@ This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and re
 - **The wrong page could open as the homepage.** Intranets whose homepage is a `home.json` in the language root landed readers on the alphabetically first page instead. Both homepage layouts now resolve correctly, and a homepage configured by an admin still wins.
 
 - **Search missed the fast path for anyone with a regional locale** (`nl_NL`, `de_DE`, …), quietly falling back to a full scan on every query.
+
+- **Search could rank a page template above the real page** ([#96](https://github.com/nextcloud/IntraVox/issues/96)). Every tree walker carried its own hand-copied list of folders to skip, and the lists had drifted apart, so walkers that forgot `_templates` served template and resource-library files as real pages. One shared rule now decides what is infrastructure, applied everywhere a walker descends.
+
+- **Deleting a linked translation kept it listed in the open page's Translations tab** until the next full page load — clicking the leftover entry answered "page not found". The list now updates the moment the page is deleted.
 
 - Moving or deleting a page left its sub-pages pointing at folders that no longer existed, and imported pages never entered the index at all.
 
