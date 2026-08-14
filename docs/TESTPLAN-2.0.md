@@ -3,6 +3,74 @@
 Handmatig testplan voor de 2.0-release. **Doel: de UI-paden afdekken die de
 geautomatiseerde tests niet bereiken.**
 
+## Resterende ronde — 30-40 minuten (stand 14 aug)
+
+Het meeste van dit plan is inmiddels afgedekt: **A, I, J** volledig server-side
+(beide accounts byte-identiek; lege-index-gedrag mét twee gevonden-en-gefixte
+bugklassen; reindex), **K** mechanisch (échte 1.9.7→2.0.0-upgrade nagespeeld op
+de gevulde database), **B1-B3, C, D, E1-E2, M1-M8/M10** via de screenshotsessies
+en dev-verificaties, **H1-H4** via de 1.9.8-fixes + unit tests. Wat rest is
+onderstaande gerichte browserronde. Console open (F12) gedurende alles.
+
+**Vooraf:** hard verversen (Cmd+Shift+R), profieltaal **Nederlands**.
+
+### T1 — Nederlandse teksten + de plural-proef (5 min, hoogste bewijswaarde)
+
+De plural-vertalingen zijn handmatig geleverd (de bot kan ze niet); een
+formatfout valt **stil** terug op Engels — alleen een browser toont dit.
+
+1. Open een Engelse pagina → melding boven de content in het **Nederlands**
+   ("Deze pagina is in English." + "Lees in …")
+2. ⓘ → tab Vertalingen: alle labels Nederlands
+3. **Enkelvoud-plural:** subpagina (bv. en/about/customers) → kies Français →
+   oranje melding "**1 bovenliggende pagina bestaat** nog niet…"
+4. **Meervoud-plural:** sub-súbpagina (diepte 3) → Français → "**2 bovenliggende
+   pagina's bestaan** nog niet…" — Engels hier = formatfout, direct melden
+5. Editor: verwijder de laatste rij van een (test)pagina → melding "Dit is de
+   laatste rij…" in het Nederlands
+
+### T2 — F: eentalige installatie (5 min, release-blocking, gecoördineerd)
+
+Zeg "**start F**": de andere taalmappen worden server-side tijdelijk weggezet.
+Dan: F1 geen vertaal-item in het …-menu · F2 geen tab Vertalingen · F3 geen
+taalmelding, nergens. Zeg "**klaar**" voor herstel.
+
+### T3 — G: gelijktijdig bewerken (5 min)
+
+Twee browsers (of normaal + privévenster), Rik + admin, zelfde pagina:
+G2 save in browser 1 lukt · G3 save in browser 2 → **foutmelding**, geen stille
+overschrijving · G4 herladen + opnieuw → lukt · G5 tweemaal achtereen opslaan in
+één sessie → beide lukken.
+
+### T4 — B: linkgedrag (4 min)
+
+B4 dezelfde pagina-link 2× plakken in dezelfde tab → werkt beide keren ·
+B5 `#page-bestaatniet` → homepage **mét** Nederlandse foutmelding ·
+B6 publieke share-link in anoniem venster → werkt als voorheen.
+
+### T5 — E: lezer zonder schrijfrechten (4 min)
+
+Log in als `test` of `Wieke` (IntraVox Users): E5 taalmelding zichtbaar, géén
+bewerk-UI · E3 Engelse pagina zonder NL-versie → melding zónder knop ·
+E4 pagina in eigen taal → géén melding.
+
+### T6 — M9: MetaVox uit en aan (3 min, gecoördineerd)
+
+Zeg "**start M9**": MetaVox wordt uitgeschakeld → herlaad: geen tab, geen
+menu-item, rest werkt → melden → weer ingeschakeld → tab terug zonder herstart.
+
+### T7 — naveegwerk (5 min)
+
+Ctrl+K op een paginatitel → resultaat **zonder sjablonen** · pagina met
+subpagina's verwijderen → weg uit boom, daarna zoeken → geen treffers (H5/H6) ·
+`/apps/intravox/` zonder hash → homepage met `#page-…`, verversen → blijft
+(A4/A5).
+
+**Rapportage:** per blok ✓/✗; bij ✗ account + URL + console. Blokkerend:
+T1, T2, en elke stille console-fout.
+
+---
+
 ## Waarom dit plan bestaat
 
 De 491 unit-tests zijn allemaal PHP met mocks. Tijdens de bouw van 2.0 zijn
