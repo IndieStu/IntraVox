@@ -136,6 +136,7 @@ interface Node {
     public function getParent();
     public function getOwner();
     public function getStorage();
+    public function delete(): void;
 }
 
 /**
