@@ -1354,6 +1354,24 @@
     "{count} people reacted with {emoji}" : "{count} personen reageerden met {emoji}",
     "React" : "Reageer",
     "This widget already filters on {fields}. Visitors cannot widen that, so those fields would only show empty options and are not offered here." : "Deze widget filtert al op {fields}. Bezoekers kunnen dat niet verbreden, dus die velden zouden alleen lege opties tonen en worden hier niet aangeboden.",
-    "Contains IntraVox data for {languages}" : "Bevat IntraVox-gegevens voor {languages}"
+    "Contains IntraVox data for {languages}" : "Bevat IntraVox-gegevens voor {languages}",
+    "_%n column_::_%n columns_" : ["%n kolom", "%n kolommen"],
+    "_%n comment_::_%n comments_" : ["%n reactie", "%n reacties"],
+    "_%n day ago_::_%n days ago_" : ["%n dag geleden", "%n dagen geleden"],
+    "_%n hour ago_::_%n hours ago_" : ["%n uur geleden", "%n uur geleden"],
+    "_%n item_::_%n items_" : ["%n item", "%n items"],
+    "_%n media file_::_%n media files_" : ["%n mediabestand", "%n mediabestanden"],
+    "_%n minute ago_::_%n minutes ago_" : ["%n minuut geleden", "%n minuten geleden"],
+    "_%n new connection will be added._::_%n new connections will be added._" : ["%n nieuwe verbinding wordt toegevoegd.", "%n nieuwe verbindingen worden toegevoegd."],
+    "_%n page_::_%n pages_" : ["%n pagina", "%n pagina's"],
+    "_%n parent page does not exist in this language yet — the new page will appear in the same place, with a non-clickable level until you translate that too._::_%n parent pages do not exist in this language yet — the new page will appear in the same place, with non-clickable levels until you translate those too._" : ["%n bovenliggende pagina bestaat nog niet in deze taal — de nieuwe pagina verschijnt op dezelfde plek, met een niet-klikbaar niveau tot je die ook vertaalt.", "%n bovenliggende pagina's bestaan nog niet in deze taal — de nieuwe pagina verschijnt op dezelfde plek, met niet-klikbare niveaus tot je die ook vertaalt."],
+    "_Data recovered: %n file migrated_::_Data recovered: %n files migrated_" : ["Data hersteld: %n bestand gemigreerd", "Data hersteld: %n bestanden gemigreerd"],
+    "_Exported %n connection_::_Exported %n connections_" : ["%n verbinding geëxporteerd", "%n verbindingen geëxporteerd"],
+    "_Found %n connection in file:_::_Found %n connections in file:_" : ["%n verbinding gevonden in bestand:", "%n verbindingen gevonden in bestand:"],
+    "_Found %n orphaned data folder from a previous installation._::_Found %n orphaned data folders from a previous installation._" : ["%n verweesde datamap van een eerdere installatie gevonden.", "%n verweesde datamappen van een eerdere installatie gevonden."],
+    "_Found %n orphaned folder_::_Found %n orphaned folders_" : ["%n verweesde map gevonden", "%n verweesde mappen gevonden"],
+    "_Import %n connection_::_Import %n connections_" : ["Importeer %n verbinding", "Importeer %n verbindingen"],
+    "_Imported %n connection. Enter API tokens and save._::_Imported %n connections. Enter API tokens and save._" : ["%n verbinding geïmporteerd. Voer API-tokens in en sla op.", "%n verbindingen geïmporteerd. Voer API-tokens in en sla op."],
+    "This is the last row on the page. Deleting it leaves the page empty — you can add a new row afterwards." : "Dit is de laatste rij op de pagina. Verwijderen laat de pagina leeg achter — je kunt daarna een nieuwe rij toevoegen."
 },"pluralForm" :"nplurals=2; plural=(n != 1);"
 }
