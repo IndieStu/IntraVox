@@ -1,0 +1,296 @@
+<?php
+declare(strict_types=1);
+
+namespace OCA\IntraVox\Tests\Unit\Service;
+
+use OCA\IntraVox\Service\PageIndexService;
+use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Service\Util\PageIdUtils;
+use OCP\Files\File;
+use OCP\Files\Folder;
+use PHPUnit\Framework\TestCase;
+
+/**
+ * Folder rename on page rename (#95).
+ *
+ * The invariant under test: a page's folder and its `.json` are renamed as
+ * a PAIR or not at all. A folder whose JSON carries another base name is
+ * exactly the mismatch the index rebuild skips as "not a page", so a half
+ * rename would make the page vanish from the index. Hence the rollback
+ * test is the one that matters most here.
+ */
+class PageRenameFolderTest extends TestCase {
+
+    private function makeService(bool $isHomepage, PageIndexService $index): PageService {
+        $svc = new class($isHomepage) extends PageService {
+            private bool $homepageAnswer;
+            public function __construct(bool $homepageAnswer) {
+                $this->homepageAnswer = $homepageAnswer;
+            }
+            public function isHomepage(string $uniqueId, ?string $language = null): bool {
+                return $this->homepageAnswer;
+            }
+        };
+        (new \ReflectionProperty(PageService::class, 'logger'))
+            ->setValue($svc, $this->createMock(\Psr\Log\LoggerInterface::class));
+        (new \ReflectionProperty(PageService::class, 'idUtils'))
+            ->setValue($svc, new PageIdUtils());
+        (new \ReflectionProperty(PageService::class, 'pageIndexService'))
+            ->setValue($svc, $index);
+        return $svc;
+    }
+
+    private function rename(PageService $svc, array $result, string $requested): array {
+        $m = new \ReflectionMethod(PageService::class, 'renamePageFolder');
+        return $m->invoke($svc, $result, $requested, ['uniqueId' => 'page-x', 'language' => 'en']);
+    }
+
+    /** Inside layout: folder first, then the JSON inside; index repathed. */
+    public function testInsideLayoutRenamesFolderAndJsonAsPair(): void {
+        $parent = $this->createMock(Folder::class);
+        $parent->method('nodeExists')->willReturn(false);
+
+        $innerFile = $this->createMock(File::class);
+        $innerFile->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us/contact-us.json');
+
+        $movedFolder = $this->createMock(Folder::class);
+        $movedFolder->method('get')->with('contact.json')->willReturn($innerFile);
+        $movedFolder->expects($this->never())->method('move');
+
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('isUpdateable')->willReturn(true);
+        $folder->method('nodeExists')->willReturn(false);
+        $folder->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us')->willReturn($movedFolder);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->method('isUpdateable')->willReturn(true);
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->expects($this->once())->method('repathSubtree')
+            ->with('/IntraVox/en/contact', '/IntraVox/en/contact-us');
+
+        $svc = $this->makeService(false, $index);
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact-us');
+
+        $this->assertSame('renamed', $out['status']);
+        $this->assertSame('contact-us', $out['folderName']);
+    }
+
+    /** A failing JSON rename rolls the folder back — never a half pair. */
+    public function testJsonRenameFailureRollsBackFolder(): void {
+        $parent = $this->createMock(Folder::class);
+        $parent->method('nodeExists')->willReturn(false);
+
+        $innerFile = $this->createMock(File::class);
+        $innerFile->method('move')->willThrowException(new \RuntimeException('locked'));
+
+        $movedFolder = $this->createMock(Folder::class);
+        $movedFolder->method('get')->willReturn($innerFile);
+        $movedFolder->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact');
+
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('isUpdateable')->willReturn(true);
+        $folder->method('nodeExists')->willReturn(false);
+        $folder->method('move')->willReturn($movedFolder);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->method('isUpdateable')->willReturn(true);
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->expects($this->never())->method('repathSubtree');
+
+        $svc = $this->makeService(false, $index);
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact-us');
+
+        $this->assertSame('failed', $out['status']);
+        $this->assertSame('rename_failed', $out['reason']);
+    }
+
+    /** Sibling collisions get the createPage/movePage suffix. */
+    public function testCollisionGetsSuffix(): void {
+        $parent = $this->createMock(Folder::class);
+        $parent->method('nodeExists')->willReturnCallback(
+            fn(string $name) => in_array($name, ['contact-us', 'contact-us-2.json'], true)
+        );
+
+        $innerFile = $this->createMock(File::class);
+        $innerFile->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us-3/contact-us-3.json');
+
+        $movedFolder = $this->createMock(Folder::class);
+        $movedFolder->method('get')->willReturn($innerFile);
+
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('isUpdateable')->willReturn(true);
+        $folder->method('nodeExists')->willReturn(false);
+        $folder->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us-3')->willReturn($movedFolder);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->method('isUpdateable')->willReturn(true);
+
+        $svc = $this->makeService(false, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact-us');
+
+        $this->assertSame('renamed', $out['status']);
+        $this->assertSame('contact-us-3', $out['folderName']);
+    }
+
+    /** Inside layout: a CHILD entry with the target name also collides —
+     *  `{slug}/{slug}.json` next to a child folder `{slug}` would be read
+     *  as that child's beside-layout JSON. */
+    public function testChildEntryWithTargetNameCollides(): void {
+        $parent = $this->createMock(Folder::class);
+        $parent->method('nodeExists')->willReturn(false);
+
+        $innerFile = $this->createMock(File::class);
+        $innerFile->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us-2/contact-us-2.json');
+
+        $movedFolder = $this->createMock(Folder::class);
+        $movedFolder->method('get')->willReturn($innerFile);
+
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('isUpdateable')->willReturn(true);
+        $folder->method('nodeExists')->willReturnCallback(
+            fn(string $name) => $name === 'contact-us'    // child page folder
+        );
+        $folder->expects($this->once())->method('move')
+            ->with('/IntraVox/en/contact-us-2')->willReturn($movedFolder);
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->method('isUpdateable')->willReturn(true);
+
+        $svc = $this->makeService(false, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact-us');
+
+        $this->assertSame('renamed', $out['status']);
+        $this->assertSame('contact-us-2', $out['folderName']);
+    }
+
+    /** Beside layout (legacy): JSON first, then the folder; both in the parent. */
+    public function testBesideLayoutRenamesBothNodes(): void {
+        $parent = $this->createMock(Folder::class);
+        $parent->method('nodeExists')->willReturn(false);
+
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('about');
+        $folder->method('getPath')->willReturn('/IntraVox/en/about');
+        $folder->method('getParent')->willReturn($parent);
+        $folder->method('isUpdateable')->willReturn(true);
+        $folder->expects($this->once())->method('move')
+            ->with('/IntraVox/en/about-us');
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('about.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/about.json');
+        $file->method('isUpdateable')->willReturn(true);
+        $file->expects($this->once())->method('move')
+            ->with('/IntraVox/en/about-us.json')->willReturn($file);
+
+        $index = $this->createMock(PageIndexService::class);
+        $index->expects($this->once())->method('repathSubtree')
+            ->with('/IntraVox/en/about', '/IntraVox/en/about-us');
+
+        $svc = $this->makeService(false, $index);
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'about-us');
+
+        $this->assertSame('renamed', $out['status']);
+    }
+
+    /** The homepage is never folder-renamed, whatever its layout. */
+    public function testHomepageIsSkipped(): void {
+        $folder = $this->createMock(Folder::class);
+        $folder->expects($this->never())->method('move');
+        $file = $this->createMock(File::class);
+        $file->expects($this->never())->method('move');
+
+        $svc = $this->makeService(true, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'welcome');
+
+        $this->assertSame('skipped', $out['status']);
+        $this->assertSame('layout', $out['reason']);
+    }
+
+    /** A loose JSON (folder is just the containing directory) has no pair. */
+    public function testLooseJsonIsSkipped(): void {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('en');
+        $folder->method('getPath')->willReturn('/IntraVox/en');
+        $folder->expects($this->never())->method('move');
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('stray.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/stray.json');
+        $file->expects($this->never())->method('move');
+
+        $svc = $this->makeService(false, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'stray-renamed');
+
+        $this->assertSame('skipped', $out['status']);
+        $this->assertSame('layout', $out['reason']);
+    }
+
+    /** No write permission on either node refuses before any move. */
+    public function testPermissionDeniedBeforeAnyMove(): void {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->method('isUpdateable')->willReturn(false);
+        $folder->expects($this->never())->method('move');
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->method('isUpdateable')->willReturn(true);
+        $file->expects($this->never())->method('move');
+
+        $svc = $this->makeService(false, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact-us');
+
+        $this->assertSame('failed', $out['status']);
+        $this->assertSame('permission', $out['reason']);
+    }
+
+    /** Same slug in, nothing to do. */
+    public function testUnchangedNameIsSkipped(): void {
+        $folder = $this->createMock(Folder::class);
+        $folder->method('getName')->willReturn('contact');
+        $folder->method('getPath')->willReturn('/IntraVox/en/contact');
+        $folder->expects($this->never())->method('move');
+
+        $file = $this->createMock(File::class);
+        $file->method('getName')->willReturn('contact.json');
+        $file->method('getPath')->willReturn('/IntraVox/en/contact/contact.json');
+        $file->expects($this->never())->method('move');
+
+        $svc = $this->makeService(false, $this->createMock(PageIndexService::class));
+        $out = $this->rename($svc, ['file' => $file, 'folder' => $folder], 'contact');
+
+        $this->assertSame('skipped', $out['status']);
+        $this->assertSame('unchanged', $out['reason']);
+    }
+}

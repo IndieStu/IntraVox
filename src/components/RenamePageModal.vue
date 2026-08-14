@@ -16,6 +16,22 @@
         @keyup.esc="$emit('close')"
       />
 
+      <!-- Folder rename (#95). Only offered when the backend reports a
+           renamable folder/JSON pair (not the homepage, not a loose legacy
+           file) and the new title actually yields a different folder name. -->
+      <div v-if="showFolderOption" class="folder-rename">
+        <NcCheckboxRadioSwitch
+          :model-value="renameFolder"
+          :disabled="saving"
+          @update:model-value="renameFolder = $event">
+          {{ t('intravox', 'Also rename the page\'s folder') }}
+        </NcCheckboxRadioSwitch>
+        <p class="folder-rename__preview">{{ folderName }} → {{ newFolderName }}</p>
+        <p v-if="renameFolder" class="folder-rename__warning">
+          {{ t('intravox', 'Old links that use the folder name will stop working. Links that use the page ID keep working.') }}
+        </p>
+      </div>
+
       <div class="modal-buttons">
         <NcButton type="secondary" :disabled="saving" @click="$emit('close')">
           {{ t('intravox', 'Cancel') }}
@@ -35,14 +51,16 @@
 import { translate } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import axios from '@nextcloud/axios';
-import { showError, showSuccess } from '@nextcloud/dialogs';
-import { NcModal, NcButton, NcLoadingIcon } from '@nextcloud/vue';
+import { showError, showSuccess, showWarning } from '@nextcloud/dialogs';
+import { NcModal, NcButton, NcCheckboxRadioSwitch, NcLoadingIcon } from '@nextcloud/vue';
+import { generateSlug } from '../utils/slug';
 
 export default {
   name: 'RenamePageModal',
   components: {
     NcModal,
     NcButton,
+    NcCheckboxRadioSwitch,
     NcLoadingIcon
   },
   props: {
@@ -59,6 +77,8 @@ export default {
   data() {
     return {
       newTitle: this.currentTitle,
+      folderName: null,
+      renameFolder: false,
       saving: false
     };
   },
@@ -66,6 +86,14 @@ export default {
     canRename() {
       const trimmed = this.newTitle.trim();
       return !this.saving && trimmed.length > 0 && trimmed !== this.currentTitle.trim();
+    },
+    newFolderName() {
+      return generateSlug(this.newTitle.trim());
+    },
+    showFolderOption() {
+      return !!this.folderName
+        && !!this.newFolderName
+        && this.newFolderName !== this.folderName;
     }
   },
   mounted() {
@@ -76,10 +104,28 @@ export default {
         input.select();
       }
     });
+    this.loadFolderName();
   },
   methods: {
     t(app, text, vars = {}) {
       return translate(app, text, vars);
+    },
+    async loadFolderName() {
+      try {
+        const url = generateUrl(`/apps/intravox/api/pages/${encodeURIComponent(this.pageId)}/metadata`);
+        const response = await axios.get(url);
+        this.folderName = response.data?.folderName || null;
+        // Default the checkbox ON only while the folder still carries the
+        // title-derived name (allowing the collision suffix) — a folder that
+        // was deliberately named otherwise stays as it is unless asked.
+        const original = generateSlug(this.currentTitle.trim());
+        this.renameFolder = !!this.folderName && !!original
+          && (this.folderName === original
+            || new RegExp(`^${original}-\\d+$`).test(this.folderName));
+      } catch (error) {
+        // No folder option, the title rename works as before.
+        this.folderName = null;
+      }
     },
     async rename() {
       if (!this.canRename) {
@@ -89,8 +135,19 @@ export default {
       this.saving = true;
       try {
         const url = generateUrl(`/apps/intravox/api/pages/${this.pageId}/metadata`);
-        await axios.put(url, { title });
-        showSuccess(this.t('intravox', 'Page renamed'));
+        const body = { title };
+        if (this.showFolderOption && this.renameFolder) {
+          body.folderName = this.newFolderName;
+        }
+        const response = await axios.put(url, body);
+        const folderRename = response.data?.folderRename;
+        if (folderRename?.status === 'renamed') {
+          showSuccess(this.t('intravox', 'Page and folder renamed'));
+        } else if (folderRename && folderRename.status === 'failed') {
+          showWarning(this.t('intravox', 'The page was renamed, but its folder could not be renamed.'));
+        } else {
+          showSuccess(this.t('intravox', 'Page renamed'));
+        }
         this.$emit('renamed', title);
         this.$emit('close');
       } catch (error) {
@@ -134,6 +191,28 @@ export default {
 .page-title-input:focus {
   outline: none;
   border-color: var(--color-primary);
+}
+
+.folder-rename {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-rename__preview {
+  margin: 0;
+  padding-inline-start: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--color-text-maxcontrast);
+  overflow-wrap: anywhere;
+}
+
+.folder-rename__warning {
+  margin: 0;
+  padding-inline-start: 10px;
+  font-size: 13px;
+  color: var(--color-text-maxcontrast);
 }
 
 .modal-buttons {

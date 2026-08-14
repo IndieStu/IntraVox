@@ -330,6 +330,7 @@ import { generateUrl } from '@nextcloud/router';
 import { loadState } from '@nextcloud/initial-state';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { showSuccess, showError } from '@nextcloud/dialogs';
+import { generateSlug } from './utils/slug';
 import PageTreeSelect from './components/PageTreeSelect.vue';
 import { NcButton, NcDialog, NcCheckboxRadioSwitch, NcNoteCard } from '@nextcloud/vue';
 import ContentSave from 'vue-material-design-icons/ContentSave.vue';
@@ -1459,12 +1460,8 @@ export default {
       this.showNewPageModal = true;
     },
     generateSlug(title) {
-      // Convert title to URL-friendly slug
-      return title.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '') // Remove diacritics
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
+      // Shared with RenamePageModal's folder preview (utils/slug.js).
+      return generateSlug(title);
     },
     generateUniqueId() {
       // Generate a UUID v4 for guaranteed uniqueness across servers

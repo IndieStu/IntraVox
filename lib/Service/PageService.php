@@ -5883,6 +5883,11 @@ class PageService {
             'raw' => 1
         ];
 
+        // Folder-rename support (#95): null when the page has no renamable
+        // folder/JSON pair (homepage, loose legacy file) — the rename dialog
+        // hides the folder option in that case.
+        $renameLayout = $this->resolvePageLayoutForRename($result, is_array($data) ? $data : []);
+
         // Return metadata using filesystem timestamps
         $metadata = [
             'title' => $data['title'] ?? 'Untitled',
@@ -5905,6 +5910,7 @@ class PageService {
             'fileId' => $fileId,
             'size' => $size,
             'parentFolderId' => $parentFolderId,
+            'folderName' => $renameLayout !== null ? $renameLayout['folder']->getName() : null,
             'mountPoint' => 'IntraVox',
             // Permissions - use Nextcloud's native permissions
             'permissions' => $permissions,
@@ -5966,7 +5972,22 @@ class PageService {
             }
         }
 
-        return $this->getPageMetadata($pageId);
+        // Optional folder rename riding along with the title change (#95).
+        // Best-effort by design: the title rename above already succeeded, and
+        // a folder that keeps its old name is exactly today's behaviour.
+        $folderRename = null;
+        if (isset($metadata['folderName']) && is_string($metadata['folderName']) && $metadata['folderName'] !== '') {
+            $folderRename = $this->renamePageFolder($result, $metadata['folderName'], is_array($data) ? $data : []);
+        }
+
+        // Refetch by uniqueId when we have one: after a folder rename, a
+        // legacy slug-shaped $pageId no longer resolves.
+        $refetchId = (is_array($data) && !empty($data['uniqueId'])) ? (string)$data['uniqueId'] : $pageId;
+        $response = $this->getPageMetadata($refetchId);
+        if ($folderRename !== null) {
+            $response['folderRename'] = $folderRename;
+        }
+        return $response;
     }
 
     /**
@@ -6009,6 +6030,166 @@ class PageService {
         } catch (\Throwable $e) {
             $this->logger->warning('[PageService] Could not sync navigation title after rename: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Classify how a located page pairs its JSON with a folder, for the
+     * folder-rename option (#95).
+     *
+     * Returns null when there is nothing that may be renamed as a pair: the
+     * homepage (both the loose `home.json` and a configured homepage page),
+     * and loose JSON files whose base name matches no folder (their
+     * containing folder is shared with other pages). Otherwise tells the two
+     * supported shapes apart:
+     *   - 'inside': modern model, `{slug}/{slug}.json`
+     *   - 'beside': legacy model, `{slug}.json` next to `{slug}/`
+     *
+     * @param array{file?:\OCP\Files\File, folder?:\OCP\Files\Folder, isHome?:bool} $result
+     * @return array{layout:string, file:\OCP\Files\File, folder:\OCP\Files\Folder}|null
+     */
+    private function resolvePageLayoutForRename(array $result, array $pageData): ?array {
+        if (!empty($result['isHome'])) {
+            return null;
+        }
+        $uniqueId = (string)($pageData['uniqueId'] ?? '');
+        $language = isset($pageData['language']) && is_string($pageData['language'])
+            ? $pageData['language'] : null;
+        if ($uniqueId !== '' && $this->isHomepage($uniqueId, $language)) {
+            return null;
+        }
+        $file = $result['file'] ?? null;
+        $folder = $result['folder'] ?? null;
+        if (!$file instanceof \OCP\Files\File || !$folder instanceof \OCP\Files\Folder) {
+            return null;
+        }
+        $fileName = $file->getName();
+        if (substr($fileName, -5) !== '.json' || substr($fileName, 0, -5) !== $folder->getName()) {
+            return null;
+        }
+        $fileParent = dirname($file->getPath());
+        $folderPath = $folder->getPath();
+        if ($fileParent === $folderPath) {
+            return ['layout' => 'inside', 'file' => $file, 'folder' => $folder];
+        }
+        if ($fileParent === dirname($folderPath)) {
+            return ['layout' => 'beside', 'file' => $file, 'folder' => $folder];
+        }
+        return null;
+    }
+
+    /**
+     * Rename a page's folder and its paired `.json` to a new slug (#95).
+     *
+     * The two nodes MUST stay a pair — a folder whose JSON carries another
+     * base name is exactly the mismatch the index rebuild skips as "not a
+     * page" — so when the second rename fails the first is rolled back.
+     * Collisions get a `-2`/`-3` suffix like createPage and movePage; for
+     * the inside layout the suffix loop also avoids the name of any child
+     * entry, because `{slug}/{slug}.json` next to a child folder `{slug}`
+     * would be read as that child's beside-layout JSON.
+     *
+     * Never throws: the title rename this rides along with has already
+     * succeeded, so the outcome is reported instead.
+     *
+     * @return array{status:string, reason?:string, folderName?:string}
+     */
+    private function renamePageFolder(array $result, string $requestedName, array $pageData): array {
+        $layout = $this->resolvePageLayoutForRename($result, $pageData);
+        if ($layout === null) {
+            return ['status' => 'skipped', 'reason' => 'layout'];
+        }
+
+        try {
+            $newName = $this->sanitizeId($requestedName);
+        } catch (\InvalidArgumentException $e) {
+            return ['status' => 'failed', 'reason' => 'invalid_name'];
+        }
+
+        $file = $layout['file'];
+        $folder = $layout['folder'];
+        $inside = $layout['layout'] === 'inside';
+        $folderName = $folder->getName();
+        if ($newName === $folderName) {
+            return ['status' => 'skipped', 'reason' => 'unchanged', 'folderName' => $folderName];
+        }
+
+        if (!$folder->isUpdateable() || !$file->isUpdateable()) {
+            return ['status' => 'failed', 'reason' => 'permission'];
+        }
+
+        $parent = $folder->getParent();
+        $candidate = $newName;
+        $counter = 2;
+        while ($parent->nodeExists($candidate)
+            || $parent->nodeExists($candidate . '.json')
+            || ($inside && ($folder->nodeExists($candidate) || $folder->nodeExists($candidate . '.json')))) {
+            $candidate = $newName . '-' . $counter;
+            $counter++;
+        }
+
+        $oldFolderPath = $folder->getPath();
+        $parentPath = rtrim(dirname($oldFolderPath), '/');
+        $newFolderPath = $parentPath . '/' . $candidate;
+
+        try {
+            if ($inside) {
+                $fileName = $file->getName();
+                $moved = $folder->move($newFolderPath);
+                $movedFolder = $moved instanceof \OCP\Files\Folder ? $moved : $folder;
+                try {
+                    $movedFolder->get($fileName)->move($newFolderPath . '/' . $candidate . '.json');
+                } catch (\Throwable $inner) {
+                    try {
+                        $movedFolder->move($oldFolderPath);
+                    } catch (\Throwable $rollback) {
+                        $this->logger->error(
+                            'renamePageFolder: rollback failed — folder and JSON are out of step, run occ intravox:reindex after repairing',
+                            ['folder' => $newFolderPath, 'error' => $rollback->getMessage()]
+                        );
+                    }
+                    throw $inner;
+                }
+            } else {
+                $oldFilePath = $file->getPath();
+                $moved = $file->move($parentPath . '/' . $candidate . '.json');
+                $movedFile = $moved instanceof \OCP\Files\File ? $moved : $file;
+                try {
+                    $folder->move($newFolderPath);
+                } catch (\Throwable $inner) {
+                    try {
+                        $movedFile->move($oldFilePath);
+                    } catch (\Throwable $rollback) {
+                        $this->logger->error(
+                            'renamePageFolder: rollback failed — folder and JSON are out of step, run occ intravox:reindex after repairing',
+                            ['file' => $oldFilePath, 'error' => $rollback->getMessage()]
+                        );
+                    }
+                    throw $inner;
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->error('renamePageFolder: rename failed', [
+                'from' => $oldFolderPath,
+                'to' => $newFolderPath,
+                'error' => $e->getMessage(),
+            ]);
+            return ['status' => 'failed', 'reason' => 'rename_failed'];
+        }
+
+        // Same contract as movePage: the disk rename already succeeded, so an
+        // index failure must not fail the operation — occ intravox:reindex repairs.
+        try {
+            $this->pageIndexService->repathSubtree($oldFolderPath, $newFolderPath);
+        } catch (\Throwable $e) {
+            $this->logger->warning('renamePageFolder: could not repath index subtree', [
+                'from' => $oldFolderPath,
+                'to' => $newFolderPath,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        $this->clearCache();
+        return ['status' => 'renamed', 'folderName' => $candidate];
     }
 
     /**

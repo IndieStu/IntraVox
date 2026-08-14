@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.0.1] - 2026-08-14 — Renaming a page can now rename its folder too
+
+### Added
+
+- **The Rename dialog can now rename the page's folder along with its title** ([#95](https://github.com/nextcloud/IntraVox/issues/95), thanks @kma-cloud). Renaming a page used to change only the title: the folder in the Team folder kept its old name, which made rights management confusing — folder names no longer matched what editors saw. The dialog now offers "Also rename the page's folder" with a preview of the old and new name.
+
+  The checkbox is pre-selected while the folder still carries its title-derived name, and off when someone deliberately named the folder something else. The folder and its `.json` are renamed as a pair — or not at all: if the second rename fails, the first is rolled back. Name collisions get a `-2`/`-3` suffix, exactly like creating or moving a page. Sub-pages, images and files travel along; links by page ID, public share links, version history and Team-folder access rules all keep working, because none of them depend on the folder's name.
+
+  One honest limitation, stated in the dialog: very old links that use the folder name in the address (instead of the page ID) stop working after a folder rename. The homepage never offers the option.
+
 ## [2.0.0] - 2026-08-14 — Pages know their translations, and large intranets stay fast
 
 This release finishes the multilingual work that 1.9.6 and 1.9.7 started, and rebuilds the foundation it rests on. Upgrading needs no action: the database change is a single optional column, and nothing has to be converted.

@@ -2,7 +2,7 @@
     "openapi": "3.1.0",
     "info": {
         "title": "IntraVox API",
-        "version": "2.0.0",
+        "version": "2.0.1",
         "description": "IntraVox is a modern intranet page builder for Nextcloud. This API provides endpoints for managing pages, media, navigation, comments, reactions, the Photo Story widget (galleries with EXIF, maps and lightbox) and the File Story widget (document libraries with MetaVox-aware filtering and federated-share awareness).",
         "license": {
             "name": "AGPL-3.0",
@@ -334,7 +334,7 @@
             "get": {
                 "operationId": "get-page-metadata",
                 "summary": "Get page metadata",
-                "description": "Returns the page's metadata (title, modified/created timestamps, path, permissions). Does not return the page layout.",
+                "description": "Returns the page's metadata (title, modified/created timestamps, path, permissions). Does not return the page layout. Includes folderName (2.0.1): the folder the rename dialog may offer to rename, or null when the page has no renamable folder/JSON pair (homepage, loose legacy file).",
                 "tags": [
                     "Pages"
                 ],
@@ -357,7 +357,7 @@
             "put": {
                 "operationId": "update-page-metadata",
                 "summary": "Update page metadata (rename)",
-                "description": "Updates page metadata without touching the layout. Currently the title — this is what the \"Rename page\" action calls. Requires write permission. Renaming only changes the title; the page's folder/address and its uniqueId are unchanged. If the navigation menu label still matched the old title it is updated too.",
+                "description": "Updates page metadata without touching the layout. Currently the title — this is what the \"Rename page\" action calls. Requires write permission. The page's uniqueId never changes. Optionally (2.0.1, #95) the page's folder and its paired .json can be renamed along with the title by passing folderName; on a name collision a -2/-3 suffix is applied. The homepage and loose legacy files are never folder-renamed. If the navigation menu label still matched the old title it is updated too.",
                 "tags": [
                     "Pages"
                 ],
@@ -381,6 +381,10 @@
                                     "title": {
                                         "type": "string",
                                         "description": "New page title."
+                                    },
+                                    "folderName": {
+                                        "type": "string",
+                                        "description": "Optional new folder slug (lowercase, a-z0-9-). When present, the page's folder and paired .json are renamed as a pair — or not at all. The response reports the outcome in folderRename; a failed folder rename never fails the title rename."
                                     }
                                 }
                             }
@@ -389,7 +393,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Updated page metadata"
+                        "description": "Updated page metadata. When folderName was passed, includes folderRename: {status: renamed|skipped|failed, reason?, folderName?} with the folder name actually used (it may carry a collision suffix)."
                     },
                     "403": {
                         "description": "Permission denied"
