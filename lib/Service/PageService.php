@@ -20,7 +20,7 @@ use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
 use OCA\IntraVox\Service\Template\TemplateMetadataExtractor;
 use OCA\IntraVox\Service\Util\PageIdUtils;
-use OCA\IntraVox\Service\Version\PageVersionFormatter;
+use OCA\IntraVox\Service\Version\PageVersionService;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
@@ -32,8 +32,6 @@ use OCP\ICacheFactory;
 use OCP\ICache;
 use Psr\Log\LoggerInterface;
 use OCP\Files\Cache\ICacheEntry;
-use OCA\Files_Versions\Versions\IVersionManager;
-use OCA\Files_Versions\Versions\IVersion;
 
 class PageService {
     private const ALLOWED_WIDGET_TYPES = ['text', 'heading', 'image', 'links', 'divider', 'video', 'news', 'people', 'calendar', 'feed', 'photo-story', 'file-story'];
@@ -71,7 +69,6 @@ class PageService {
     private IEventDispatcher $eventDispatcher;
     private PublicationSettingsService $publicationSettings;
     private PageIndexService $pageIndexService;
-    private ?IVersionManager $versionManager = null;
     private ?ICache $distributedCache = null;
     private array $pageFolderCache = [];
 
@@ -368,7 +365,7 @@ class PageService {
     private UrlSanitizer $urlSanitizer;
     private ColorSanitizer $colorSanitizer;
     private MediaSanitizer $mediaSanitizer;
-    private PageVersionFormatter $versionFormatter;
+    private PageVersionService $pageVersionService;
     private TemplateMetadataExtractor $templateMetadata;
     private NewsContentExtractor $newsContent;
     private PageSearchHelper $searchHelper;
@@ -395,7 +392,7 @@ class PageService {
         UrlSanitizer $urlSanitizer,
         ColorSanitizer $colorSanitizer,
         MediaSanitizer $mediaSanitizer,
-        PageVersionFormatter $versionFormatter,
+        PageVersionService $pageVersionService,
         TemplateMetadataExtractor $templateMetadata,
         NewsContentExtractor $newsContent,
         PageSearchHelper $searchHelper,
@@ -422,7 +419,7 @@ class PageService {
         $this->urlSanitizer = $urlSanitizer;
         $this->colorSanitizer = $colorSanitizer;
         $this->mediaSanitizer = $mediaSanitizer;
-        $this->versionFormatter = $versionFormatter;
+        $this->pageVersionService = $pageVersionService;
         $this->templateMetadata = $templateMetadata;
         $this->newsContent = $newsContent;
         $this->searchHelper = $searchHelper;
@@ -438,13 +435,6 @@ class PageService {
 
         if ($cacheFactory->isAvailable()) {
             $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
-        }
-
-        // Lazy load version manager (files_versions may not be enabled)
-        try {
-            $this->versionManager = \OC::$server->get(IVersionManager::class);
-        } catch (\Exception $e) {
-            $this->logger->info('[PageService] Version manager not available: ' . $e->getMessage());
         }
     }
 
@@ -3367,7 +3357,7 @@ class PageService {
         try {
             // Create version before update using GroupFolders VersionsBackend
             // GroupFolders 20.1.7+ has reliable versioning support
-            $this->createVersionBeforeUpdate($file);
+            $this->pageVersionService->createBeforeUpdate($file);
 
             // Update the file
             $file->putContent(json_encode($validatedData, JSON_PRETTY_PRINT));
@@ -5349,8 +5339,6 @@ class PageService {
      * @throws \Exception if page not found
      */
     public function getPageVersions(string $pageId): array {
-        $this->logger->info('[getPageVersions] START - Getting versions for page: ' . $pageId);
-
         $folder = $this->getLanguageFolder();
         $result = null;
 
@@ -5371,118 +5359,7 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        $this->logger->info('[getPageVersions] File found: ' . $file->getPath() . ' (ID: ' . $file->getId() . ')');
-        $this->logger->info('[getPageVersions] Storage class: ' . get_class($file->getStorage()));
-
-        if (!$user) {
-            $this->logger->warning('[getPageVersions] No user in session');
-            return [];
-        }
-
-        $this->logger->info('[getPageVersions] User: ' . $user->getUID());
-
-        if (!$this->versionManager) {
-            $this->logger->warning('[getPageVersions] Version manager not available');
-            return [];
-        }
-
-        $this->logger->info('[getPageVersions] Version manager class: ' . get_class($this->versionManager));
-
-        try {
-            $this->logger->info('[getPageVersions] Calling getVersionsForFile...');
-
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-            $this->logger->info('[getPageVersions] IVersionManager returned ' . count($versions) . ' versions');
-
-            // Get current file metadata (like Nextcloud Files app shows)
-            $currentVersion = [
-                'timestamp' => $file->getMTime(),
-                'size' => $file->getSize(),
-                'author' => $this->getCurrentFileAuthor($file),
-                'relativeTime' => $this->formatRelativeTime($file->getMTime()),
-            ];
-
-            return [
-                'currentVersion' => $currentVersion,
-                'versions' => $this->formatVersionsFromBackend($versions),
-            ];
-
-        } catch (\Exception $e) {
-            $this->logger->error('[getPageVersions] Failed to get page versions: ' . $e->getMessage(), [
-                'pageId' => $pageId,
-                'exception' => $e->getTraceAsString(),
-            ]);
-            return [
-                'currentVersion' => null,
-                'versions' => [],
-            ];
-        }
-    }
-
-    /**
-     * Format versions from IVersionManager to array format for API response
-     */
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatVersions.
-     */
-    private function formatVersionsFromBackend(array $versions): array {
-        return $this->versionFormatter->formatVersions($versions);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::getAuthor.
-     */
-    private function getVersionAuthor(IVersion $version): ?string {
-        return $this->versionFormatter->getAuthor($version);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::getLabel.
-     */
-    private function getVersionLabel(IVersion $version): ?string {
-        return $this->versionFormatter->getLabel($version);
-    }
-
-    /**
-     * Get the author of the current file (last modifier)
-     * Uses the file owner as fallback since we don't track individual modifiers
-     */
-    private function getCurrentFileAuthor(\OCP\Files\File $file): ?string {
-        try {
-            // Try to get the owner of the file
-            $owner = $file->getOwner();
-            if ($owner !== null) {
-                return $owner->getDisplayName() ?: $owner->getUID();
-            }
-            // Fallback to current user if available
-            $user = $this->userSession->getUser();
-            return $user ? ($user->getDisplayName() ?: $user->getUID()) : null;
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Format a version timestamp for display
-     * Uses relative time format like Nextcloud Files app
-     */
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatRelativeTime.
-     */
-    private function formatVersionDate(int $timestamp): string {
-        return $this->versionFormatter->formatRelativeTime($timestamp);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatRelativeTime.
-     */
-    private function formatRelativeTime(int $timestamp): string {
-        return $this->versionFormatter->formatRelativeTime($timestamp);
+        return $this->pageVersionService->listForFile($result['file']);
     }
 
     /**
@@ -5533,59 +5410,16 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
+        $restoredData = $this->pageVersionService->restoreToTimestamp(
+            $result['file'],
+            $result['folder'],
+            $timestamp
+        );
 
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        try {
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-            // Find the version with matching timestamp
-            $targetVersion = null;
-            foreach ($versions as $version) {
-                if ($version->getTimestamp() === $timestamp) {
-                    $targetVersion = $version;
-                    break;
-                }
-            }
-
-            if (!$targetVersion) {
-                throw new \Exception('Version not found for timestamp: ' . $timestamp);
-            }
-
-            // Rollback via IVersionManager
-            $this->versionManager->rollback($targetVersion);
-
-            // Re-obtain a fresh file node after rollback - the original $file
-            // may have stale internal state after the storage-level rollback
-            $freshFile = $result['folder']->get($file->getName());
-            $content = $freshFile->getContent();
-            $restoredData = json_decode($content, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \Exception('Restored version contains invalid JSON data');
-            }
-
-            // Return data with id for frontend (id is derived from folder name)
-            // For home page it's 'home', otherwise use the folder basename
-            $resolvedId = ($pageId === 'home') ? 'home' : $result['folder']->getName();
-            return array_merge(['id' => $resolvedId], $restoredData);
-        } catch (\Exception $e) {
-            $this->logger->error('[restorePageVersion] Failed to restore version', [
-                'error' => $e->getMessage(),
-                'pageId' => $pageId,
-                'timestamp' => $timestamp
-            ]);
-            throw new \Exception('Failed to restore version: ' . $e->getMessage());
-        }
+        // Return data with id for frontend (id is derived from folder name)
+        // For home page it's 'home', otherwise use the folder basename
+        $resolvedId = ($pageId === 'home') ? 'home' : $result['folder']->getName();
+        return array_merge(['id' => $resolvedId], $restoredData);
     }
 
     /**
@@ -5611,29 +5445,6 @@ class PageService {
         } else {
             $years = floor($diff / 31536000);
             return $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
-        }
-    }
-
-    /**
-     * Create a version before updating a file
-     * Uses IVersionManager for version creation across all storage types
-     */
-    private function createVersionBeforeUpdate(\OCP\Files\File $file): void {
-        if (!$this->versionManager) {
-            return;
-        }
-
-        try {
-            $user = $this->userSession->getUser();
-            if (!$user) {
-                return;
-            }
-
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $this->versionManager->createVersion($user, $file);
-        } catch (\Exception $e) {
-            // Don't throw - versioning failure shouldn't prevent saves
-            $this->logger->warning('[createVersionBeforeUpdate] Failed: ' . $e->getMessage());
         }
     }
 
@@ -5892,7 +5703,7 @@ class PageService {
         // Save if changed
         if ($changed) {
             // Create version before update using VersionsBackend
-            $this->createVersionBeforeUpdate($file);
+            $this->pageVersionService->createBeforeUpdate($file);
             $file->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
             // Keep the navigation menu label in sync when the page is renamed,
@@ -6677,33 +6488,7 @@ class PageService {
             throw new PageNotFoundException('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        // Use IVersionManager - works for all storage types including GroupFolders
-        $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-        foreach ($versions as $version) {
-            if ($version->getTimestamp() === $timestamp) {
-                // Get the backend for this storage to access setVersionLabel
-                $backend = $this->versionManager->getBackendForStorage($file->getStorage());
-                if (method_exists($backend, 'setVersionLabel')) {
-                    $backend->setVersionLabel($version, $label ?? '');
-                    return;
-                }
-                throw new \Exception('Version labels not supported by this storage backend');
-            }
-        }
-
-        throw new \Exception('Version not found');
+        $this->pageVersionService->setLabel($result['file'], $timestamp, $label);
     }
 
     /**
@@ -6730,40 +6515,7 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        // Use IVersionManager - works for all storage types including GroupFolders
-        $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-        foreach ($versions as $version) {
-            if ($version->getTimestamp() === $timestamp) {
-                // Read version content via IVersionManager (returns a stream resource)
-                $stream = $this->versionManager->read($version);
-
-                // Convert stream resource to string
-                $content = stream_get_contents($stream);
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
-
-                return [
-                    'title' => 'Version from ' . date('Y-m-d H:i:s', $timestamp),
-                    'content' => $content,
-                    'rawContent' => $content
-                ];
-            }
-        }
-
-        throw new \Exception('Version not found');
+        return $this->pageVersionService->contentAtTimestamp($result['file'], $timestamp);
     }
 
     /**
