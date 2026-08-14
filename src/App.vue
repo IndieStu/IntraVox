@@ -1740,6 +1740,13 @@ export default {
           if (this.pages.length > 0) {
             await this.selectPage(this.pages[0].uniqueId);
           }
+        } else if ((this.currentPage?.translations || []).some(t => t.uniqueId === pageId)) {
+          // The open page stays; drop the deleted page from its translations
+          // list (the server rows are already gone, only this copy is stale).
+          this.currentPage = {
+            ...this.currentPage,
+            translations: this.currentPage.translations.filter(t => t.uniqueId !== pageId),
+          };
         }
       } catch (err) {
         const code = err.response?.data?.error;
