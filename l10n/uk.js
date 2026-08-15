@@ -122,6 +122,8 @@ OC.L10N.register(
     "Preview" : "Попередній перегляд",
     "Retry" : "Спробувати ще раз",
     "Open {name}" : "Відкрити {name}",
+    "Previous page" : "Назад",
+    "Next page" : "Вперед",
     "Timeline" : "Дії",
     "Small" : "Малий",
     "Medium" : "Середній",
