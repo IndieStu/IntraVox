@@ -284,14 +284,23 @@ IntraVox/
 │   ├── home.json
 │   ├── _media/
 │   │   └── *.jpg, *.png, *.mp4, ...
-│   └── {section}/
+│   └── {page}/
 │       ├── {page}.json
 │       ├── _media/
 │       └── {subpage}/
-│           └── ...
+│           ├── {subpage}.json
+│           └── _media/
 ```
 
 De `_media/`-map slaat afbeeldingen, video's en andere media-bestanden op. Lokale video-uploads staan hier naast afbeeldingen.
+
+### Mapnamen van pagina's (slugs)
+
+Een pagina is een map met daarin een JSON-bestand van dezelfde naam. De naam wordt afgeleid uit de titel (getranslitereerd en teruggebracht tot `[A-Za-z0-9_-]`) en staat **niet** in de JSON — de map *is* de naam. De homepage is de uitzondering: die staat als `home.json` in de taalroot, zonder eigen map.
+
+Namen hoeven alleen uniek te zijn **tussen broers en zussen**, precies wat het bestandssysteem vereist. Botsingen binnen één ouder krijgen een `-2`/`-3`-suffix; dezelfde naam onder een andere ouder, of in de boom van een andere taal, blijft ongemoeid. De check kijkt naar zowel `{naam}` als `{naam}.json`, zodat ook pagina's in de oude layout — met de JSON náást de map in plaats van erin — worden gezien.
+
+Identiteit hangt nooit af van de mapnaam: pagina's worden geadresseerd op `uniqueId`, dus hernoemen of een suffix kan links, shares of vertaalgroepen niet breken.
 
 ### Voordelen van bestand-gebaseerde opslag
 
@@ -305,9 +314,9 @@ De `_media/`-map slaat afbeeldingen, video's en andere media-bestanden op. Lokal
 
 IntraVox ondersteunt meerdere talen:
 
-- Elke taal heeft zijn eigen map-structuur
+- Elke taal heeft zijn eigen map-structuur — een naam die in de ene taal bezet is, zegt niets over een andere
 - Navigatie en footer zijn per taal
-- Pagina's kunnen linken naar vertalingen via uniqueId
+- Pagina's zijn aan hun versies in andere talen gekoppeld via een gedeelde `translationGroup` (`tg-{uuid}`) in de JSON van elke pagina; de relatie is symmetrisch, zonder "bron" en zonder "kopieën". Een vertaling wordt aangemaakt als concept-kopie op de gespiegelde plek, onder dezelfde mapnaam als de bron
 - UI-vertalingen via Nextcloud-L10N-systeem
 
 ## Permissie-model

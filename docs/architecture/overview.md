@@ -263,14 +263,23 @@ IntraVox/
 │   ├── home.json
 │   ├── _media/
 │   │   └── *.jpg, *.png, *.mp4, ...
-│   └── {section}/
+│   └── {page}/
 │       ├── {page}.json
 │       ├── _media/
 │       └── {subpage}/
-│           └── ...
+│           ├── {subpage}.json
+│           └── _media/
 ```
 
 The `_media/` folder stores images, videos, and other media files. Local video uploads are stored here alongside images.
+
+### Page folder names (slugs)
+
+A page is a folder whose name matches the JSON file inside it. The name is derived from the title (transliterated and stripped to `[A-Za-z0-9_-]`) and is **not** stored in the JSON — the folder *is* the name. The homepage is the exception: it lives as `home.json` at the language root, without a folder of its own.
+
+Names only have to be unique **among siblings**, which is exactly what the filesystem requires. Collisions within one parent get a `-2`/`-3` suffix; the same name under a different parent, or in another language's tree, is left alone. The suffix check probes both `{name}` and `{name}.json`, so it also sees pages stored in the legacy layout where the JSON sits beside its folder rather than inside it.
+
+Identity never depends on the folder name: pages are addressed by `uniqueId`, so renaming or suffixing a folder cannot break links, shares or translation groups.
 
 ### Benefits of File-based Storage
 - Version control through Nextcloud versioning
@@ -282,9 +291,9 @@ The `_media/` folder stores images, videos, and other media files. Local video u
 ## Multi-language Support
 
 IntraVox supports multiple languages:
-- Each language has its own folder structure
+- Each language has its own folder structure — a page name taken in one language says nothing about another
 - Navigation and footer are per-language
-- Pages can link to translations via uniqueId
+- Pages link to their other-language versions through a shared `translationGroup` (`tg-{uuid}`) stored in each page's JSON; the relation is symmetric, with no "source" and no "copies". A translation is created as a draft copy at the mirrored position, under the same folder name as its source
 - UI translations via Nextcloud L10N system
 
 ## Permission Model

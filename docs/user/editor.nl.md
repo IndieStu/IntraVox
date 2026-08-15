@@ -649,9 +649,9 @@ Zet je **Structuur beheren** aan (beschikbaar waar je bewerkrechten hebt), dan w
 
 - **Herordenen** — de pijltjes omhoog (↑) en omlaag (↓) verplaatsen een pagina tussen z'n broers en zussen. De pijltjes zijn uitgeschakeld boven- en onderaan een lijst.
 - **Naar andere pagina verplaatsen** — de map-pijl opent een inline-paneel waar je een nieuwe ouder kiest, of zet **Naar het hoogste niveau** aan om de pagina naar de root te promoveren. De sub-pagina's gaan mee. Een pagina kan niet in zichzelf of een eigen sub-pagina worden geplaatst, en de maximale nesting-diepte (5 niveaus) wordt gerespecteerd.
-- **Hernoemen** — het potlood-icoon opent een klein dialoog om de titel van de pagina te wijzigen. Alleen de titel verandert: het adres (de map) en elke link ernaartoe blijven exact gelijk, dus er breekt niets. Als het navigatie-menu-label nog gelijk was aan de oude titel, wordt het meebijgewerkt; een label dat je bewust anders hebt gezet, blijft staan. Je kunt de pagina die je bekijkt ook hernoemen via **Pagina hernoemen** in het pagina-acties (⋯) menu.
+- **Hernoemen** — het potlood-icoon opent een klein dialoog om de titel van de pagina te wijzigen. Standaard verandert alleen de titel en blijft elke link naar de pagina werken. *Sinds 2.0.1* biedt het dialoog daarnaast **Ook de map van de pagina hernoemen**, met een voorbeeld van de oude en nieuwe naam: vink je dat aan, dan volgt de map in de Team-map de titel, zodat rechtenbeheer leesbaar blijft. De optie staat voorgeselecteerd zolang de map nog z'n van-de-titel-afgeleide naam draagt, en uit wanneer iemand de map bewust anders heeft genoemd; de startpagina biedt hem nooit aan. Sub-pagina's, afbeeldingen en bestanden reizen mee, en links op pagina-ID, deellinks en versiegeschiedenis blijven allemaal werken — alleen heel oude links die de *mapnaam* in het adres gebruiken, stoppen met werken. Als het navigatie-menu-label nog gelijk was aan de oude titel, wordt het meebijgewerkt; een label dat je bewust anders hebt gezet, blijft staan. Je kunt de pagina die je bekijkt ook hernoemen via **Pagina hernoemen** in het pagina-acties (⋯) menu.
 - **Als startpagina instellen** — het huis-icoon maakt een pagina de landingspagina voor de huidige taal. Alleen **pagina's op het hoogste niveau** kunnen de startpagina zijn; wil je een sub-pagina als startpagina, verplaats die dan eerst naar het hoogste niveau.
-- **Kopiëren** — dupliceert de pagina als een nieuw **Concept** met de titel "… (copy)", inclusief media, zodat je die kunt aanpassen zonder het origineel te raken.
+- **Kopiëren** — dupliceert de pagina als een nieuw **Concept** met de titel "… (copy)", inclusief media, zodat je die kunt aanpassen zonder het origineel te raken. De kopie is een zelfstandige pagina: hij begint ongekoppeld en wordt dus nooit aan lezers aangeboden als taalversie van het origineel. Wil je een versie in een andere taal, gebruik dan de tab [Vertalingen](#vertalingen).
 - **Verwijderen** — verwijdert de pagina na een bevestiging.
 
 #### De startpagina is beschermd
@@ -665,6 +665,12 @@ De huidige startpagina draagt een **Home**-badge en kan niet verplaatst of verwi
 Pagina-titels mogen elk teken bevatten, inclusief apostrofs en ampersands (`Collega's`, `R&D`), aanhalingstekens en letters met accenten of niet-Latijnse tekens (`Müller`, `Café`, `naïef`). De titel wordt exact getoond zoals je 'm typt — op de pagina, in het kruimelpad en in de navigatie. Het map-adres van de pagina wordt apart afgeleid en translitereert accenten zodat de URL schoon blijft (`Müller` → `muller`, `Café` → `cafe`).
 
 > Werk je bij vanaf een oudere versie en zie je een titel met een letterlijke HTML-entiteit zoals `Collega&apos;s` of `Caf&eacute;`? Je beheerder kan de opgeslagen data in één stap opschonen — zie [Entity-gecodeerde titels repareren](../admin/guide.md#entity-gecodeerde-titels-repareren) in de beheerdersgids.
+
+#### Dubbele mapnamen
+
+Een mapnaam hoeft alleen uniek te zijn **tussen z'n directe buren** — de pagina's onder dezelfde ouder. Twee pagina's op verschillende plekken mogen dus dezelfde naam dragen: een pagina "Team" onder *Over ons* en een tweede onder *Sales* krijgen allebei het schone adres `team`. Is de naam naast de deur écht bezet, dan zet IntraVox er een nummer achter: `team-2`, `team-3`.
+
+Omdat elke taal een eigen boom is, houdt een vertaling de naam van de pagina waaruit hij is gemaakt. Titels blijven altijd ongemoeid — alleen het map-adres verandert, en alleen als twee buren anders zouden botsen.
 
 ### De startpagina instellen
 
@@ -751,14 +757,18 @@ Nieuwe pagina's worden altijd aangemaakt als **Concept** en openen direct in edi
 
 ### Pagina-bestanden
 
-Pagina's worden opgeslagen als JSON-bestanden:
+Elke pagina is een map met daarin een JSON-bestand van dezelfde naam, plus een eigen `_media`-map voor de afbeeldingen die erop staan:
 
 ```
 IntraVox/
 └── nl/
     └── sectie/
-        └── nieuwe-pagina.json
+        └── nieuwe-pagina/
+            ├── nieuwe-pagina.json
+            └── _media/
 ```
+
+De mapnaam is het adres van de pagina. Subpagina's zijn mappen binnen de map van hun ouder, en elke taal is een aparte boom — `en/` en `nl/` mogen dus allebei een `nieuwe-pagina` bevatten.
 
 ## Vertalingen
 
@@ -771,7 +781,7 @@ IntraVox/
 
 ![De tab Vertalingen: gekoppelde versies en aanmaken-in-een-andere-taal](../../screenshots/translations-create.png)
 
-De inhoud wordt als startpunt gekopieerd — inclusief de afbeeldingen van de pagina — en als **concept** opgeslagen op dezelfde plek in de boom van de doeltaal. Vanaf dat moment zijn beide pagina's volledig onafhankelijk: de één vertalen verandert nooit de ander. De nieuwe pagina wordt automatisch aan de bron gekoppeld, zodat lezers van beide versies de ander kunnen vinden.
+De inhoud wordt als startpunt gekopieerd — inclusief de afbeeldingen van de pagina — en als **concept** opgeslagen op dezelfde plek in de boom van de doeltaal, onder **dezelfde mapnaam** als de pagina waaruit hij is gemaakt. Vanaf dat moment zijn beide pagina's volledig onafhankelijk: de één vertalen verandert nooit de ander. De nieuwe pagina wordt automatisch aan de bron gekoppeld, zodat lezers van beide versies de ander kunnen vinden.
 
 Bestaan bovenliggende pagina's nog niet in de doeltaal, dan meldt het paneel dat vóór het aanmaken. De nieuwe pagina landt evengoed op de juiste plek; de ontbrekende niveaus verschijnen in de paginaboom als grijze, niet-klikbare mapnamen tot je die pagina's ook vertaalt.
 

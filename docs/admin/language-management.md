@@ -79,7 +79,7 @@ What it gives you:
 
 ### Deep pages and missing ancestors
 
-Translating a page that sits three levels deep does not require translating its parents first. The new page lands **in the same position** in the target language; levels that have no page there yet appear in the page tree as grey, non-clickable folder labels until someone translates them too.
+Translating a page that sits three levels deep does not require translating its parents first. The new page lands **in the same position** in the target language, and keeps the **same folder name** as the page it was made from — each language is its own tree, so `en/handbook` and `de/handbook` sit side by side without clashing. Levels that have no page there yet appear in the page tree as grey, non-clickable folder labels until someone translates them too.
 
 ![A placeholder level in the page tree](../../screenshots/tree-placeholder.png) The Translations tab says how many such levels are missing *before* you create.
 

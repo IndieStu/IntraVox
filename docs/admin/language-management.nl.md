@@ -79,7 +79,7 @@ Wat het oplevert:
 
 ### Diepe pagina's en ontbrekende bovenliggende pagina's
 
-Een pagina die drie niveaus diep zit vertalen vereist niet dat je eerst de ouders vertaalt. De nieuwe pagina landt **op dezelfde plek** in de doeltaal; niveaus die daar nog geen pagina hebben verschijnen in de paginaboom als grijze, niet-klikbare maplabels tot iemand ze ook vertaalt.
+Een pagina die drie niveaus diep zit vertalen vereist niet dat je eerst de ouders vertaalt. De nieuwe pagina landt **op dezelfde plek** in de doeltaal en houdt **dezelfde mapnaam** als de pagina waaruit hij is gemaakt — elke taal is een eigen boom, dus `en/handboek` en `nl/handboek` staan naast elkaar zonder te botsen. Niveaus die daar nog geen pagina hebben verschijnen in de paginaboom als grijze, niet-klikbare maplabels tot iemand ze ook vertaalt.
 
 ![Een doorgeefniveau in de paginaboom](../../screenshots/tree-placeholder.png) De tab Vertalingen meldt *vóór* het aanmaken hoeveel van zulke niveaus er ontbreken.
 

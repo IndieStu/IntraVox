@@ -610,9 +610,9 @@ Switching on **Manage structure** (available where you have edit rights) turns e
 
 - **Reorder** — the up (↑) and down (↓) arrows move a page among its siblings. The arrows are disabled at the top and bottom of a list.
 - **Move to another page** — the folder arrow opens an inline panel where you choose a new parent, or flip **Move to the top level** to promote the page to the root. The page's sub-pages move with it. A page cannot be moved into itself or one of its own descendants, and the maximum nesting depth (5 levels) is respected.
-- **Rename** — the pencil icon opens a small dialog to change the page's title. Only the title changes: the page's address (folder) and every link to it stay exactly the same, so nothing breaks. If the page's navigation-menu label still matched the old title, it is updated to the new one automatically; a menu label you deliberately set to something different is left untouched. You can also rename the page you are viewing from **Rename page** in the page actions (⋯) menu.
+- **Rename** — the pencil icon opens a small dialog to change the page's title. By default only the title changes, and every link to the page keeps working. *Since 2.0.1* the dialog also offers **Also rename the page's folder**, with a preview of the old and new name: tick it and the folder in the Team folder follows the title, so rights management stays readable. The option is pre-selected while the folder still carries its title-derived name, and off when someone deliberately named the folder something else; the homepage never offers it. Sub-pages, images and files travel along, and links by page ID, share links and version history all keep working — only very old links that use the *folder name* in the address stop working. If the page's navigation-menu label still matched the old title, it is updated automatically; a label you deliberately set to something else is left untouched. You can also rename the page you are viewing from **Rename page** in the page actions (⋯) menu.
 - **Set as homepage** — the house icon makes a page the landing page for the current language. Only **top-level** pages can be the homepage; to make a sub-page the homepage, move it to the top level first.
-- **Copy** — duplicates the page as a new **Draft** titled "… (copy)", with its media, so you can adapt it without touching the original.
+- **Copy** — duplicates the page as a new **Draft** titled "… (copy)", with its media, so you can adapt it without touching the original. The copy is an independent page: it starts unlinked, so it is never offered to readers as a language version of the original. To make a version in another language, use the [Translations tab](#translations) instead.
 - **Delete** — removes the page after a confirmation prompt.
 
 #### The homepage is protected
@@ -626,6 +626,12 @@ The current homepage carries a **Home** badge and cannot be moved or deleted —
 Page titles can contain any character, including apostrophes and ampersands (`Collega's`, `R&D`), quotes, and accented or non-Latin letters (`Müller`, `Café`, `naïef`). The title displays exactly as you typed it, on the page, in the breadcrumb and in the navigation. The page's folder address is derived separately and transliterates accents so the URL stays clean (`Müller` → `muller`, `Café` → `cafe`).
 
 > If you are upgrading from an older version and see a title rendered with a literal HTML entity such as `Collega&apos;s` or `Caf&eacute;`, your administrator can clean up the stored data in one step — see [Repairing entity-encoded titles](../admin/guide.md#repairing-entity-encoded-titles) in the admin guide.
+
+#### Duplicate folder names
+
+A folder name only has to be unique **among its direct neighbours** — the pages sharing the same parent. Two pages in different places may carry the same name, so a "Team" page under *About* and another under *Sales* both get the clean address `team`. When the name really is taken next door, IntraVox appends a number: `team-2`, `team-3`.
+
+Because each language is a separate tree, a translation keeps the name of the page it was made from. Titles are never affected — only the folder address, and only when two neighbours would otherwise collide.
 
 ### Configuring the homepage
 
@@ -710,13 +716,18 @@ New pages are always created as **Draft** and open directly in edit mode, so you
 
 ### Page Files
 
-Pages are stored as JSON files:
+Every page is a folder holding a JSON file of the same name, plus its own `_media` folder for the images used on it:
+
 ```
 IntraVox/
 └── en/
     └── section/
-        └── new-page.json
+        └── new-page/
+            ├── new-page.json
+            └── _media/
 ```
+
+The folder name is the page's address. Sub-pages are folders inside their parent's folder, and each language is a separate tree — so `en/` and `nl/` can both hold a `new-page`.
 
 ## Translations
 
@@ -729,7 +740,7 @@ IntraVox/
 
 ![The Translations tab: linked versions and create-in-another-language](../../screenshots/translations-create.png)
 
-The content is copied as a starting point — including the page's images — and saved as a **draft** in the same position in the target language's tree. From then on both pages are fully independent: translating one never changes the other. The new page is linked to the source automatically, so readers of either version can find the other.
+The content is copied as a starting point — including the page's images — and saved as a **draft** in the same position in the target language's tree, under the **same folder name** as the page it was made from. From then on both pages are fully independent: translating one never changes the other. The new page is linked to the source automatically, so readers of either version can find the other.
 
 If parent pages do not exist in the target language yet, the panel says so before you create. The new page still lands in the right place; the missing levels show up in the page tree as grey, non-clickable folder names until you translate those pages too.
 

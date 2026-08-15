@@ -629,7 +629,7 @@ Returns the media file content.
 POST /api/pages/{pageId}/translations/create
 ```
 
-Copies the page — content, layout and its `_media` files — into the target language as a **draft**, mirrored to the same position in that language's tree, and links both pages in one group. The target language folder must already exist; missing ancestor levels are created as bare folders and render in the tree as non-clickable placeholders.
+Copies the page — content, layout and its `_media` files — into the target language as a **draft**, mirrored to the same position in that language's tree and under the same folder name as the source (each language is a separate tree, so the name cannot clash), and links both pages in one group. The target language folder must already exist; missing ancestor levels are created as bare folders and render in the tree as non-clickable placeholders.
 
 **Body:**
 ```json

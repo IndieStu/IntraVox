@@ -4,7 +4,7 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [2.0.1] - 2026-08-14 — Renaming a page can now rename its folder too
+## [2.0.1] - 2026-08-15 — Page folder names: renaming, and names that stay put
 
 ### Added
 
@@ -13,6 +13,16 @@ IntraVox is a Nextcloud intranet page builder.
   The checkbox is pre-selected while the folder still carries its title-derived name, and off when someone deliberately named the folder something else. The folder and its `.json` are renamed as a pair — or not at all: if the second rename fails, the first is rolled back. Name collisions get a `-2`/`-3` suffix, exactly like creating or moving a page. Sub-pages, images and files travel along; links by page ID, public share links, version history and Team-folder access rules all keep working, because none of them depend on the folder's name.
 
   One honest limitation, stated in the dialog: very old links that use the folder name in the address (instead of the page ID) stop working after a folder rename. The homepage never offers the option.
+
+### Fixed
+
+- **Translating a page no longer appends `-2` to its folder name.** A translation lands in another language's folder, where the original name is free — but the check that guards against duplicate names looked in the folder of the *editor's own* language instead of the one the page was being written to. Translating `nl/…/niv5` into English therefore found `niv5` in `nl/`, concluded the name was taken, and created `en/…/niv5-2`. Translations now keep the name of the page they were made from.
+
+- **The same name is allowed under different parent pages.** The duplicate check searched the entire language tree, so a page called "Team" under *About* reserved that name intranet-wide: a second "Team" under *Sales* silently became `team-2`. Names now only have to be unique among their direct siblings, which is what the folder structure actually requires — and matches how moving and renaming a page have always behaved. Copying a page into the same folder still gets a `-2` suffix, because there the collision is real.
+
+  Pages that were given a `-2` suffix by the old check keep their current name; rename the page to clean it up.
+
+- **A copied page is no longer treated as a translation of its original.** Copies inherited the link that ties language versions together, which made the copy a second version of the original *in the same language* — the exact state the Translations tab refuses to create, because it leaves the language switcher with two equally valid answers. A copy now starts unlinked.
 
 ## [2.0.0] - 2026-08-14 — Pages know their translations, and large intranets stay fast
 

@@ -1252,11 +1252,33 @@ class PageService {
     }
 
     /**
-     * Check if a page ID already exists (recursively through all folders)
+     * Is this slug already taken by a sibling in $parent?
+     *
+     * A slug is a FOLDER NAME, so it only has to be unique among the entries of
+     * the one folder the page is written into. The check this replaced asked a
+     * broader and differently-anchored question — does this slug exist anywhere
+     * in the ACTING USER'S language tree — which was wrong twice over: a
+     * translation into en/ was refused a name that was taken in nl/, and
+     * about/team reserved "team" for sales/team as well.
+     *
+     * $parent is null when the destination folder does not exist yet; nothing
+     * can collide inside a folder that is about to be created empty.
+     *
+     * Probes `$id.json` as well as `$id`, like renamePageFolder(): in the
+     * legacy "beside" layout a page's JSON sits NEXT TO its folder rather than
+     * inside it, so it occupies two names in the parent, and findPageById()
+     * would resolve the new page over the existing one.
+     *
+     * The three suffix loops in this file (here, movePage, renamePageFolder)
+     * differ on purpose and should not be unified: a move relocates a populated
+     * folder, a rename must additionally dodge its own children, and a create
+     * makes an empty folder with no children to dodge.
      */
-    private function pageIdExists(string $id): bool {
-        $folder = $this->getLanguageFolder();
-        return $this->findPageById($folder, $id) !== null;
+    private function slugTakenIn(?\OCP\Files\Folder $parent, string $id): bool {
+        if ($parent === null) {
+            return false;
+        }
+        return $parent->nodeExists($id) || $parent->nodeExists($id . '.json');
     }
 
     /**
@@ -2934,6 +2956,8 @@ class PageService {
      * remainder re-created under the author's own language, which fabricated an
      * empty mirror tree (de/departments/marketing/) whose parent pages did not
      * exist there — the created page vanished from the context it was made in.
+     *
+     * Mirrors resolveExistingFolderPath() — keep the two in step.
      */
     private function getOrCreateFolderPath(string $path): \OCP\Files\Folder {
         $pathParts = explode('/', trim($path, '/'));
@@ -2970,6 +2994,69 @@ class PageService {
         }
 
         return $currentFolder;
+    }
+
+    /**
+     * Which folder would createPageAtPath() write $parentPath into — resolved
+     * WITHOUT creating anything.
+     *
+     * createPage() has to know the destination before createPageAtPath() runs,
+     * so it can check the new slug against the right siblings. It cannot call
+     * getOrCreateFolderPath() for that: the create-on-miss there is load-bearing
+     * on the write path (createTranslation relies on it to materialise mirrored
+     * parent folders), but calling it early would leave stray folders behind
+     * whenever the permission preflight in createPageAtPath() then refuses.
+     *
+     * Returns null when the destination does not exist yet, which callers read
+     * as "nothing can collide there".
+     *
+     * Mirrors getOrCreateFolderPath() — keep the two in step.
+     */
+    private function resolveExistingFolderPath(?string $parentPath): ?\OCP\Files\Folder {
+        try {
+            if ($parentPath === null || trim($parentPath, '/') === '') {
+                // No parent = the language root createPageAtPath() falls back to.
+                return $this->getReadLanguageFolder();
+            }
+
+            $pathParts = explode('/', trim($parentPath, '/'));
+
+            $currentFolder = null;
+            if (count($pathParts) > 0 && $this->languageService->isLanguageAvailable($pathParts[0])) {
+                $langCode = array_shift($pathParts);
+                try {
+                    $candidate = $this->getIntraVoxFolder()->get($langCode);
+                    if ($candidate instanceof \OCP\Files\Folder) {
+                        $currentFolder = $candidate;
+                    }
+                } catch (NotFoundException $e) {
+                    // No folder for that language — fall through to the author's own.
+                }
+            }
+            if ($currentFolder === null) {
+                $currentFolder = $this->getLanguageFolder();
+            }
+
+            foreach ($pathParts as $folderName) {
+                try {
+                    $next = $currentFolder->get($folderName);
+                } catch (NotFoundException $e) {
+                    return null;
+                }
+                if (!($next instanceof \OCP\Files\Folder)
+                    || $next->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER) {
+                    // createPageAtPath() will raise its own error for this.
+                    return null;
+                }
+                $currentFolder = $next;
+            }
+
+            return $currentFolder;
+        } catch (\Throwable $e) {
+            // A destination we cannot resolve simply gets no de-duplication;
+            // failing the create over it would be worse than a suffix-free name.
+            return null;
+        }
     }
 
     /**
@@ -3111,12 +3198,21 @@ class PageService {
 
         $data['id'] = $this->sanitizeId($data['id']);
 
-        // If ID already exists, append a number to make it unique
-        $originalId = $data['id'];
-        $counter = 2;
-        while ($this->pageIdExists($data['id'])) {
-            $data['id'] = $originalId . '-' . $counter;
-            $counter++;
+        // If the slug is taken by a SIBLING at the destination, append a number.
+        // Resolved once, outside the loop: nodeExists() is cheap, walking the
+        // path is not.
+        //
+        // 'home' is exempt: createPageAtPath() writes it as home.json at the
+        // language root with no folder of its own, so a 'home-2' would only
+        // create a page folder the homepage resolver never looks at.
+        if ($data['id'] !== 'home') {
+            $targetFolder = $this->resolveExistingFolderPath($parentPath);
+            $originalId = $data['id'];
+            $counter = 2;
+            while ($this->slugTakenIn($targetFolder, $data['id'])) {
+                $data['id'] = $originalId . '-' . $counter;
+                $counter++;
+            }
         }
 
         // Generate uniqueId if not provided
@@ -9195,6 +9291,11 @@ class PageService {
         $title = $newTitle !== null && $newTitle !== '' ? $newTitle : $baseTitle . ' (copy)';
         $pageData = $sourceData;
         unset($pageData['order']); // never inherit sibling order
+        // A copy is a new page, not a translation of the source. Inheriting the
+        // group made the copy a same-language member of it, which is the exact
+        // state createTranslation() refuses to create because it makes the
+        // language switcher ambiguous. createPage() assigns a fresh group.
+        unset($pageData['translationGroup']);
         $pageData['id'] = $this->sanitizeId($title);
         $pageData['title'] = $title;
         $pageData['uniqueId'] = 'page-' . $this->generateUUID();
