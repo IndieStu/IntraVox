@@ -245,7 +245,7 @@ Veel externe systemen waarmee IntraVox verbindt — OpenProject, Jira, Canvas LM
 
 Hetzelfde principe geldt voor alle ondersteunde systemen. Een universiteit kan de Moodle-integratie-app gebruiken voor studenten om hun persoonlijke cursussen te bekijken, terwijl ze de IntraVox-Feed-widget gebruiken om aankomende deadlines te tonen op een faculteits-intranet-pagina voor alle medewerkers.
 
-Zie de [architectuur-documentatie](../architecture/overview.md#organizational-communication-not-personal-productivity) voor het design-principe achter deze aanpak.
+Zie de [architectuur-documentatie](../architecture/overview.md#organisationele-communicatie-geen-persoonlijke-productiviteit) voor het design-principe achter deze aanpak.
 
 #### Waarom er geen "Nextcloud"-bron-type is
 

@@ -4,7 +4,7 @@
 
 IntraVox biedt uitgebreide export- en import-functionaliteit voor content-beheer tussen installaties. Dit document beschrijft de huidige implementatie en dient als basis voor toekomstige uitbreidingen.
 
-> Voor de volledige technische API-paden, JSON-schema's en migratie-recepten — zie de [Engelse referentie](../../en/intravox/admin/export-import/).
+> Voor de volledige technische API-paden, JSON-schema's en migratie-recepten — zie de [Engelse referentie](export-import.md).
 
 ## Inhoud
 

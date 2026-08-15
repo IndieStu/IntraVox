@@ -1,6 +1,6 @@
 # IntraVox-API-referentie
 
-> **Let op:** de complete API-referentie is uitvoerig technisch en wordt in zijn geheel onderhouden in het Engels in de IntraVox-repository. Voor de actuele endpoint-specificatie, request-/response-schema's en migratie-voorbeelden, raadpleeg de [Engelse API-referentie](api-reference.en.md).
+> **Let op:** de complete API-referentie is uitvoerig technisch en wordt in zijn geheel onderhouden in het Engels in de IntraVox-repository. Voor de actuele endpoint-specificatie, request-/response-schema's en migratie-voorbeelden, raadpleeg de [Engelse API-referentie](api-reference.md).
 
 Op deze pagina vind je een Nederlandstalige inleiding tot de IntraVox-REST-API en pointers naar de relevante secties van de volledige Engelstalige referentie.
 
@@ -98,7 +98,7 @@ curl -u "username:app-password" \
 
 ## Voor de complete referentie
 
-Zie de [Engelse API-referentie](api-reference.en.md) voor:
+Zie de [Engelse API-referentie](api-reference.md) voor:
 
 - Volledige request-/response-schema's per endpoint
 - HTTP-statuscodes en error-formaat
