@@ -134,6 +134,9 @@ interface Node {
     public function getSize();
     public function move(string $targetPath);
     public function getParent();
+    public function getOwner();
+    public function getStorage();
+    public function delete(): void;
 }
 
 /**
@@ -213,7 +216,13 @@ interface IVersion {
 
 interface IVersionBackend {}
 
-interface IVersionManager {}
+interface IVersionManager {
+    public function getVersionsForFile($user, $file): array;
+    public function createVersion($user, $file);
+    public function rollback($version);
+    public function read($version);
+    public function getBackendForStorage($storage);
+}
 
 namespace OCP\AppFramework;
 

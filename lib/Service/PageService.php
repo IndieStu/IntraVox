@@ -18,9 +18,9 @@ use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
 use OCA\IntraVox\Service\Sanitize\MediaSanitizer;
 use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
-use OCA\IntraVox\Service\Template\TemplateMetadataExtractor;
+use OCA\IntraVox\Service\Template\PageTemplateService;
 use OCA\IntraVox\Service\Util\PageIdUtils;
-use OCA\IntraVox\Service\Version\PageVersionFormatter;
+use OCA\IntraVox\Service\Version\PageVersionService;
 use OCP\EventDispatcher\IEventDispatcher;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
@@ -32,8 +32,6 @@ use OCP\ICacheFactory;
 use OCP\ICache;
 use Psr\Log\LoggerInterface;
 use OCP\Files\Cache\ICacheEntry;
-use OCA\Files_Versions\Versions\IVersionManager;
-use OCA\Files_Versions\Versions\IVersion;
 
 class PageService {
     private const ALLOWED_WIDGET_TYPES = ['text', 'heading', 'image', 'links', 'divider', 'video', 'news', 'people', 'calendar', 'feed', 'photo-story', 'file-story'];
@@ -71,7 +69,6 @@ class PageService {
     private IEventDispatcher $eventDispatcher;
     private PublicationSettingsService $publicationSettings;
     private PageIndexService $pageIndexService;
-    private ?IVersionManager $versionManager = null;
     private ?ICache $distributedCache = null;
     private array $pageFolderCache = [];
 
@@ -368,8 +365,8 @@ class PageService {
     private UrlSanitizer $urlSanitizer;
     private ColorSanitizer $colorSanitizer;
     private MediaSanitizer $mediaSanitizer;
-    private PageVersionFormatter $versionFormatter;
-    private TemplateMetadataExtractor $templateMetadata;
+    private PageVersionService $pageVersionService;
+    private PageTemplateService $pageTemplateService;
     private NewsContentExtractor $newsContent;
     private PageSearchHelper $searchHelper;
     private PagePathHelper $pathHelper;
@@ -395,8 +392,8 @@ class PageService {
         UrlSanitizer $urlSanitizer,
         ColorSanitizer $colorSanitizer,
         MediaSanitizer $mediaSanitizer,
-        PageVersionFormatter $versionFormatter,
-        TemplateMetadataExtractor $templateMetadata,
+        PageVersionService $pageVersionService,
+        PageTemplateService $pageTemplateService,
         NewsContentExtractor $newsContent,
         PageSearchHelper $searchHelper,
         PagePathHelper $pathHelper,
@@ -422,8 +419,8 @@ class PageService {
         $this->urlSanitizer = $urlSanitizer;
         $this->colorSanitizer = $colorSanitizer;
         $this->mediaSanitizer = $mediaSanitizer;
-        $this->versionFormatter = $versionFormatter;
-        $this->templateMetadata = $templateMetadata;
+        $this->pageVersionService = $pageVersionService;
+        $this->pageTemplateService = $pageTemplateService;
         $this->newsContent = $newsContent;
         $this->searchHelper = $searchHelper;
         $this->pathHelper = $pathHelper;
@@ -438,13 +435,6 @@ class PageService {
 
         if ($cacheFactory->isAvailable()) {
             $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
-        }
-
-        // Lazy load version manager (files_versions may not be enabled)
-        try {
-            $this->versionManager = \OC::$server->get(IVersionManager::class);
-        } catch (\Exception $e) {
-            $this->logger->info('[PageService] Version manager not available: ' . $e->getMessage());
         }
     }
 
@@ -3463,7 +3453,7 @@ class PageService {
         try {
             // Create version before update using GroupFolders VersionsBackend
             // GroupFolders 20.1.7+ has reliable versioning support
-            $this->createVersionBeforeUpdate($file);
+            $this->pageVersionService->createBeforeUpdate($file);
 
             // Update the file
             $file->putContent(json_encode($validatedData, JSON_PRETTY_PRINT));
@@ -5445,8 +5435,6 @@ class PageService {
      * @throws \Exception if page not found
      */
     public function getPageVersions(string $pageId): array {
-        $this->logger->info('[getPageVersions] START - Getting versions for page: ' . $pageId);
-
         $folder = $this->getLanguageFolder();
         $result = null;
 
@@ -5467,118 +5455,7 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        $this->logger->info('[getPageVersions] File found: ' . $file->getPath() . ' (ID: ' . $file->getId() . ')');
-        $this->logger->info('[getPageVersions] Storage class: ' . get_class($file->getStorage()));
-
-        if (!$user) {
-            $this->logger->warning('[getPageVersions] No user in session');
-            return [];
-        }
-
-        $this->logger->info('[getPageVersions] User: ' . $user->getUID());
-
-        if (!$this->versionManager) {
-            $this->logger->warning('[getPageVersions] Version manager not available');
-            return [];
-        }
-
-        $this->logger->info('[getPageVersions] Version manager class: ' . get_class($this->versionManager));
-
-        try {
-            $this->logger->info('[getPageVersions] Calling getVersionsForFile...');
-
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-            $this->logger->info('[getPageVersions] IVersionManager returned ' . count($versions) . ' versions');
-
-            // Get current file metadata (like Nextcloud Files app shows)
-            $currentVersion = [
-                'timestamp' => $file->getMTime(),
-                'size' => $file->getSize(),
-                'author' => $this->getCurrentFileAuthor($file),
-                'relativeTime' => $this->formatRelativeTime($file->getMTime()),
-            ];
-
-            return [
-                'currentVersion' => $currentVersion,
-                'versions' => $this->formatVersionsFromBackend($versions),
-            ];
-
-        } catch (\Exception $e) {
-            $this->logger->error('[getPageVersions] Failed to get page versions: ' . $e->getMessage(), [
-                'pageId' => $pageId,
-                'exception' => $e->getTraceAsString(),
-            ]);
-            return [
-                'currentVersion' => null,
-                'versions' => [],
-            ];
-        }
-    }
-
-    /**
-     * Format versions from IVersionManager to array format for API response
-     */
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatVersions.
-     */
-    private function formatVersionsFromBackend(array $versions): array {
-        return $this->versionFormatter->formatVersions($versions);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::getAuthor.
-     */
-    private function getVersionAuthor(IVersion $version): ?string {
-        return $this->versionFormatter->getAuthor($version);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::getLabel.
-     */
-    private function getVersionLabel(IVersion $version): ?string {
-        return $this->versionFormatter->getLabel($version);
-    }
-
-    /**
-     * Get the author of the current file (last modifier)
-     * Uses the file owner as fallback since we don't track individual modifiers
-     */
-    private function getCurrentFileAuthor(\OCP\Files\File $file): ?string {
-        try {
-            // Try to get the owner of the file
-            $owner = $file->getOwner();
-            if ($owner !== null) {
-                return $owner->getDisplayName() ?: $owner->getUID();
-            }
-            // Fallback to current user if available
-            $user = $this->userSession->getUser();
-            return $user ? ($user->getDisplayName() ?: $user->getUID()) : null;
-        } catch (\Exception $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Format a version timestamp for display
-     * Uses relative time format like Nextcloud Files app
-     */
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatRelativeTime.
-     */
-    private function formatVersionDate(int $timestamp): string {
-        return $this->versionFormatter->formatRelativeTime($timestamp);
-    }
-
-    /**
-     * @deprecated Delegated to PageVersionFormatter::formatRelativeTime.
-     */
-    private function formatRelativeTime(int $timestamp): string {
-        return $this->versionFormatter->formatRelativeTime($timestamp);
+        return $this->pageVersionService->listForFile($result['file']);
     }
 
     /**
@@ -5629,59 +5506,16 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
+        $restoredData = $this->pageVersionService->restoreToTimestamp(
+            $result['file'],
+            $result['folder'],
+            $timestamp
+        );
 
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        try {
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-            // Find the version with matching timestamp
-            $targetVersion = null;
-            foreach ($versions as $version) {
-                if ($version->getTimestamp() === $timestamp) {
-                    $targetVersion = $version;
-                    break;
-                }
-            }
-
-            if (!$targetVersion) {
-                throw new \Exception('Version not found for timestamp: ' . $timestamp);
-            }
-
-            // Rollback via IVersionManager
-            $this->versionManager->rollback($targetVersion);
-
-            // Re-obtain a fresh file node after rollback - the original $file
-            // may have stale internal state after the storage-level rollback
-            $freshFile = $result['folder']->get($file->getName());
-            $content = $freshFile->getContent();
-            $restoredData = json_decode($content, true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                throw new \Exception('Restored version contains invalid JSON data');
-            }
-
-            // Return data with id for frontend (id is derived from folder name)
-            // For home page it's 'home', otherwise use the folder basename
-            $resolvedId = ($pageId === 'home') ? 'home' : $result['folder']->getName();
-            return array_merge(['id' => $resolvedId], $restoredData);
-        } catch (\Exception $e) {
-            $this->logger->error('[restorePageVersion] Failed to restore version', [
-                'error' => $e->getMessage(),
-                'pageId' => $pageId,
-                'timestamp' => $timestamp
-            ]);
-            throw new \Exception('Failed to restore version: ' . $e->getMessage());
-        }
+        // Return data with id for frontend (id is derived from folder name)
+        // For home page it's 'home', otherwise use the folder basename
+        $resolvedId = ($pageId === 'home') ? 'home' : $result['folder']->getName();
+        return array_merge(['id' => $resolvedId], $restoredData);
     }
 
     /**
@@ -5707,29 +5541,6 @@ class PageService {
         } else {
             $years = floor($diff / 31536000);
             return $years . ' year' . ($years > 1 ? 's' : '') . ' ago';
-        }
-    }
-
-    /**
-     * Create a version before updating a file
-     * Uses IVersionManager for version creation across all storage types
-     */
-    private function createVersionBeforeUpdate(\OCP\Files\File $file): void {
-        if (!$this->versionManager) {
-            return;
-        }
-
-        try {
-            $user = $this->userSession->getUser();
-            if (!$user) {
-                return;
-            }
-
-            // Use IVersionManager - works for all storage types including GroupFolders
-            $this->versionManager->createVersion($user, $file);
-        } catch (\Exception $e) {
-            // Don't throw - versioning failure shouldn't prevent saves
-            $this->logger->warning('[createVersionBeforeUpdate] Failed: ' . $e->getMessage());
         }
     }
 
@@ -5988,7 +5799,7 @@ class PageService {
         // Save if changed
         if ($changed) {
             // Create version before update using VersionsBackend
-            $this->createVersionBeforeUpdate($file);
+            $this->pageVersionService->createBeforeUpdate($file);
             $file->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
 
             // Keep the navigation menu label in sync when the page is renamed,
@@ -6773,33 +6584,7 @@ class PageService {
             throw new PageNotFoundException('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        // Use IVersionManager - works for all storage types including GroupFolders
-        $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-        foreach ($versions as $version) {
-            if ($version->getTimestamp() === $timestamp) {
-                // Get the backend for this storage to access setVersionLabel
-                $backend = $this->versionManager->getBackendForStorage($file->getStorage());
-                if (method_exists($backend, 'setVersionLabel')) {
-                    $backend->setVersionLabel($version, $label ?? '');
-                    return;
-                }
-                throw new \Exception('Version labels not supported by this storage backend');
-            }
-        }
-
-        throw new \Exception('Version not found');
+        $this->pageVersionService->setLabel($result['file'], $timestamp, $label);
     }
 
     /**
@@ -6826,40 +6611,7 @@ class PageService {
             throw new \Exception('Page not found: ' . $pageId);
         }
 
-        $file = $result['file'];
-        $user = $this->userSession->getUser();
-
-        if (!$user) {
-            throw new \Exception('No user in session');
-        }
-
-        if (!$this->versionManager) {
-            throw new \Exception('Version manager not available');
-        }
-
-        // Use IVersionManager - works for all storage types including GroupFolders
-        $versions = $this->versionManager->getVersionsForFile($user, $file);
-
-        foreach ($versions as $version) {
-            if ($version->getTimestamp() === $timestamp) {
-                // Read version content via IVersionManager (returns a stream resource)
-                $stream = $this->versionManager->read($version);
-
-                // Convert stream resource to string
-                $content = stream_get_contents($stream);
-                if (is_resource($stream)) {
-                    fclose($stream);
-                }
-
-                return [
-                    'title' => 'Version from ' . date('Y-m-d H:i:s', $timestamp),
-                    'content' => $content,
-                    'rawContent' => $content
-                ];
-            }
-        }
-
-        throw new \Exception('Version not found');
+        return $this->pageVersionService->contentAtTimestamp($result['file'], $timestamp);
     }
 
     /**
@@ -8883,140 +8635,32 @@ class PageService {
      *
      * @return \OCP\Files\Folder|null The templates folder or null if not accessible
      */
-    private function getTemplatesFolder(): ?\OCP\Files\Folder {
-        try {
-            $langFolder = $this->getLanguageFolder();
-            if ($langFolder->nodeExists('_templates')) {
-                $templatesFolder = $langFolder->get('_templates');
-                if ($templatesFolder instanceof \OCP\Files\Folder) {
-                    return $templatesFolder;
-                }
-            }
-            return null;
-        } catch (\Exception $e) {
-            $this->logger->warning('Could not access templates folder: ' . $e->getMessage());
-            return null;
-        }
-    }
-
     /**
-     * List all available page templates
-     *
-     * @return array List of template metadata
+     * List all available page templates for the user's language.
+     * Storage and lookup live in PageTemplateService; these wrappers only
+     * resolve the language folder (the locator stays here) and preserve the
+     * old degradation: an unresolvable language folder means no templates,
+     * never an error.
      */
     public function listTemplates(): array {
-        $templatesFolder = $this->getTemplatesFolder();
-        if ($templatesFolder === null) {
+        try {
+            $langFolder = $this->getLanguageFolder();
+        } catch (\Exception $e) {
             return [];
         }
-
-        $templates = [];
-
-        try {
-            foreach ($templatesFolder->getDirectoryListing() as $item) {
-                if (!($item instanceof \OCP\Files\Folder)) {
-                    continue;
-                }
-
-                $templateId = $item->getName();
-
-                // Skip special folders
-                if (str_starts_with($templateId, '.') || $templateId === '_media') {
-                    continue;
-                }
-
-                // Try to read the template JSON file
-                try {
-                    $jsonFile = $item->get($templateId . '.json');
-                    if (!($jsonFile instanceof \OCP\Files\File)) {
-                        continue;
-                    }
-
-                    $content = json_decode($jsonFile->getContent(), true);
-                    if (!$content) {
-                        continue;
-                    }
-
-                    // Extract preview metadata
-                    $preview = $this->extractTemplatePreviewMetadata($content);
-
-                    $templates[] = [
-                        'id' => $templateId,
-                        'uniqueId' => $content['uniqueId'] ?? 'template-' . $templateId,
-                        'title' => $content['title'] ?? $templateId,
-                        'description' => $content['description'] ?? '',
-                        'created' => $content['created'] ?? $jsonFile->getMTime(),
-                        'modified' => $jsonFile->getMTime(),
-                        'createdBy' => $content['createdBy'] ?? '',
-                        'preview' => $preview,
-                    ];
-                } catch (NotFoundException $e) {
-                    // Template folder exists but no JSON file, skip
-                    continue;
-                }
-            }
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to list templates: ' . $e->getMessage());
-        }
-
-        // Sort by title
-        usort($templates, fn($a, $b) => strcasecmp($a['title'], $b['title']));
-
-        return $templates;
+        return $this->pageTemplateService->listTemplates($langFolder);
     }
 
     /**
-     * Extract preview metadata from template content for display in template picker
-     *
-     * @param array $content Template content data
-     * @return array Preview metadata
-     */
-    /**
-     * @deprecated Delegated to TemplateMetadataExtractor::extract.
-     */
-    private function extractTemplatePreviewMetadata(array $content): array {
-        return $this->templateMetadata->extract($content);
-    }
-
-    /**
-     * Get a specific template by ID
-     *
-     * @param string $templateId Template ID (folder name)
-     * @return array|null Template data or null if not found
+     * Get a specific template by ID (folder name), or null.
      */
     public function getTemplate(string $templateId): ?array {
-        $templatesFolder = $this->getTemplatesFolder();
-        if ($templatesFolder === null) {
-            return null;
-        }
-
         try {
-            if (!$templatesFolder->nodeExists($templateId)) {
-                return null;
-            }
-
-            $templateFolder = $templatesFolder->get($templateId);
-            if (!($templateFolder instanceof \OCP\Files\Folder)) {
-                return null;
-            }
-
-            $jsonFile = $templateFolder->get($templateId . '.json');
-            if (!($jsonFile instanceof \OCP\Files\File)) {
-                return null;
-            }
-
-            $content = json_decode($jsonFile->getContent(), true);
-            if (!$content) {
-                return null;
-            }
-
-            return $content;
-        } catch (NotFoundException $e) {
-            return null;
+            $langFolder = $this->getLanguageFolder();
         } catch (\Exception $e) {
-            $this->logger->error('Failed to get template: ' . $e->getMessage());
             return null;
         }
+        return $this->pageTemplateService->getTemplate($langFolder, $templateId);
     }
 
     /**
@@ -9035,29 +8679,10 @@ class PageService {
                 return ['success' => false, 'error' => 'Page not found'];
             }
 
-            // Get or create templates folder
+            // Reserve a collision-free template folder (+_media)
             $langFolder = $this->getLanguageFolder();
-            if (!$langFolder->nodeExists('_templates')) {
-                $langFolder->newFolder('_templates');
-            }
-            $templatesFolder = $langFolder->get('_templates');
-
-            // Generate template ID from title
-            $templateId = $this->sanitizeId($templateTitle);
-
-            // Handle duplicate names by appending number
-            $originalId = $templateId;
-            $counter = 1;
-            while ($templatesFolder->nodeExists($templateId)) {
-                $counter++;
-                $templateId = $originalId . '-' . $counter;
-            }
-
-            // Create template folder
-            $templateFolder = $templatesFolder->newFolder($templateId);
-
-            // Create _media folder in template
-            $templateMediaFolder = $templateFolder->newFolder('_media');
+            [$templateId, $templateFolder, $templateMediaFolder] =
+                $this->pageTemplateService->newTemplateFolder($langFolder, $this->sanitizeId($templateTitle));
 
             // Prepare template data
             $templateData = $pageData;
@@ -9114,25 +8739,11 @@ class PageService {
      */
     public function deleteTemplate(string $templateId): array {
         try {
-            $templatesFolder = $this->getTemplatesFolder();
-            if ($templatesFolder === null) {
-                return ['success' => false, 'error' => 'Templates folder not accessible'];
-            }
-
-            if (!$templatesFolder->nodeExists($templateId)) {
-                return ['success' => false, 'error' => 'Template not found'];
-            }
-
-            $templateFolder = $templatesFolder->get($templateId);
-            $templateFolder->delete();
-
-            $this->logger->info('Deleted template: ' . $templateId);
-
-            return ['success' => true];
+            $langFolder = $this->getLanguageFolder();
         } catch (\Exception $e) {
-            $this->logger->error('Failed to delete template: ' . $e->getMessage());
-            return ['success' => false, 'error' => $e->getMessage()];
+            return ['success' => false, 'error' => 'Templates folder not accessible'];
         }
+        return $this->pageTemplateService->deleteTemplate($langFolder, $templateId);
     }
 
     /**
@@ -9175,7 +8786,7 @@ class PageService {
             $createdPage = $this->createPage($pageData, $parentPath);
 
             // Copy media files from template to new page
-            $templatesFolder = $this->getTemplatesFolder();
+            $templatesFolder = $this->pageTemplateService->templatesFolder($this->getLanguageFolder());
             if ($templatesFolder && $templatesFolder->nodeExists($templateId)) {
                 $templateFolder = $templatesFolder->get($templateId);
                 if ($templateFolder instanceof \OCP\Files\Folder && $templateFolder->nodeExists('_media')) {
@@ -9429,17 +9040,9 @@ class PageService {
     public function canCreateTemplates(): bool {
         try {
             $langFolder = $this->getLanguageFolder();
-
-            // Check if _templates folder exists
-            if (!$langFolder->nodeExists('_templates')) {
-                // Check if user can create it
-                return $langFolder->isCreatable();
-            }
-
-            $templatesFolder = $langFolder->get('_templates');
-            return $templatesFolder->isCreatable();
         } catch (\Exception $e) {
             return false;
         }
+        return $this->pageTemplateService->canCreateTemplates($langFolder);
     }
 }
