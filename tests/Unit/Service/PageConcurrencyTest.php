@@ -128,6 +128,7 @@ class PageConcurrencyTest extends TestCase {
             $lazySeamServices = [
                 \OCA\IntraVox\Service\Locator\PageLocator::class,
                 \OCA\IntraVox\Service\Translation\TranslationGroupService::class,
+                \OCA\IntraVox\Service\Media\PageMediaService::class,
             ];
             if (in_array($type->getName(), $lazySeamServices, true)) {
                 // Leave unset: PageService's lazy seam accessors build the

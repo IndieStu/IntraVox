@@ -19,6 +19,7 @@ use OCA\IntraVox\Service\Sanitize\MediaSanitizer;
 use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
 use OCA\IntraVox\Service\Locator\PageLocator;
+use OCA\IntraVox\Service\Media\PageMediaService;
 use OCA\IntraVox\Service\Template\PageTemplateService;
 use OCA\IntraVox\Service\Translation\TranslationGroupService;
 use OCA\IntraVox\Service\Util\PageIdUtils;
@@ -365,6 +366,7 @@ class PageService {
     private PermissionService $permissionService;
     private PageLocator $pageLocator;
     private TranslationGroupService $translationGroupService;
+    private PageMediaService $pageMediaService;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -394,6 +396,7 @@ class PageService {
         PermissionService $permissionService,
         PageLocator $pageLocator,
         TranslationGroupService $translationGroupService,
+        PageMediaService $pageMediaService,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -423,6 +426,7 @@ class PageService {
         $this->permissionService = $permissionService;
         $this->pageLocator = $pageLocator;
         $this->translationGroupService = $translationGroupService;
+        $this->pageMediaService = $pageMediaService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
@@ -462,6 +466,17 @@ class PageService {
             );
         }
         return $this->translationGroupService;
+    }
+
+    /**
+     * Page media mechanics (copy engine, _media resolution). Same lazy seam
+     * convention as locator() for the constructor-less test subclasses.
+     */
+    private function media(): PageMediaService {
+        if (!isset($this->pageMediaService)) {
+            $this->pageMediaService = new PageMediaService($this->locator(), $this->logger);
+        }
+        return $this->pageMediaService;
     }
 
     /**
@@ -604,19 +619,7 @@ class PageService {
      * The folder name "_media" itself is the primary identifier
      */
     private function createMediaFolderMarker($mediaFolder): void {
-        try {
-            // Only create a simple .nomedia file
-            // This is standard practice for media storage folders
-            if (!$mediaFolder->nodeExists('.nomedia')) {
-                $nomediaFile = $mediaFolder->newFile('.nomedia');
-                $nomediaFile->putContent('');
-            }
-        } catch (\Exception $e) {
-            // Not critical if this fails
-            $this->logger->debug('Could not create .nomedia file', [
-                'error' => $e->getMessage()
-            ]);
-        }
+        $this->media()->createMediaFolderMarker($mediaFolder);
     }
 
     /**
@@ -3636,66 +3639,7 @@ class PageService {
      * Recursively find media folder for a page by uniqueId
      */
     private function findMediaFolderForPage($folder, string $uniqueId): ?\OCP\Files\Folder {
-        // First scan JSON files in CURRENT folder to see if page is here
-        $foundMatch = false;
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            if ($item->getType() === \OCP\Files\FileInfo::TYPE_FILE &&
-                substr($item->getName(), -5) === '.json' &&
-                $item->getName() !== 'navigation.json' &&
-                $item->getName() !== 'footer.json' &&
-                $item->getName() !== 'homepage.json') {
-
-                $content = $item->getContent();
-                $data = json_decode($content, true);
-
-                // Match against uniqueId field
-                if ($data && isset($data['uniqueId']) && $data['uniqueId'] === $uniqueId) {
-                    $foundMatch = true;
-                    break;
-                }
-            }
-        }
-
-        // If we found the matching page JSON in this folder, return its media folder
-        if ($foundMatch) {
-            try {
-                $mediaFolder = $folder->get('_media');
-                if ($mediaFolder->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                    return $mediaFolder;
-                }
-            } catch (\OCP\Files\NotFoundException $e) {
-                // Page found but no media folder
-                return null;
-            }
-        }
-
-        // Recursively search subfolders
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                $itemName = $item->getName();
-
-                // Skip special folders to avoid infinite loops
-                if ($itemName === '_media' || $itemName === 'images' || $itemName === 'videos' || $itemName === '.nomedia') {
-                    continue;
-                }
-
-                // Recurse into subfolder - wrap in try-catch to handle stale cache entries
-                try {
-                    $result = $this->findMediaFolderForPage($item, $uniqueId);
-                    if ($result !== null) {
-                        return $result;
-                    }
-                } catch (\OCP\Files\NotFoundException $e) {
-                    // This subfolder doesn't actually exist (stale cache entry) - skip it
-                    continue;
-                } catch (\Exception $e) {
-                    $this->logger->error("findMediaFolderForPage: Error accessing subfolder {$itemName}: {$e->getMessage()}");
-                    continue;
-                }
-            }
-        }
-
-        return null;
+        return $this->media()->findMediaFolderForPage($folder, $uniqueId);
     }
 
     /**
@@ -8515,88 +8459,15 @@ class PageService {
      * @param string $context caller name, for the log line
      */
     private function copyPageMedia(?\OCP\Files\Folder $sourceFolder, string $newUniqueId, string $context): void {
-        try {
-            if ($sourceFolder === null || !$sourceFolder->nodeExists('_media')) {
-                return;
-            }
-            $sourceMedia = $sourceFolder->get('_media');
-            if (!($sourceMedia instanceof \OCP\Files\Folder)) {
-                return;
-            }
-            $newPageFolder = $this->findPageFolder($newUniqueId);
-            if ($newPageFolder === null) {
-                return;
-            }
-            if (!$newPageFolder->nodeExists('_media')) {
-                $newPageFolder->newFolder('_media');
-            }
-            $targetMedia = $newPageFolder->get('_media');
-            if ($targetMedia instanceof \OCP\Files\Folder) {
-                $this->copyMediaFolderContents($sourceMedia, $targetMedia);
-            }
-        } catch (\Exception $e) {
-            $this->logger->warning($context . ': media copy failed', ['error' => $e->getMessage()]);
-        }
+        $this->media()->copyPageMedia(
+            $sourceFolder,
+            $this->findPageFolder($newUniqueId),
+            $context
+        );
     }
 
-    /**
-     * Copy all files from one media folder to another (within Nextcloud storage)
-     *
-     * @param \OCP\Files\Folder $source Source folder
-     * @param \OCP\Files\Folder $target Target folder
-     */
     private function copyMediaFolderContents(\OCP\Files\Folder $source, \OCP\Files\Folder $target): void {
-        try {
-            foreach ($source->getDirectoryListing() as $item) {
-                $name = $item->getName();
-
-                // Skip hidden files
-                if (str_starts_with($name, '.')) {
-                    continue;
-                }
-
-                if ($item instanceof \OCP\Files\File) {
-                    // Copy STREAMED, never via getContent(): that buffers the
-                    // whole file in RAM, and media folders hold videos — a
-                    // 2 GB file would hit memory_limit halfway through a copy
-                    // or translation. putContent() accepts a resource and
-                    // pipes it chunk-wise.
-                    try {
-                        $stream = $item->fopen('rb');
-                        if ($stream === false) {
-                            // Storage without stream support; small-file path.
-                            $target->newFile($name)->putContent($item->getContent());
-                        } else {
-                            try {
-                                $target->newFile($name)->putContent($stream);
-                            } finally {
-                                if (is_resource($stream)) {
-                                    fclose($stream);
-                                }
-                            }
-                        }
-                    } catch (\Exception $e) {
-                        $this->logger->warning('Failed to copy media file: ' . $name . ' - ' . $e->getMessage());
-                    }
-                } elseif ($item instanceof \OCP\Files\Folder) {
-                    // Recursively copy subfolder
-                    try {
-                        if (!$target->nodeExists($name)) {
-                            $newSubFolder = $target->newFolder($name);
-                        } else {
-                            $newSubFolder = $target->get($name);
-                        }
-                        if ($newSubFolder instanceof \OCP\Files\Folder) {
-                            $this->copyMediaFolderContents($item, $newSubFolder);
-                        }
-                    } catch (\Exception $e) {
-                        $this->logger->warning('Failed to copy media subfolder: ' . $name . ' - ' . $e->getMessage());
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to copy media folder contents: ' . $e->getMessage());
-        }
+        $this->media()->copyMediaFolderContents($source, $target);
     }
 
     /**
