@@ -174,6 +174,13 @@ class PageServiceMediaLanguageTest extends TestCase {
             if (!$type instanceof \ReflectionNamedType || $type->isBuiltin()) {
                 continue;
             }
+            if ($type->getName() === \OCA\IntraVox\Service\Locator\PageLocator::class) {
+                // Leave unset: PageService's lazy locator() seam builds the
+                // REAL locator from the pageIndexService + logger this test
+                // sets, reproducing the pre-split inline behaviour. An
+                // auto-mock here would answer null to every lookup.
+                continue;
+            }
             if ($prop->isInitialized($svc)) {
                 continue;
             }

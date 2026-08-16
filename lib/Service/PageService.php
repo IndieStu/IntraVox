@@ -18,6 +18,7 @@ use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
 use OCA\IntraVox\Service\Sanitize\MediaSanitizer;
 use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
+use OCA\IntraVox\Service\Locator\PageLocator;
 use OCA\IntraVox\Service\Template\PageTemplateService;
 use OCA\IntraVox\Service\Util\PageIdUtils;
 use OCA\IntraVox\Service\Version\PageVersionService;
@@ -80,12 +81,6 @@ class PageService {
 
     /** @var array Request-level cache for pages by folder path */
     private array $folderPathCache = [];
-
-    /** @var array Request-level cache for directory listings */
-    private array $directoryListingCache = [];
-
-    /** @var array Request-level cache for file contents */
-    private array $fileContentCache = [];
 
     /** @var array Static cache for page tree (shared across requests within same PHP process) */
     private static array $pageTreeCache = [];
@@ -175,9 +170,8 @@ class PageService {
             $this->pageDataCache = [];
             $this->pageFolderCache = [];
             $this->folderPathCache = [];
-            $this->directoryListingCache = [];
+            $this->locator()->clearRequestCaches();
             $this->permissionService->clearNodePermissionsCache();
-            $this->fileContentCache = [];
         }
         $this->listPagesCache = null;
 
@@ -343,22 +337,14 @@ class PageService {
      * Get cached directory listing for a folder
      */
     private function getCachedDirectoryListing(\OCP\Files\Folder $folder): array {
-        $path = $folder->getPath();
-        if (!isset($this->directoryListingCache[$path])) {
-            $this->directoryListingCache[$path] = $folder->getDirectoryListing();
-        }
-        return $this->directoryListingCache[$path];
+        return $this->locator()->cachedDirectoryListing($folder);
     }
 
     /**
      * Get cached file content (prevents repeated reads of same file within request)
      */
     private function getCachedFileContent(\OCP\Files\File $file): string {
-        $path = $file->getPath();
-        if (!isset($this->fileContentCache[$path])) {
-            $this->fileContentCache[$path] = $file->getContent();
-        }
-        return $this->fileContentCache[$path];
+        return $this->locator()->cachedFileContent($file);
     }
 
     private HtmlSanitizer $htmlSanitizer;
@@ -376,6 +362,7 @@ class PageService {
     private HomepageService $homepageService;
     private NavigationService $navigationService;
     private PermissionService $permissionService;
+    private PageLocator $pageLocator;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -403,6 +390,7 @@ class PageService {
         HomepageService $homepageService,
         NavigationService $navigationService,
         PermissionService $permissionService,
+        PageLocator $pageLocator,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -430,12 +418,29 @@ class PageService {
         $this->homepageService = $homepageService;
         $this->navigationService = $navigationService;
         $this->permissionService = $permissionService;
+        $this->pageLocator = $pageLocator;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
         if ($cacheFactory->isAvailable()) {
             $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
         }
+    }
+
+    /**
+     * The page-location engine. DI injects it via the constructor; this
+     * accessor exists because the unit tests build PageService through
+     * constructor-less anonymous subclasses and reflection-set only the
+     * dependencies a test needs. Building the locator lazily from the same
+     * pageIndexService + logger those tests already set reproduces exactly
+     * what the pre-split inline code used — the seam mirrors the protected
+     * getIntraVoxFolder()/getLanguageFolder() convention.
+     */
+    private function locator(): PageLocator {
+        if (!isset($this->pageLocator)) {
+            $this->pageLocator = new PageLocator($this->pageIndexService, $this->logger);
+        }
+        return $this->pageLocator;
     }
 
     /**
@@ -702,14 +707,7 @@ class PageService {
      *   the IntraVox tree or is the tree root itself.
      */
     private function languageOfFolder(\OCP\Files\Folder $folder): ?string {
-        $basePath = rtrim($this->getIntraVoxFolder()->getPath(), '/');
-        $path = rtrim($folder->getPath(), '/');
-        if ($path === $basePath || strpos($path, $basePath . '/') !== 0) {
-            return null;
-        }
-        $rest = substr($path, strlen($basePath) + 1);
-        $first = explode('/', $rest)[0];
-        return preg_match('/^[a-z]{2,3}$/', $first) ? $first : null;
+        return $this->locator()->languageOfFolder($this->getIntraVoxFolder(), $folder);
     }
 
     /**
@@ -735,252 +733,27 @@ class PageService {
      * @return array|null findPageByUniqueId() result, or null when unknown.
      */
     private function locatePageAnyLanguage(\OCP\Files\Folder $primaryFolder, string $uniqueId): ?array {
-        // Ask the index first. The walk below reads and JSON-parses every page
-        // file in every language folder — measured at 9,000 reads for a miss on
-        // a 3,000-page x 3-language install — where this is one query.
-        //
-        // The index is a cache over the filesystem, never an authority: a hit
-        // is verified against disk by resolveIndexedPage(), and anything that
-        // does not check out falls through to the walk. A stale or empty index
-        // therefore costs performance, never correctness, which is what makes
-        // it safe to rely on before every write path is proven to maintain it.
-        $indexed = $this->locateViaIndex($uniqueId, $primaryFolder);
-        if ($indexed !== null) {
-            return $indexed;
-        }
-
-        // A MISS still costs the full scan, and that is deliberate. The index
-        // cannot prove a page does not exist — only that it does not know of
-        // one — so treating "not in the index" as "not found" would turn a
-        // stale index from a slowdown into pages that vanish. Correctness wins
-        // over the cost of the path that answers "no".
-        //
-        // If that cost ever needs removing, the fix is a completeness marker
-        // (a rebuild stamp the write paths keep current), not skipping the scan
-        // on the strength of the index being non-empty.
-        return $this->locateAcrossLanguages(
-            $primaryFolder,
-            fn(\OCP\Files\Folder $f) => $this->findPageByUniqueId($f, $uniqueId)
-        );
+        return $this->locator()->locatePageAnyLanguage(fn() => $this->getIntraVoxFolder(), $primaryFolder, $uniqueId);
     }
 
-    /**
-     * Resolve a uniqueId through the page index, verified against disk.
-     *
-     * Returns the same shape as findPageByUniqueId() — ['file', 'folder',
-     * 'isHome'] — so callers cannot tell which route answered.
-     *
-     * @return array|null null when the index does not know the id, or when
-     *   what it points at no longer matches the file on disk.
-     */
     private function locateViaIndex(string $uniqueId, \OCP\Files\Folder $primaryFolder): ?array {
-        try {
-            $row = $this->pageIndexService->findByUniqueId(
-                $uniqueId,
-                $this->languageOfFolder($primaryFolder)
-            );
-            if ($row === null || empty($row['path'])) {
-                return null;
-            }
-
-            $folder = $this->folderFromAbsolutePath((string)$row['path']);
-            if ($folder === null) {
-                return null;
-            }
-
-            // The index stores what findPageByUniqueId() calls 'folder': the
-            // page's OWN {slug}/ folder. The page JSON is {slug}.json, which
-            // sits BESIDE that folder in its parent — not inside it. The home
-            // page is the exception: its folder IS the language folder and its
-            // file (home.json) really is inside.
-            $name = $folder->getName();
-            $candidates = [];
-            try {
-                $candidates[] = [$folder->getParent(), $name . '.json', false];
-            } catch (\Throwable $e) {
-                // No reachable parent (mount root); the in-folder forms below
-                // still apply.
-            }
-            $candidates[] = [$folder, 'home.json', true];
-            // Legacy/flat layouts keep {slug}.json inside its own folder.
-            $candidates[] = [$folder, $name . '.json', false];
-
-            foreach ($candidates as [$container, $fileName, $isHome]) {
-                if (!($container instanceof \OCP\Files\Folder)) {
-                    continue;
-                }
-                try {
-                    $file = $container->get($fileName);
-                } catch (NotFoundException $e) {
-                    continue;
-                }
-                if (!($file instanceof \OCP\Files\File)) {
-                    continue;
-                }
-
-                // Verify: the file must really carry this uniqueId. This is
-                // what makes a stale index harmless — a page that moved, was
-                // deleted, or was overwritten simply fails the check and the
-                // caller falls back to the filesystem walk.
-                $data = json_decode($this->getCachedFileContent($file), true);
-                if (!is_array($data) || ($data['uniqueId'] ?? null) !== $uniqueId) {
-                    continue;
-                }
-
-                return [
-                    'file' => $file,
-                    'folder' => $folder,
-                    'isHome' => $isHome,
-                ];
-            }
-
-            return null;
-        } catch (\Throwable $e) {
-            // Never let an index problem break a read.
-            $this->logger->warning('[PageService] index lookup failed, falling back to scan', [
-                'uniqueId' => $uniqueId,
-                'error' => $e->getMessage(),
-            ]);
-            return null;
-        }
+        return $this->locator()->locateViaIndex(fn() => $this->getIntraVoxFolder(), $uniqueId, $primaryFolder);
     }
 
-    /**
-     * Resolve an absolute Nextcloud path (as stored in the index) to a Folder
-     * inside the current user's IntraVox tree.
-     *
-     * Deliberately resolves relative to the user's own mounted IntraVox folder
-     * rather than the raw path, so the index can never hand a user a folder
-     * their mount does not grant them.
-     */
     private function folderFromAbsolutePath(string $absolutePath): ?\OCP\Files\Folder {
-        $base = $this->getIntraVoxFolder();
-        $relative = $this->indexPathToRelative($absolutePath);
-        if ($relative === null) {
-            return null;
-        }
-        if ($relative === '') {
-            return $base;
-        }
-
-        try {
-            $node = $base->get($relative);
-        } catch (NotFoundException $e) {
-            return null;
-        }
-        return $node instanceof \OCP\Files\Folder ? $node : null;
+        return $this->locator()->folderFromAbsolutePath($this->getIntraVoxFolder(), $absolutePath);
     }
 
-    /**
-     * Normalise a stored index path to a path relative to the IntraVox root.
-     *
-     * The index is shared by every user, but a Nextcloud path is per-user:
-     * the same page is /admin/files/IntraVox/en/about for one account and
-     * /Rik/files/IntraVox/en/about for another. Matching a stored path against
-     * the CURRENT user's mount therefore failed for everyone except the account
-     * that happened to write the row — listPages() returned zero pages and the
-     * app showed its first-run welcome screen on a fully populated intranet.
-     *
-     * Rows written before this fix still hold a per-user absolute path, so both
-     * forms are accepted: anything up to and including an `IntraVox/` segment is
-     * stripped, and what remains is resolved against the caller's own mount.
-     * That keeps the resolution mount-scoped — a row can never hand a user a
-     * folder their mount does not grant them — while surviving a stale index.
-     *
-     * @return string|null relative path ('' for the root), or null when the
-     *   path does not sit inside an IntraVox tree at all
-     */
     private function indexPathToRelative(string $storedPath): ?string {
-        $path = trim($storedPath, '/');
-        if ($path === '') {
-            return null;
-        }
-
-        $base = rtrim($this->getIntraVoxFolder()->getPath(), '/');
-        $basePath = trim($base, '/');
-
-        // Fast path: written by this same user (or already relative).
-        if ($basePath !== '' && $path === $basePath) {
-            return '';
-        }
-        if ($basePath !== '' && strpos($path, $basePath . '/') === 0) {
-            return substr($path, strlen($basePath) + 1);
-        }
-
-        // Another user's absolute path, or a legacy row: keep everything after
-        // the LAST 'IntraVox' segment, which is the app-root marker in every
-        // form of the path.
-        $segments = explode('/', $path);
-        $rootIndex = null;
-        foreach ($segments as $i => $segment) {
-            if ($segment === 'IntraVox') {
-                $rootIndex = $i;
-            }
-        }
-        if ($rootIndex === null) {
-            // No IntraVox segment. Since 2.0 the index stores paths RELATIVE to
-            // the app root ('en/about'), which is exactly this shape — so treat
-            // it as already relative rather than refusing it. Refusing here made
-            // every lookup fail the moment paths were stored relatively.
-            //
-            // A path that is neither relative nor inside an IntraVox tree simply
-            // will not resolve against the caller's mount below, which is the
-            // safe outcome: resolution stays mount-scoped either way.
-            return $path;
-        }
-
-        return implode('/', array_slice($segments, $rootIndex + 1));
+        return $this->locator()->indexPathToRelative($this->getIntraVoxFolder(), $storedPath);
     }
 
-    /**
-     * Same cross-language walk for a legacy slug id (e.g. "about"), so a slug
-     * link resolves wherever the page lives — matching uniqueId links.
-     * Only reached after the primary folder came up empty.
-     */
     private function locatePageBySlugAnyLanguage(\OCP\Files\Folder $primaryFolder, string $id): ?array {
-        return $this->locateAcrossLanguages(
-            $primaryFolder,
-            fn(\OCP\Files\Folder $f) => $this->findPageById($f, $id)
-        );
+        return $this->locator()->locatePageBySlugAnyLanguage(fn() => $this->getIntraVoxFolder(), $primaryFolder, $id);
     }
 
-    /**
-     * Run $find against $primaryFolder first, then against every other language
-     * folder on disk. Shared by the uniqueId and slug locators.
-     *
-     * @param callable(\OCP\Files\Folder): ?array $find
-     */
     private function locateAcrossLanguages(\OCP\Files\Folder $primaryFolder, callable $find): ?array {
-        $result = $find($primaryFolder);
-        if ($result !== null) {
-            return $result;
-        }
-
-        // Scan the remaining language folders that actually exist on disk,
-        // rather than an opt-in list, so content in any language (e.g. 'da')
-        // stays reachable. Skip the folder we just searched — comparing paths
-        // rather than language codes, so the folder that was really searched is
-        // the one that is really skipped.
-        $baseFolder = $this->getIntraVoxFolder();
-        $searchedPath = $primaryFolder->getPath();
-
-        foreach ($this->getCachedDirectoryListing($baseFolder) as $item) {
-            if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER
-                || !($item instanceof \OCP\Files\Folder)) {
-                continue;
-            }
-            // Language folders are two/three-letter base codes.
-            if (!preg_match('/^[a-z]{2,3}$/', $item->getName())
-                || $item->getPath() === $searchedPath) {
-                continue;
-            }
-            $result = $find($item);
-            if ($result !== null) {
-                return $result;
-            }
-        }
-
-        return null;
+        return $this->locator()->locateAcrossLanguages(fn() => $this->getIntraVoxFolder(), $primaryFolder, $find);
     }
 
     /**
@@ -1135,15 +908,7 @@ class PageService {
      * lookups on paths that treat "absent" as an ordinary outcome.
      */
     private function folderOrNull(?\OCP\Files\Folder $parent, string $name): ?\OCP\Files\Folder {
-        if ($parent === null) {
-            return null;
-        }
-        try {
-            $node = $parent->get($name);
-            return $node instanceof \OCP\Files\Folder ? $node : null;
-        } catch (NotFoundException $e) {
-            return null;
-        }
+        return $this->locator()->folderOrNull($parent, $name);
     }
 
     /**
@@ -1288,121 +1053,11 @@ class PageService {
      * Recursively find a page by uniqueId
      */
     private function findPageByUniqueId($folder, string $uniqueId, $languageFolder = null): ?array {
-        // Track the language folder for isHome detection
-        if ($languageFolder === null) {
-            $languageFolder = $folder;
-        }
-
-        // Check for home.json first (most common case for homepage)
-        try {
-            $homeFile = $folder->get('home.json');
-            $content = $homeFile->getContent();
-            $data = json_decode($content, true);
-            if ($data && isset($data['uniqueId']) && $data['uniqueId'] === $uniqueId) {
-                return ['file' => $homeFile, 'folder' => $folder, 'isHome' => true];
-            }
-        } catch (NotFoundException $e) {
-            // home.json doesn't exist here, continue searching
-        }
-
-        // Get directory listing ONCE (cached) and separate files from folders
-        $isLanguageRoot = ($folder->getPath() === $languageFolder->getPath());
-        $items = $this->getCachedDirectoryListing($folder);
-        $subfolderItems = [];
-
-        // FIRST: Check all JSON files in current folder
-        foreach ($items as $item) {
-            $itemName = $item->getName();
-
-            // Collect subfolders for later recursive search
-            if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                // Skip media folders and special folders
-                if (!PagePathHelper::isInfrastructureFolder($itemName)) {
-                    $subfolderItems[] = $item;
-                }
-                continue;
-            }
-
-            // Skip navigation.json and footer.json only in the language root folder
-            // (these are config files there, not pages). In subfolders they can be page files.
-            $skipFile = ($itemName === 'home.json'); // Always skip home.json, checked above
-            if ($isLanguageRoot && ($itemName === 'navigation.json' || $itemName === 'footer.json' || $itemName === 'homepage.json')) {
-                $skipFile = true;
-            }
-
-            if (substr($itemName, -5) === '.json' && !$skipFile) {
-                try {
-                    $content = $this->getCachedFileContent($item);
-                    $data = json_decode($content, true);
-                    if ($data && isset($data['uniqueId']) && $data['uniqueId'] === $uniqueId) {
-                        // Determine the correct folder:
-                        // If there's a matching subfolder (e.g., company-blog folder for company-blog.json),
-                        // return that subfolder. Otherwise return current folder.
-                        $baseName = substr($itemName, 0, -5); // Remove .json extension
-                        try {
-                            $matchingFolder = $folder->get($baseName);
-                            if ($matchingFolder->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                                return ['file' => $item, 'folder' => $matchingFolder, 'isHome' => false];
-                            }
-                        } catch (NotFoundException $e) {
-                            // No matching folder, use current folder
-                        }
-                        return ['file' => $item, 'folder' => $folder, 'isHome' => false];
-                    }
-                } catch (\Exception $e) {
-                    // Skip invalid files
-                    continue;
-                }
-            }
-        }
-
-        // SECOND: Recursively search subfolders (already collected above)
-        foreach ($subfolderItems as $subfolder) {
-            $result = $this->findPageByUniqueId($subfolder, $uniqueId, $languageFolder);
-            if ($result !== null) {
-                return $result;
-            }
-        }
-
-        return null;
+        return $this->locator()->findPageByUniqueId($folder, $uniqueId, $languageFolder);
     }
 
-    /**
-     * Recursively find a page by ID (legacy support - keep for backward compatibility)
-     */
     private function findPageById($folder, string $id): ?array {
-        // Check root for home.json
-        if ($id === 'home') {
-            try {
-                $file = $folder->get('home.json');
-                return ['file' => $file, 'folder' => $folder];
-            } catch (NotFoundException $e) {
-                // Continue searching
-            }
-        }
-
-        // Check if there's a folder with this ID
-        try {
-            $pageFolder = $folder->get($id);
-            if ($pageFolder->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                $jsonFile = $pageFolder->get($id . '.json');
-                return ['file' => $jsonFile, 'folder' => $pageFolder];
-            }
-        } catch (NotFoundException $e) {
-            // Continue searching
-        }
-
-        // Recursively search subfolders
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                $result = $this->findPageById($item, $id);
-                if ($result !== null) {
-                    return $result;
-                }
-            }
-        }
-
-        return null;
+        return $this->locator()->findPageById($folder, $id);
     }
 
     /**
@@ -2676,13 +2331,7 @@ class PageService {
      * Get relative path from IntraVox root folder
      */
     private function getRelativePathFromRoot($folder): string {
-        $intraVoxPath = $this->getIntraVoxFolder()->getPath();
-        $folderPath = $folder->getPath();
-
-        // Remove IntraVox base path
-        $relativePath = str_replace($intraVoxPath . '/', '', $folderPath);
-
-        return $relativePath;
+        return $this->locator()->relativePathFromRoot($this->getIntraVoxFolder(), $folder);
     }
 
     /**
@@ -5462,23 +5111,7 @@ class PageService {
      * Find a file by its ID within a folder
      */
     private function findFileByIdInFolder(\OCP\Files\Folder $folder, int $fileId): ?\OCP\Files\File {
-        try {
-            $files = $this->getCachedDirectoryListing($folder);
-            foreach ($files as $item) {
-                if ($item->getId() === $fileId && $item instanceof \OCP\Files\File) {
-                    return $item;
-                }
-                if ($item instanceof \OCP\Files\Folder) {
-                    $found = $this->findFileByIdInFolder($item, $fileId);
-                    if ($found) {
-                        return $found;
-                    }
-                }
-            }
-        } catch (\Exception $e) {
-            // Error searching folder
-        }
-        return null;
+        return $this->locator()->findFileByIdInFolder($folder, $fileId);
     }
 
     /**

@@ -85,6 +85,11 @@ class PageServiceReorderTest extends TestCase {
                 public function __construct() {
                 }
             });
+        (new \ReflectionProperty(PageService::class, 'pageLocator'))
+            ->setValue($svc, new \OCA\IntraVox\Service\Locator\PageLocator(
+                $this->createMock(\OCA\IntraVox\Service\PageIndexService::class),
+                $this->createMock(\Psr\Log\LoggerInterface::class)
+            ));
         return $svc;
     }
 
