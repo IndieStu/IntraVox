@@ -20,6 +20,7 @@ use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
 use OCA\IntraVox\Service\Locator\PageLocator;
 use OCA\IntraVox\Service\Template\PageTemplateService;
+use OCA\IntraVox\Service\Translation\TranslationGroupService;
 use OCA\IntraVox\Service\Util\PageIdUtils;
 use OCA\IntraVox\Service\Version\PageVersionService;
 use OCP\EventDispatcher\IEventDispatcher;
@@ -363,6 +364,7 @@ class PageService {
     private NavigationService $navigationService;
     private PermissionService $permissionService;
     private PageLocator $pageLocator;
+    private TranslationGroupService $translationGroupService;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -391,6 +393,7 @@ class PageService {
         NavigationService $navigationService,
         PermissionService $permissionService,
         PageLocator $pageLocator,
+        TranslationGroupService $translationGroupService,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -419,6 +422,7 @@ class PageService {
         $this->navigationService = $navigationService;
         $this->permissionService = $permissionService;
         $this->pageLocator = $pageLocator;
+        $this->translationGroupService = $translationGroupService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
@@ -441,6 +445,23 @@ class PageService {
             $this->pageLocator = new PageLocator($this->pageIndexService, $this->logger);
         }
         return $this->pageLocator;
+    }
+
+    /**
+     * Translation-group semantics. Same seam convention as locator(): DI
+     * injects it, and the constructor-less test subclasses fall back to a
+     * real instance built from the dependencies they already set.
+     */
+    private function translationGroups(): TranslationGroupService {
+        if (!isset($this->translationGroupService)) {
+            $this->translationGroupService = new TranslationGroupService(
+                $this->pageIndexService,
+                $this->locator(),
+                $this->idUtils,
+                $this->logger
+            );
+        }
+        return $this->translationGroupService;
     }
 
     /**
@@ -1169,30 +1190,14 @@ class PageService {
         $dataB = json_decode($b['file']->getContent(), true);
         $group = (is_array($dataA) ? ($dataA['translationGroup'] ?? null) : null)
             ?: (is_array($dataB) ? ($dataB['translationGroup'] ?? null) : null)
-            ?: 'tg-' . $this->generateUUID();
+            ?: $this->translationGroups()->newGroupId();
 
-        // Adoption must not smuggle in a language the group already has. The
-        // same-language check above only compares A against B — but the ADOPTED
-        // group can hold members neither of them: linking a Dutch page to an
-        // English one whose group already contained another Dutch page produced
-        // a group with two nl members, which is exactly the ambiguity (which
-        // "Dutch version" does the switcher offer?) the one-page-per-language
-        // rule exists to prevent. Caught in the wild by a screenshot.
-        $addedIds = [$uniqueIdA, $uniqueIdB];
-        foreach ($this->pageIndexService->findByTranslationGroup($group) as $member) {
-            $memberId = (string)($member['unique_id'] ?? '');
-            $memberLang = (string)($member['language'] ?? '');
-            if (in_array($memberId, $addedIds, true) || $memberLang === '') {
-                continue; // the pages being linked may of course be members already
-            }
-            foreach ([[$uniqueIdA, $langA], [$uniqueIdB, $langB]] as [$id, $lang]) {
-                if ($lang !== null && $lang === $memberLang) {
-                    throw new \InvalidArgumentException(
-                        'That group already has a version in that language.'
-                    );
-                }
-            }
-        }
+        // Adoption must not smuggle in a language the group already has —
+        // the invariant lives with the rest of the group rules.
+        $this->translationGroups()->assertAdoptionAddsNoDuplicateLanguage(
+            $group,
+            [[$uniqueIdA, $langA], [$uniqueIdB, $langB]]
+        );
 
         $this->writeTranslationGroup($a, $group);
         $this->writeTranslationGroup($b, $group);
@@ -1258,14 +1263,10 @@ class PageService {
         // One page per language per group — refuse rather than create a second
         // German version that would make the switcher ambiguous.
         $group = $sourceData['translationGroup'] ?? null;
-        if (!empty($group)) {
-            foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
-                if (($row['language'] ?? null) === $language) {
-                    throw new \InvalidArgumentException(
-                        'A version of this page already exists in that language.'
-                    );
-                }
-            }
+        if (!empty($group) && $this->translationGroups()->groupHasLanguage($group, $language)) {
+            throw new \InvalidArgumentException(
+                'A version of this page already exists in that language.'
+            );
         }
 
         // The target language folder must exist; creating one silently would
@@ -1293,7 +1294,7 @@ class PageService {
         // resolveTranslations() excludes the page itself, so a singleton group
         // renders nothing — and the next successful link or unlink rewrites it.
         if (empty($group)) {
-            $group = 'tg-' . $this->generateUUID();
+            $group = $this->translationGroups()->newGroupId();
             $this->writeTranslationGroup($source, $group);
         }
 
@@ -1530,12 +1531,7 @@ class PageService {
 
     /** Whether a translation group holds anyone besides $uniqueId. */
     private function groupHasOtherMembers(string $group, string $uniqueId): bool {
-        foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
-            if (($row['unique_id'] ?? null) !== $uniqueId) {
-                return true;
-            }
-        }
-        return false;
+        return $this->translationGroups()->hasOtherMembers($group, $uniqueId);
     }
 
     /**
@@ -1558,7 +1554,7 @@ class PageService {
             throw new PageNotFoundException('Page not found: ' . $uniqueId);
         }
 
-        $group = 'tg-' . $this->generateUUID();
+        $group = $this->translationGroups()->newGroupId();
         $this->writeTranslationGroup($result, $group);
         $this->clearCache();
 
@@ -1571,33 +1567,8 @@ class PageService {
      * @param array $result findPageByUniqueId()-shaped result
      */
     private function writeTranslationGroup(array $result, string $group): void {
-        $file = $result['file'];
-        if (!$file->isUpdateable()) {
-            throw new ForbiddenException('You do not have permission to edit this page');
-        }
-
-        $data = json_decode($file->getContent(), true);
-        if (!is_array($data)) {
-            throw new \InvalidArgumentException('Page data could not be read');
-        }
-        $data['translationGroup'] = $group;
-        $file->putContent(json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
-
-        // Keep the index in step; the file is already written, so a failure
-        // here is non-blocking and `occ intravox:reindex` repairs it.
-        try {
-            $language = $this->languageOfFolder($result['folder']) ?? $this->getUserLanguage();
-            $this->pageIndexService->indexPage(
-                $data,
-                $language,
-                $result['folder']->getPath(),
-                $file->getId()
-            );
-        } catch (\Exception $e) {
-            $this->logger->warning('Failed to index translation group', [
-                'error' => $e->getMessage(),
-            ]);
-        }
+        $language = $this->languageOfFolder($result['folder']) ?? $this->getUserLanguage();
+        $this->translationGroups()->writeGroup($result, $group, $language);
     }
 
     /**
@@ -1614,48 +1585,11 @@ class PageService {
      * @return array<int, array{language:string, uniqueId:string, title:string, status:string}>
      */
     private function resolveTranslations(?string $translationGroup, ?string $ownUniqueId): array {
-        if (empty($translationGroup)) {
-            return [];
-        }
-
-        try {
-            $rows = $this->pageIndexService->findByTranslationGroup($translationGroup);
-        } catch (\Throwable $e) {
-            $this->logger->warning('[PageService] translation lookup failed', [
-                'translationGroup' => $translationGroup,
-                'error' => $e->getMessage(),
-            ]);
-            return [];
-        }
-
-        $translations = [];
-        foreach ($rows as $row) {
-            // Skip the page itself — the list answers "where else".
-            if ($ownUniqueId !== null && ($row['unique_id'] ?? null) === $ownUniqueId) {
-                continue;
-            }
-            if (empty($row['language']) || empty($row['unique_id'])) {
-                continue;
-            }
-            // The index is shared by every user, but readability is not:
-            // GroupFolder ACLs can deny this caller the folder a group member
-            // lives in, and its title/status must not leak past that. Resolve
-            // the row's folder through the caller's OWN mount — same rule
-            // listPagesFromIndex states for permissions — and skip what the
-            // mount does not grant. Costs one filecache lookup per group
-            // member, bounded by the number of languages, not pages.
-            if ($this->folderFromAbsolutePath((string)($row['path'] ?? '')) === null) {
-                continue;
-            }
-            $translations[] = [
-                'language' => (string)$row['language'],
-                'uniqueId' => (string)$row['unique_id'],
-                'title' => (string)($row['title'] ?? ''),
-                'status' => (string)($row['status'] ?? 'published'),
-            ];
-        }
-
-        return $translations;
+        return $this->translationGroups()->resolveTranslations(
+            $translationGroup,
+            $ownUniqueId,
+            fn() => $this->getIntraVoxFolder()
+        );
     }
 
     /**
