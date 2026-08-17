@@ -1380,29 +1380,18 @@ class PageService {
         $data = json_decode($result['file']->getContent(), true);
         $group = is_array($data) ? ($data['translationGroup'] ?? null) : null;
 
-        $taken = [];
-        if (!empty($group)) {
-            foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
-                if (!empty($row['language'])) {
-                    $taken[(string)$row['language']] = true;
-                }
-            }
-        }
+        $root = $this->getIntraVoxFolder();
+        $taken = $this->translationGroups()->languagesTaken($group);
 
         $languages = [];
-        foreach ($this->getCachedDirectoryListing($this->getIntraVoxFolder()) as $node) {
-            if (!($node instanceof \OCP\Files\Folder)) {
-                continue;
-            }
-            $code = $node->getName();
-            if (!preg_match('/^[a-z]{2,3}$/', $code)) {
-                continue;
-            }
-            if ($code === $ownLanguage || isset($taken[$code])) {
+        foreach ($this->translationGroups()->otherContentLanguages($root, $ownLanguage) as $code) {
+            if (isset($taken[$code])) {
                 continue;
             }
             $languages[] = [
                 'code' => $code,
+                // Naming stays here: it reads LanguageService's list, which is
+                // the interface-language source the admin tab shares.
                 'name' => $this->languageDisplayName($code),
                 // How many of this page's ancestors do not exist as pages in
                 // that language yet. The translation still lands mirrored
@@ -1410,47 +1399,12 @@ class PageService {
                 // folders, and the tree renders those as non-clickable
                 // pass-through nodes) — but the editor deserves to know
                 // BEFORE creating, not by discovering grey levels afterwards.
-                'missingAncestors' => $this->countMissingAncestors($result['folder'], $code),
+                'missingAncestors' => $this->translationGroups()
+                    ->countMissingAncestors($root, $result['folder'], $code),
             ];
         }
 
         return $languages;
-    }
-
-    /**
-     * How many ancestor PAGES a mirrored translation would lack in a language.
-     *
-     * Walks the source page's parent segments and checks, per level, whether
-     * {lang}/{path}/{segment}.json exists — the page file, not just the
-     * folder, since a bare folder is exactly what "missing" means here. Cost
-     * is one nodeExists per ancestor level, bounded by tree depth.
-     */
-    private function countMissingAncestors(\OCP\Files\Folder $sourceFolder, string $targetLanguage): int {
-        try {
-            $relative = $this->getRelativePathFromRoot($sourceFolder);
-            $segments = explode('/', $relative);
-            // Drop the language segment and the page's own folder; what
-            // remains are the ancestor levels.
-            array_shift($segments);
-            array_pop($segments);
-            if ($segments === []) {
-                return 0;
-            }
-
-            $base = $this->getIntraVoxFolder();
-            $missing = 0;
-            $path = $targetLanguage;
-            foreach ($segments as $segment) {
-                $path .= '/' . $segment;
-                if (!$base->nodeExists($path . '/' . $segment . '.json')) {
-                    $missing++;
-                }
-            }
-            return $missing;
-        } catch (\Throwable $e) {
-            // A hint must never break the language list.
-            return 0;
-        }
     }
 
     /**
@@ -1480,82 +1434,23 @@ class PageService {
 
         // Languages this page's group already covers — candidates in those
         // languages are filtered below, one indexed query for the whole list.
-        $takenLanguages = [];
-        if (!empty($ownGroup)) {
-            foreach ($this->pageIndexService->findByTranslationGroup($ownGroup) as $member) {
-                if (($member['unique_id'] ?? null) !== $pageId && !empty($member['language'])) {
-                    $takenLanguages[(string)$member['language']] = true;
-                }
-            }
-        }
+        $takenLanguages = $this->translationGroups()->languagesTaken($ownGroup, $pageId);
 
-        // Languages to offer: everything with content except this page's own.
-        //
-        // ACL boundary: this listing goes through the caller's OWN mount, so a
-        // language folder their ACLs deny never appears — language-level access
-        // is enforced here for free. Deliberately NOT re-checked per candidate
-        // row below: that would cost one filecache lookup per page in the
-        // language (hundreds+), for an editor-facing dialog. The accepted bound
-        // is that ACLs on a SUBFOLDER within a readable language can still
-        // surface a title here.
-        $languages = [];
-        foreach ($this->getCachedDirectoryListing($this->getIntraVoxFolder()) as $node) {
-            if (!($node instanceof \OCP\Files\Folder)) {
-                continue;
-            }
-            $code = $node->getName();
-            if (!preg_match('/^[a-z]{2,3}$/', $code) || $code === $ownLanguage) {
-                continue;
-            }
-            if ($language !== null && $code !== $language) {
-                continue;
-            }
-            $languages[] = $code;
-        }
+        // Languages to offer: everything with content except this page's own,
+        // listed through the caller's own mount so denied languages never
+        // appear (see otherContentLanguages()).
+        $languages = $this->translationGroups()->otherContentLanguages(
+            $this->getIntraVoxFolder(),
+            $ownLanguage,
+            $language
+        );
 
-        $candidates = [];
-        foreach ($languages as $code) {
-            foreach ($this->pageIndexService->getPagesByLanguage($code) as $row) {
-                $uniqueId = (string)($row['unique_id'] ?? '');
-                if ($uniqueId === '' || $uniqueId === $pageId) {
-                    continue;
-                }
-
-                // Already linked to something else — offering it would mean
-                // silently removing it from that group.
-                $group = $row['translation_group'] ?? null;
-                if (!empty($group) && $group !== $ownGroup && $this->groupHasOtherMembers($group, $uniqueId)) {
-                    continue;
-                }
-
-                // Already a member of THIS page's group — linking it again is a
-                // no-op that only clutters the picker.
-                if (!empty($group) && $group === $ownGroup) {
-                    continue;
-                }
-
-                // The group already holds a version in this candidate's
-                // language: offering it would produce the two-Dutch-versions
-                // ambiguity linkTranslation now refuses. Filter here too, so
-                // the picker never offers something that errors when chosen.
-                if (isset($takenLanguages[$code])) {
-                    continue;
-                }
-
-                $candidates[] = [
-                    'uniqueId' => $uniqueId,
-                    'title' => (string)($row['title'] ?? ''),
-                    'language' => $code,
-                ];
-            }
-        }
-
-        return $candidates;
-    }
-
-    /** Whether a translation group holds anyone besides $uniqueId. */
-    private function groupHasOtherMembers(string $group, string $uniqueId): bool {
-        return $this->translationGroups()->hasOtherMembers($group, $uniqueId);
+        return $this->translationGroups()->candidatesInLanguages(
+            $pageId,
+            $ownGroup,
+            $languages,
+            $takenLanguages
+        );
     }
 
     /**
