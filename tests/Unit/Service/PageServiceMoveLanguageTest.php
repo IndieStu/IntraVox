@@ -190,6 +190,7 @@ class PageServiceMoveLanguageTest extends TestCase {
                 \OCA\IntraVox\Service\Locator\PageLocator::class,
                 \OCA\IntraVox\Service\Translation\TranslationGroupService::class,
                 \OCA\IntraVox\Service\Media\PageMediaService::class,
+                \OCA\IntraVox\Service\News\NewsPageService::class,
             ];
             if (in_array($type->getName(), $lazySeamServices, true)) {
                 // Leave unset: PageService's lazy seam accessors build the
