@@ -207,4 +207,155 @@ class TranslationGroupService {
 
         return $translations;
     }
+
+    /**
+     * The languages a group already holds a version in.
+     *
+     * @param string|null $group      the page's group, or null when unlinked
+     * @param string|null $excludeId  a member to ignore (the page itself)
+     * @return array<string, true> language code => true, for isset() lookups
+     */
+    public function languagesTaken(?string $group, ?string $excludeId = null): array {
+        $taken = [];
+        if (empty($group)) {
+            return $taken;
+        }
+        foreach ($this->pageIndexService->findByTranslationGroup($group) as $row) {
+            if ($excludeId !== null && ($row['unique_id'] ?? null) === $excludeId) {
+                continue;
+            }
+            if (!empty($row['language'])) {
+                $taken[(string)$row['language']] = true;
+            }
+        }
+        return $taken;
+    }
+
+    /**
+     * The content-language folders under the IntraVox root, minus the page's
+     * own and (optionally) everything but one requested language.
+     *
+     * ACL boundary: this listing goes through the caller's OWN mount, so a
+     * language folder their ACLs deny never appears — language-level access
+     * is enforced here for free.
+     *
+     * @param string|null $ownLanguage the page's own language, always excluded
+     * @param string|null $only        limit to this one language, or null for all
+     * @return array<int, string> language codes
+     */
+    public function otherContentLanguages(\OCP\Files\Folder $root, ?string $ownLanguage, ?string $only = null): array {
+        $languages = [];
+        foreach ($this->locator->cachedDirectoryListing($root) as $node) {
+            if (!($node instanceof \OCP\Files\Folder)) {
+                continue;
+            }
+            $code = $node->getName();
+            if (!preg_match('/^[a-z]{2,3}$/', $code) || $code === $ownLanguage) {
+                continue;
+            }
+            if ($only !== null && $code !== $only) {
+                continue;
+            }
+            $languages[] = $code;
+        }
+        return $languages;
+    }
+
+    /**
+     * How many ancestor PAGES a mirrored translation would lack in a language.
+     *
+     * Walks the source page's parent segments and checks, per level, whether
+     * {lang}/{path}/{segment}.json exists — the page file, not just the
+     * folder, since a bare folder is exactly what "missing" means here. Cost
+     * is one nodeExists per ancestor level, bounded by tree depth.
+     */
+    public function countMissingAncestors(\OCP\Files\Folder $root, \OCP\Files\Folder $sourceFolder, string $targetLanguage): int {
+        try {
+            $relative = $this->locator->relativePathFromRoot($root, $sourceFolder);
+            $segments = explode('/', $relative);
+            // Drop the language segment and the page's own folder; what
+            // remains are the ancestor levels.
+            array_shift($segments);
+            array_pop($segments);
+            if ($segments === []) {
+                return 0;
+            }
+
+            $missing = 0;
+            $path = $targetLanguage;
+            foreach ($segments as $segment) {
+                $path .= '/' . $segment;
+                if (!$root->nodeExists($path . '/' . $segment . '.json')) {
+                    $missing++;
+                }
+            }
+            return $missing;
+        } catch (\Throwable $e) {
+            // A hint must never break the language list.
+            return 0;
+        }
+    }
+
+    /**
+     * Pages that could be linked to $pageId as a translation.
+     *
+     * Excludes three sets, each for a reason:
+     *   - the page's own language, since a group holds one page per language;
+     *   - pages already in a group with something else, so linking cannot
+     *     silently steal a page out of an existing set;
+     *   - the page itself.
+     *
+     * Answered from the index, so the picker stays cheap on a large intranet.
+     *
+     * Deliberately NOT re-checked per candidate row: that would cost one
+     * filecache lookup per page in the language (hundreds+), for an
+     * editor-facing dialog. The accepted bound is that ACLs on a SUBFOLDER
+     * within a readable language can still surface a title here — the
+     * language folders themselves are already filtered by the caller's mount
+     * in otherContentLanguages().
+     *
+     * @param array<int, string>   $languages     languages to offer
+     * @param array<string, true>  $takenLanguages languages the group already covers
+     * @return array<int, array{uniqueId:string, title:string, language:string}>
+     */
+    public function candidatesInLanguages(string $pageId, ?string $ownGroup, array $languages, array $takenLanguages): array {
+        $candidates = [];
+        foreach ($languages as $code) {
+            foreach ($this->pageIndexService->getPagesByLanguage($code) as $row) {
+                $uniqueId = (string)($row['unique_id'] ?? '');
+                if ($uniqueId === '' || $uniqueId === $pageId) {
+                    continue;
+                }
+
+                // Already linked to something else — offering it would mean
+                // silently removing it from that group.
+                $group = $row['translation_group'] ?? null;
+                if (!empty($group) && $group !== $ownGroup && $this->hasOtherMembers($group, $uniqueId)) {
+                    continue;
+                }
+
+                // Already a member of THIS page's group — linking it again is a
+                // no-op that only clutters the picker.
+                if (!empty($group) && $group === $ownGroup) {
+                    continue;
+                }
+
+                // The group already holds a version in this candidate's
+                // language: offering it would produce the two-Dutch-versions
+                // ambiguity linkTranslation now refuses. Filter here too, so
+                // the picker never offers something that errors when chosen.
+                if (isset($takenLanguages[$code])) {
+                    continue;
+                }
+
+                $candidates[] = [
+                    'uniqueId' => $uniqueId,
+                    'title' => (string)($row['title'] ?? ''),
+                    'language' => $code,
+                ];
+            }
+        }
+
+        return $candidates;
+    }
 }
