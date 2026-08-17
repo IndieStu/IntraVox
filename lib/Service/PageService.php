@@ -39,19 +39,16 @@ use OCP\Files\Cache\ICacheEntry;
 class PageService {
     private const ALLOWED_WIDGET_TYPES = ['text', 'heading', 'image', 'links', 'divider', 'video', 'news', 'people', 'calendar', 'feed', 'photo-story', 'file-story'];
     private const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'];
-    private const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/webm', 'video/ogg'];
-    private const ALLOWED_MEDIA_TYPES = [
-        'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
-        'video/mp4', 'video/webm', 'video/ogg'
-    ];
     private const ALLOWED_EXTENSIONS = [
         'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',  // Images
         'mp4', 'webm', 'ogg',                         // Videos
     ];
     private const MAX_IMAGE_SIZE = 2097152; // 2MB (PHP default upload limit)
     private const MAX_VIDEO_SIZE = 52428800; // 50MB
-    private const MAX_MEDIA_SIZE = 52428800; // 50MB (largest of image/video limits)
-    private const MAX_SVG_SIZE = 1048576; // 1MB for SVG files (prevent XML bomb attacks)
+    // The media allow-lists and the SVG ceiling moved with the upload paths
+    // (PR-17b); PageMediaService owns them now. Only the overall ceiling is
+    // still read here, by the upload-limit the editor is told about.
+    private const MAX_MEDIA_SIZE = PageMediaService::MAX_MEDIA_SIZE;
     private const MAX_COLUMNS = 5;
     private const DEFAULT_LANGUAGE = 'en';
 
@@ -474,7 +471,11 @@ class PageService {
      */
     private function media(): PageMediaService {
         if (!isset($this->pageMediaService)) {
-            $this->pageMediaService = new PageMediaService($this->locator(), $this->logger);
+            $this->pageMediaService = new PageMediaService(
+                $this->locator(),
+                $this->mediaSanitizer,
+                $this->logger
+            );
         }
         return $this->pageMediaService;
     }
@@ -3379,63 +3380,17 @@ class PageService {
      * Unified endpoint that stores all media in a single '_media' folder
      */
     public function uploadMedia(string $pageId, array $file): string {
-        if (!isset($file['tmp_name']) || !isset($file['name'])) {
-            throw new \InvalidArgumentException('Invalid file upload');
-        }
-
-        // Check if tmp_name is empty (upload failed on server)
-        if (empty($file['tmp_name'])) {
-            $errorCode = $file['error'] ?? -1;
-            $errorMessages = [
-                UPLOAD_ERR_INI_SIZE => 'File exceeds server upload limit',
-                UPLOAD_ERR_FORM_SIZE => 'File exceeds form upload limit',
-                UPLOAD_ERR_PARTIAL => 'File only partially uploaded',
-                UPLOAD_ERR_NO_FILE => 'No file was uploaded',
-                UPLOAD_ERR_NO_TMP_DIR => 'Server missing temporary folder',
-                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-                UPLOAD_ERR_EXTENSION => 'Upload stopped by PHP extension',
-            ];
-            $message = $errorMessages[$errorCode] ?? "Upload failed (error code: $errorCode)";
-            throw new \InvalidArgumentException($message);
-        }
+        // Order matters and is preserved from before the split: the $_FILES
+        // shape check runs first, then the id is sanitized (it can reject an
+        // id too), then the rest of the upload validation.
+        $this->media()->assertUploadShape($file);
 
         $pageId = $this->sanitizeId($pageId);
 
-        // Validate file type
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
-
-        if (!in_array($mimeType, self::ALLOWED_MEDIA_TYPES)) {
-            throw new \InvalidArgumentException('Invalid file type. Allowed: JPEG, PNG, GIF, WebP, SVG, MP4, WebM, OGG');
-        }
-
-        // Validate file size
-        if ($file['size'] > self::MAX_MEDIA_SIZE) {
-            throw new \InvalidArgumentException('File too large. Maximum size is 50MB.');
-        }
-
-        // Additional validation for image files (prevents polyglot attacks)
-        if (in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
-            $this->validateImageFile($file['tmp_name'], $mimeType);
-        }
-
-        // SVG files get special treatment: smaller size limit + sanitization
-        if ($mimeType === 'image/svg+xml') {
-            if ($file['size'] > self::MAX_SVG_SIZE) {
-                throw new \InvalidArgumentException('SVG file too large. Maximum size is 1MB.');
-            }
-            $content = file_get_contents($file['tmp_name']);
-            $content = $this->sanitizeSVG($content);
-        } else {
-            $content = file_get_contents($file['tmp_name']);
-        }
+        $validated = $this->media()->validateUpload($file);
 
         // Sanitize filename with prefix based on type
-        $extension = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
-        $isVideo = in_array($mimeType, self::ALLOWED_VIDEO_TYPES);
-        $prefix = $isVideo ? 'vid_' : 'img_';
-        $filename = uniqid($prefix, true) . '.' . $extension;
+        $filename = $this->media()->generatedMediaFilename($file['name'], $validated['mimeType']);
 
         // Media belongs to the page, so resolve the page across every language
         // folder and upload into the language it actually lives in (issue #92).
@@ -3443,30 +3398,15 @@ class PageService {
         if ($located === null) {
             throw new PageNotFoundException('Page not found: ' . $pageId);
         }
-        $result = $located['result'];
-        $languageFolder = $located['languageFolder'];
 
-        // Get media folder for this page
-        if ($result['isHome'] ?? false) {
-            // Home media is in root/_media/
-            try {
-                $mediaFolder = $languageFolder->get('_media');
-            } catch (NotFoundException $e) {
-                $mediaFolder = $languageFolder->newFolder('_media');
-            }
-        } else {
-            $pageFolder = $result['folder'];
-
-            // Get or create media subfolder
-            try {
-                $mediaFolder = $pageFolder->get('_media');
-            } catch (NotFoundException $e) {
-                $mediaFolder = $pageFolder->newFolder('_media');
-            }
+        // Home media is in root/_media/, other pages in their own folder.
+        $hostFolder = $this->mediaHostFolder($located);
+        if ($hostFolder === null) {
+            throw new PageNotFoundException('Page not found: ' . $pageId);
         }
+        $mediaFolder = $this->media()->mediaFolderFor($hostFolder);
 
-        $newFile = $mediaFolder->newFile($filename);
-        $newFile->putContent($content);
+        $this->media()->writeMediaFile($mediaFolder, $filename, $validated['content'], false);
 
         // Invalidate the per-page content cache so the next getPage()
         // includes the freshly uploaded asset. Without this a save-then-
@@ -3476,6 +3416,24 @@ class PageService {
         $this->clearCache($pageId);
 
         return $filename;
+    }
+
+    /**
+     * The folder whose `_media` holds a located page's media: the page's own
+     * folder, except for the home page, whose media lives in the language
+     * folder's root `_media`.
+     *
+     * Null only when a non-home result carries no folder, which the media
+     * paths already treated as "nothing to read or write here".
+     *
+     * @param array{result: array, languageFolder: \OCP\Files\Folder} $located
+     */
+    private function mediaHostFolder(array $located): ?\OCP\Files\Folder {
+        if ($located['result']['isHome'] ?? false) {
+            return $located['languageFolder'];
+        }
+        $folder = $located['result']['folder'] ?? null;
+        return $folder instanceof \OCP\Files\Folder ? $folder : null;
     }
 
     /**
@@ -3499,30 +3457,8 @@ class PageService {
                 $originalPageId === 'page-2e8f694e-147e-4793-8949-4732e679ae6b') {
 
                 $mediaFolder = $languageFolder->get('_media');
-                $file = $mediaFolder->get($filename);
 
-                if ($file->getType() !== \OCP\Files\FileInfo::TYPE_FILE) {
-                    throw new \Exception('Not a file');
-                }
-
-                // Get mime type (with fallback for incorrect GroupFolder cache)
-                $mimeType = $this->resolveMediaMimeType($file);
-
-                // Validate it's an allowed media type
-                if (!in_array($mimeType, self::ALLOWED_MEDIA_TYPES)) {
-                    throw new \Exception('Invalid media type');
-                }
-
-                // Create stream response
-                $response = new \OCP\AppFramework\Http\StreamResponse($file->fopen('rb'));
-                $response->addHeader('Content-Type', $mimeType);
-                $response->addHeader('Content-Disposition', 'inline; filename="' . $file->getName() . '"');
-                // Use longer cache for images, shorter for videos
-                $isVideo = in_array($mimeType, self::ALLOWED_VIDEO_TYPES);
-                $cacheTime = $isVideo ? 86400 : 31536000;
-                $response->addHeader('Cache-Control', 'public, max-age=' . $cacheTime);
-
-                return $response;
+                return $this->media()->streamMediaFile($mediaFolder, $filename);
             }
 
             // Try cache with BOTH original and sanitized IDs
@@ -3569,60 +3505,10 @@ class PageService {
                 throw new \Exception('Media folder not found');
             }
 
-            $file = $mediaFolder->get($filename);
-
-            if ($file->getType() !== \OCP\Files\FileInfo::TYPE_FILE) {
-                throw new \Exception('Not a file');
-            }
-
-            // Get mime type (with fallback for incorrect GroupFolder cache)
-            $mimeType = $this->resolveMediaMimeType($file);
-
-            // Validate it's an allowed media type
-            if (!in_array($mimeType, self::ALLOWED_MEDIA_TYPES)) {
-                throw new \Exception('Invalid media type');
-            }
-
-            // Create stream response
-            $response = new \OCP\AppFramework\Http\StreamResponse($file->fopen('rb'));
-            $response->addHeader('Content-Type', $mimeType);
-            $response->addHeader('Content-Disposition', 'inline; filename="' . $file->getName() . '"');
-            // Use longer cache for images, shorter for videos
-            $isVideo = in_array($mimeType, self::ALLOWED_VIDEO_TYPES);
-            $cacheTime = $isVideo ? 86400 : 31536000;
-            $response->addHeader('Cache-Control', 'public, max-age=' . $cacheTime);
-
-            return $response;
+            return $this->media()->streamMediaFile($mediaFolder, $filename);
         } catch (NotFoundException $e) {
             throw new \Exception('Media not found');
         }
-    }
-
-    /**
-     * Resolve MIME type for a media file, with extension-based fallback.
-     *
-     * GroupFolders can store incorrect MIME types (application/octet-stream)
-     * in the file cache. When that happens, fall back to extension detection.
-     */
-    private function resolveMediaMimeType(\OCP\Files\File $file): string {
-        $mimeType = $file->getMimeType();
-
-        if ($mimeType === 'application/octet-stream') {
-            $ext = strtolower(pathinfo($file->getName(), PATHINFO_EXTENSION));
-            $mimeType = match ($ext) {
-                'jpg', 'jpeg' => 'image/jpeg',
-                'png' => 'image/png',
-                'gif' => 'image/gif',
-                'webp' => 'image/webp',
-                'svg' => 'image/svg+xml',
-                'mp4' => 'video/mp4',
-                'webm' => 'video/webm',
-                'ogg' => 'video/ogg',
-                default => $mimeType,
-            };
-        }
-
-        return $mimeType;
     }
 
     /**
@@ -6670,37 +6556,10 @@ class PageService {
     }
 
     /**
-     * Sanitize SVG file content to prevent XSS attacks
-     *
-     * Removes: <script>, event handlers, <foreignObject>, DOCTYPE, external refs
-     *
-     * @param string $svgContent Raw SVG file content
-     * @return string Sanitized SVG content
-     * @throws \Exception If SVG is malformed or contains disallowed content
+     * SVG sanitizing and the polyglot image check are no longer reached from
+     * here: the upload paths that called them now validate through
+     * PageMediaService::validateUpload(), which uses the same MediaSanitizer.
      */
-    /**
-     * @deprecated Delegated to MediaSanitizer::sanitizeSVG.
-     */
-    private function sanitizeSVG(string $svgContent): string {
-        return $this->mediaSanitizer->sanitizeSVG($svgContent);
-    }
-
-    /**
-     * Validate image file using getimagesize() to prevent polyglot attacks
-     *
-     * This provides additional security beyond MIME type detection by
-     * actually parsing the image headers.
-     *
-     * @param string $tmpFile Path to temporary uploaded file
-     * @param string $detectedMime MIME type detected by finfo
-     * @throws \InvalidArgumentException If image is invalid or MIME type doesn't match
-     */
-    /**
-     * @deprecated Delegated to MediaSanitizer::validateImageFile.
-     */
-    private function validateImageFile(string $tmpFile, string $detectedMime): void {
-        $this->mediaSanitizer->validateImageFile($tmpFile, $detectedMime);
-    }
 
     /**
      * Check if media file exists in page/_media or _resources folder
@@ -6712,8 +6571,6 @@ class PageService {
      */
     public function checkMediaExists(string $pageId, string $filename, string $targetFolder): bool {
         try {
-            $filename = basename($filename); // Prevent directory traversal
-
             // Must resolve the page exactly as the upload does, or the
             // duplicate check inspects a different folder than the one written
             // to — silently answering "no duplicate" and overwriting nothing,
@@ -6722,44 +6579,13 @@ class PageService {
             if ($located === null) {
                 return false;
             }
-            $result = $located['result'];
-            $languageFolder = $located['languageFolder'];
 
-            if ($targetFolder === 'resources') {
-                // Check in _resources folder
-                try {
-                    $resourcesFolder = $languageFolder->get('_resources');
-                    $resourcesFolder->get($filename);
-                    return true;
-                } catch (NotFoundException $e) {
-                    return false;
-                }
-            } else {
-
-                // Get media folder
-                if ($result['isHome'] ?? false) {
-                    try {
-                        $mediaFolder = $languageFolder->get('_media');
-                    } catch (NotFoundException $e) {
-                        return false;
-                    }
-                } else {
-                    $pageFolder = $result['folder'];
-                    try {
-                        $mediaFolder = $pageFolder->get('_media');
-                    } catch (NotFoundException $e) {
-                        return false;
-                    }
-                }
-
-                // Check if file exists
-                try {
-                    $mediaFolder->get($filename);
-                    return true;
-                } catch (NotFoundException $e) {
-                    return false;
-                }
-            }
+            return $this->media()->mediaExists(
+                $this->mediaHostFolder($located),
+                $located['languageFolder'],
+                $filename,
+                $targetFolder
+            );
         } catch (\Exception $e) {
             return false;
         }
@@ -6776,55 +6602,7 @@ class PageService {
      * @throws \Exception On upload failure or if file exists and overwrite is false
      */
     public function uploadMediaWithOriginalName(string $pageId, array $file, string $targetFolder, bool $overwrite = false): array {
-        if (!isset($file['tmp_name']) || !isset($file['name'])) {
-            throw new \InvalidArgumentException('Invalid file upload');
-        }
-
-        // Check if tmp_name is empty (upload failed on server)
-        if (empty($file['tmp_name'])) {
-            $errorCode = $file['error'] ?? -1;
-            $errorMessages = [
-                UPLOAD_ERR_INI_SIZE => 'File exceeds server upload limit',
-                UPLOAD_ERR_FORM_SIZE => 'File exceeds form upload limit',
-                UPLOAD_ERR_PARTIAL => 'File only partially uploaded',
-                UPLOAD_ERR_NO_FILE => 'No file was uploaded',
-                UPLOAD_ERR_NO_TMP_DIR => 'Server missing temporary folder',
-                UPLOAD_ERR_CANT_WRITE => 'Failed to write file to disk',
-                UPLOAD_ERR_EXTENSION => 'Upload stopped by PHP extension',
-            ];
-            $message = $errorMessages[$errorCode] ?? "Upload failed (error code: $errorCode)";
-            throw new \InvalidArgumentException($message);
-        }
-
-        // Validate file type
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mimeType = finfo_file($finfo, $file['tmp_name']);
-        finfo_close($finfo);
-
-        if (!in_array($mimeType, self::ALLOWED_MEDIA_TYPES)) {
-            throw new \InvalidArgumentException('Invalid file type. Allowed: JPEG, PNG, GIF, WebP, SVG, MP4, WebM, OGG');
-        }
-
-        // Validate file size
-        if ($file['size'] > self::MAX_MEDIA_SIZE) {
-            throw new \InvalidArgumentException('File too large. Maximum size is 50MB.');
-        }
-
-        // Additional validation for image files (prevents polyglot attacks)
-        if (in_array($mimeType, ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
-            $this->validateImageFile($file['tmp_name'], $mimeType);
-        }
-
-        // SVG files get special treatment: smaller size limit + sanitization
-        if ($mimeType === 'image/svg+xml') {
-            if ($file['size'] > self::MAX_SVG_SIZE) {
-                throw new \InvalidArgumentException('SVG file too large. Maximum size is 1MB.');
-            }
-            $content = file_get_contents($file['tmp_name']);
-            $content = $this->sanitizeSVG($content);
-        } else {
-            $content = file_get_contents($file['tmp_name']);
-        }
+        $validated = $this->media()->validateUpload($file);
 
         // Sanitize original filename
         $filename = $this->sanitizeFilename($file['name']);
@@ -6841,49 +6619,25 @@ class PageService {
         if ($located === null) {
             throw new PageNotFoundException('Page not found: ' . $pageId);
         }
-        $result = $located['result'];
-        $languageFolder = $located['languageFolder'];
 
         // Get target folder based on targetFolder parameter
         if ($targetFolder === 'resources') {
-            // Upload to _resources folder — the shared library of the page's
-            // own language, so the asset lands where that page can serve it.
-            try {
-                $uploadFolder = $languageFolder->get('_resources');
-            } catch (NotFoundException $e) {
-                $uploadFolder = $languageFolder->newFolder('_resources');
-            }
+            $uploadFolder = $this->media()->resourcesFolderFor($located['languageFolder']);
         } else {
-            // Get media folder for this page
-            if ($result['isHome'] ?? false) {
-                // Home media is in root/_media/
-                try {
-                    $uploadFolder = $languageFolder->get('_media');
-                } catch (NotFoundException $e) {
-                    $uploadFolder = $languageFolder->newFolder('_media');
-                }
-            } else {
-                $pageFolder = $result['folder'];
-
-                // Get or create media subfolder
-                try {
-                    $uploadFolder = $pageFolder->get('_media');
-                } catch (NotFoundException $e) {
-                    $uploadFolder = $pageFolder->newFolder('_media');
-                }
+            $hostFolder = $this->mediaHostFolder($located);
+            if ($hostFolder === null) {
+                throw new PageNotFoundException('Page not found: ' . $pageId);
             }
+            $uploadFolder = $this->media()->mediaFolderFor($hostFolder);
         }
 
         // Upload file (content already sanitized for SVG)
-        if ($fileExists && $overwrite) {
-            // Overwrite existing file
-            $existingFile = $uploadFolder->get($filename);
-            $existingFile->putContent($content);
-        } else {
-            // Create new file
-            $newFile = $uploadFolder->newFile($filename);
-            $newFile->putContent($content);
-        }
+        $this->media()->writeMediaFile(
+            $uploadFolder,
+            $filename,
+            $validated['content'],
+            $fileExists && $overwrite
+        );
 
         // Invalidate the per-page content cache so the next getPage()
         // reflects the new media file. See uploadMedia() for context.
@@ -6914,92 +6668,13 @@ class PageService {
             if ($located === null) {
                 return [];
             }
-            $languageFolder = $located['languageFolder'];
-            $result = $located['result'];
-            $mediaFiles = [];
 
-            if ($folderType === 'resources') {
-                // List files in _resources folder
-                try {
-                    $resourcesFolder = $languageFolder->get('_resources');
-
-                    // Navigate to subfolder if path provided
-                    $targetFolder = $resourcesFolder;
-                    if (!empty($subPath)) {
-                        $subPath = trim($subPath, '/');
-                        $targetFolder = $resourcesFolder->get($subPath);
-                    }
-
-                    $files = $targetFolder->getDirectoryListing();
-
-                    foreach ($files as $file) {
-                        $relativePath = $this->getRelativePath($file, $resourcesFolder);
-
-                        if ($file->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                            // It's a folder
-                            $mediaFiles[] = [
-                                'type' => 'folder',
-                                'name' => $file->getName(),
-                                'path' => $relativePath,
-                                'modified' => $file->getMTime()
-                            ];
-                        } else {
-                            // It's a file
-                            $mediaFiles[] = [
-                                'type' => 'file',
-                                'name' => $file->getName(),
-                                'path' => $relativePath,
-                                'size' => $file->getSize(),
-                                'mimeType' => $file->getMimetype(),
-                                'modified' => $file->getMTime()
-                            ];
-                        }
-                    }
-                } catch (NotFoundException $e) {
-                    // _resources folder or subfolder doesn't exist
-                    return [];
-                }
-            } else {
-                // List files in page/_media folder — $result was already
-                // resolved cross-language above.
-
-                // Get media folder
-                if ($result['isHome'] ?? false) {
-                    try {
-                        $mediaFolder = $languageFolder->get('_media');
-                    } catch (NotFoundException $e) {
-                        return [];
-                    }
-                } else {
-                    $pageFolder = $result['folder'];
-                    try {
-                        $mediaFolder = $pageFolder->get('_media');
-                    } catch (NotFoundException $e) {
-                        return [];
-                    }
-                }
-
-                // List files
-                $files = $mediaFolder->getDirectoryListing();
-                foreach ($files as $file) {
-                    if ($file->getType() === \OCP\Files\FileInfo::TYPE_FILE) {
-                        $mediaFiles[] = [
-                            'name' => $file->getName(),
-                            'size' => $file->getSize(),
-                            'mimeType' => $file->getMimetype(),
-                            'modified' => $file->getMTime()
-                        ];
-                    }
-                }
-            }
-
-            // Sort by name
-            usort($mediaFiles, function($a, $b) {
-                return strcmp($a['name'], $b['name']);
-            });
-
-            return $mediaFiles;
-
+            return $this->media()->listMedia(
+                $this->mediaHostFolder($located),
+                $located['languageFolder'],
+                $folderType,
+                $subPath
+            );
         } catch (\Exception $e) {
             return [];
         }
@@ -7053,27 +6728,7 @@ class PageService {
      * Kept separate so the cross-language walk above reads as a walk.
      */
     private function findResourceIn(\OCP\Files\Folder $languageFolder, string $path): ?\OCP\Files\Node {
-        $resourcesFolder = $this->folderOrNull($languageFolder, '_resources');
-        if ($resourcesFolder === null) {
-            return null;
-        }
-        try {
-            return $resourcesFolder->get($path);
-        } catch (NotFoundException $e) {
-            return null;
-        }
-    }
-
-    /**
-     * Get relative path from resources root
-     * @param \OCP\Files\Node $node File or folder node
-     * @param \OCP\Files\Folder $resourcesRoot _resources folder root
-     * @return string Relative path (e.g., "logos/company.png")
-     */
-    private function getRelativePath(\OCP\Files\Node $node, \OCP\Files\Folder $resourcesRoot): string {
-        $fullPath = $node->getPath();
-        $rootPath = $resourcesRoot->getPath();
-        return ltrim(substr($fullPath, strlen($rootPath)), '/');
+        return $this->media()->findResourceIn($languageFolder, $path);
     }
 
     /**
