@@ -12,6 +12,7 @@ use OCA\IntraVox\Exception\PageConflictException;
 use OCA\IntraVox\Exception\PageNotFoundException;
 use OCA\IntraVox\Service\GroupContextService;
 use OCA\IntraVox\Service\News\NewsContentExtractor;
+use OCA\IntraVox\Service\News\NewsPageService;
 use OCA\IntraVox\Service\Path\PagePathHelper;
 use OCA\IntraVox\Service\Sanitize\ColorSanitizer;
 use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
@@ -364,6 +365,7 @@ class PageService {
     private PageLocator $pageLocator;
     private TranslationGroupService $translationGroupService;
     private PageMediaService $pageMediaService;
+    private NewsPageService $newsPageService;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -394,6 +396,7 @@ class PageService {
         PageLocator $pageLocator,
         TranslationGroupService $translationGroupService,
         PageMediaService $pageMediaService,
+        NewsPageService $newsPageService,
         IAppManager $appManager,
         ?string $userId
     ) {
@@ -424,6 +427,7 @@ class PageService {
         $this->pageLocator = $pageLocator;
         $this->translationGroupService = $translationGroupService;
         $this->pageMediaService = $pageMediaService;
+        $this->newsPageService = $newsPageService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
 
@@ -478,6 +482,22 @@ class PageService {
             );
         }
         return $this->pageMediaService;
+    }
+
+    /**
+     * The News widget's collect/filter engine. Same lazy seam convention as
+     * locator() for the constructor-less test subclasses.
+     */
+    private function news(): NewsPageService {
+        if (!isset($this->newsPageService)) {
+            $this->newsPageService = new NewsPageService(
+                $this->locator(),
+                $this->permissionService,
+                $this->newsContent,
+                $this->logger
+            );
+        }
+        return $this->newsPageService;
     }
 
     /**
@@ -6827,46 +6847,10 @@ class PageService {
 
         // Add the selected source page itself to the results (if sourcePageId was provided)
         if ($sourcePageData !== null && isset($sourcePageData['file'])) {
-            try {
-                $content = $sourcePageData['file']->getContent();
-                $data = json_decode($content, true);
-
-                if ($data && isset($data['uniqueId'], $data['title'])) {
-                    // Get folder permissions
-                    $folderPerms = $this->permissionService->getNodePermissions($sourcePageData['folder']);
-
-                    // Only add if user can read
-                    if (($folderPerms & 1) !== 0) {
-                        $excerpt = $this->getPageExcerpt($data, 150);
-                        $imageData = $this->getPageFirstImage($data);
-                        $imagePath = null;
-                        if ($imageData) {
-                            if (($imageData['mediaFolder'] ?? 'page') === 'resources') {
-                                $imagePath = '/apps/intravox/api/resources/media/' . $imageData['src'];
-                            } else {
-                                $imagePath = '/apps/intravox/api/pages/' . $data['uniqueId'] . '/media/' . $imageData['src'];
-                            }
-                        }
-
-                        $newsItem = [
-                            'uniqueId' => $data['uniqueId'],
-                            'title' => $data['title'],
-                            'status' => $data['status'] ?? 'published',
-                            'excerpt' => $excerpt,
-                            'image' => $imageData ? $imageData['src'] : null,
-                            'imagePath' => $imagePath,
-                            'modified' => $sourcePageData['file']->getMTime(),
-                            'modifiedFormatted' => $this->formatDateLocalized($sourcePageData['file']->getMTime(), $language),
-                            'path' => $sourcePageData['folder']->getPath(),
-                            'fileId' => $sourcePageData['file']->getId(),
-                        ];
-
-                        // Add to beginning of pages array (it's the "parent" page)
-                        array_unshift($pages, $newsItem);
-                    }
-                }
-            } catch (\Exception $e) {
-                $this->logger->debug('News widget: Could not add source page to results', ['error' => $e->getMessage()]);
+            $newsItem = $this->news()->buildSourcePageItem($sourcePageData, $language);
+            if ($newsItem !== null) {
+                // Add to beginning of pages array (it's the "parent" page)
+                array_unshift($pages, $newsItem);
             }
         }
 
@@ -6884,19 +6868,7 @@ class PageService {
 
         $total = count($pages);
 
-        // Sort pages
-        usort($pages, function($a, $b) use ($sortBy, $sortOrder) {
-            if ($sortBy === 'title') {
-                $cmp = strcasecmp($a['title'] ?? '', $b['title'] ?? '');
-            } else {
-                // Default: sort by modified
-                $cmp = ($a['modified'] ?? 0) - ($b['modified'] ?? 0);
-            }
-            return $sortOrder === 'asc' ? $cmp : -$cmp;
-        });
-
-        // Limit results
-        $pages = array_slice($pages, 0, $limit);
+        $pages = $this->news()->sortAndLimit($pages, $sortBy, $sortOrder, $limit);
 
         $result = [
             'items' => $pages,
@@ -6920,109 +6892,13 @@ class PageService {
      * @param int $maxCollect Hard cap on items to collect (0 = unlimited)
      */
     private function findNewsPagesInFolder($folder, array &$pages, string $language, int $maxCollect = 0): void {
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            // Early-exit when we have collected enough items
-            if ($maxCollect > 0 && count($pages) >= $maxCollect) {
-                return;
-            }
-            if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER) {
-                continue;
-            }
-
-            $folderName = $item->getName();
-
-            // Skip special folders
-            if (PagePathHelper::isInfrastructureFolder($folderName)) {
-                continue;
-            }
-
-            // Look for {foldername}.json inside the folder
-            try {
-                $jsonFile = $item->get($folderName . '.json');
-
-                if (!$jsonFile->isReadable()) {
-                    continue;
-                }
-
-                $content = $jsonFile instanceof \OCP\Files\File
-                    ? $this->getCachedFileContent($jsonFile)
-                    : @$jsonFile->getContent();
-
-                if ($content === false || $content === null) {
-                    continue;
-                }
-
-                $data = json_decode($content, true);
-
-                if ($data && isset($data['uniqueId'], $data['title'])) {
-                    // Get folder permissions
-                    $folderPerms = $this->permissionService->getNodePermissions($item);
-
-                    // Skip if user can't read
-                    if (($folderPerms & 1) === 0) {
-                        continue;
-                    }
-
-                    // Extract excerpt from first text widget
-                    $excerpt = $this->getPageExcerpt($data, 150);
-
-                    // Find first image
-                    $imageData = $this->getPageFirstImage($data);
-                    $imagePath = null;
-                    if ($imageData) {
-                        if (($imageData['mediaFolder'] ?? 'page') === 'resources') {
-                            $imagePath = '/apps/intravox/api/resources/media/' . $imageData['src'];
-                        } else {
-                            $imagePath = '/apps/intravox/api/pages/' . $data['uniqueId'] . '/media/' . $imageData['src'];
-                        }
-                    }
-
-                    // Build relative path
-                    $relativePath = $this->getRelativePathFromRoot($item);
-
-                    // Get file modification time
-                    $modified = $jsonFile->getMTime();
-
-                    // Format modified date in user's locale
-                    $modifiedFormatted = $this->formatDateLocalized($modified, $language);
-
-                    $pages[] = [
-                        'uniqueId' => $data['uniqueId'],
-                        'title' => $data['title'],
-                        // Needed by the publication gate: without it every item
-                        // looked "published" and drafts leaked into News lists.
-                        'status' => $data['status'] ?? 'published',
-                        'excerpt' => $excerpt,
-                        'image' => $imageData ? $imageData['src'] : null,
-                        'imagePath' => $imagePath,
-                        'modified' => $modified,
-                        'modifiedFormatted' => $modifiedFormatted,
-                        'path' => $relativePath,
-                        'fileId' => $jsonFile->getId(),
-                        'permissions' => [
-                            'canRead' => ($folderPerms & 1) !== 0,
-                            // AND with the node capability so a read-only GroupFolder
-                            // member is reported correctly (issue #70), consistent
-                            // with permissionsFromNode().
-                            'canWrite' => ($folderPerms & 2) !== 0 && $item->isUpdateable(),
-                            'raw' => $folderPerms
-                        ]
-                    ];
-                }
-            } catch (\Exception $e) {
-                // This folder doesn't contain a valid page
-            } catch (\Throwable $e) {
-                continue;
-            }
-
-            // Recursively search subfolders
-            $this->findNewsPagesInFolder($item, $pages, $language, $maxCollect);
-
-            // Re-check limit after recursion to avoid scanning more siblings
-            if ($maxCollect > 0 && count($pages) >= $maxCollect) {
-                return;
-            }
-        }
+        $this->news()->findNewsPagesInFolder(
+            $this->getIntraVoxFolder(),
+            $folder,
+            $pages,
+            $language,
+            $maxCollect
+        );
     }
 
     /**
@@ -7077,121 +6953,12 @@ class PageService {
             return $pages;
         }
 
-        // Get file IDs from pages
-        $fileIds = array_filter(array_column($pages, 'fileId'));
-        if (empty($fileIds)) {
-            return $pages;
-        }
-
-        // Fetch MetaVox data for all file IDs
-        $metaVoxData = $this->getMetaVoxDataForFiles($fileIds);
-
-        // Filter pages based on MetaVox values
-        return array_filter($pages, function($page) use ($filters, $operator, $metaVoxData) {
-            $fileId = $page['fileId'] ?? null;
-            if (!$fileId) {
-                return $operator === 'OR'; // No fileId = no match for AND, possible match for OR
-            }
-
-            $meta = $metaVoxData[$fileId] ?? [];
-            $results = [];
-
-            foreach ($filters as $filter) {
-                $fieldName = $filter['fieldName'] ?? '';
-                $filterOperator = $filter['operator'] ?? 'equals';
-                $filterValue = $filter['value'] ?? '';
-                $filterValues = $filter['values'] ?? [];
-                $actualValue = $meta[$fieldName] ?? null;
-
-                // Use values array for operators that work with multiple values
-                if (in_array($filterOperator, ['in', 'contains', 'contains_all']) && !empty($filterValues)) {
-                    $filterValue = $filterValues;
-                }
-
-                $results[] = $this->matchesFilter($actualValue, $filterOperator, $filterValue);
-            }
-
-            if (empty($results)) {
-                return true;
-            }
-
-            return $operator === 'AND'
-                ? !in_array(false, $results, true)
-                : in_array(true, $results, true);
-        });
-    }
-
-    /**
-     * Check if a value matches a filter
-     */
-    private function matchesFilter($value, string $operator, $filterValue): bool {
-        switch ($operator) {
-            // Text/general operators
-            case 'equals':
-                return $value === $filterValue;
-            case 'contains':
-                if (is_array($value)) {
-                    // For multiselect: check if filterValue is in the array
-                    return in_array($filterValue, $value);
-                }
-                return is_string($value) && str_contains($value, $filterValue);
-            case 'not_contains':
-                if (is_array($value)) {
-                    return !in_array($filterValue, $value);
-                }
-                return is_string($value) && !str_contains($value, $filterValue);
-            case 'in':
-                $allowedValues = is_array($filterValue) ? $filterValue : [$filterValue];
-                return in_array($value, $allowedValues);
-            case 'not_empty':
-                return !empty($value);
-            case 'empty':
-                return empty($value);
-
-            // Date operators
-            case 'before':
-                $dateValue = $this->parseDate($value);
-                $dateFilter = $this->parseDate($filterValue);
-                if (!$dateValue || !$dateFilter) return false;
-                return $dateValue < $dateFilter;
-            case 'after':
-                $dateValue = $this->parseDate($value);
-                $dateFilter = $this->parseDate($filterValue);
-                if (!$dateValue || !$dateFilter) return false;
-                return $dateValue > $dateFilter;
-
-            // Number operators
-            case 'greater_than':
-                if (!is_numeric($value) || !is_numeric($filterValue)) return false;
-                return (float)$value > (float)$filterValue;
-            case 'less_than':
-                if (!is_numeric($value) || !is_numeric($filterValue)) return false;
-                return (float)$value < (float)$filterValue;
-            case 'greater_or_equal':
-                if (!is_numeric($value) || !is_numeric($filterValue)) return false;
-                return (float)$value >= (float)$filterValue;
-            case 'less_or_equal':
-                if (!is_numeric($value) || !is_numeric($filterValue)) return false;
-                return (float)$value <= (float)$filterValue;
-
-            // Checkbox operators
-            case 'is_true':
-                return $value === true || $value === 'true' || $value === '1' || $value === 1;
-            case 'is_false':
-                return $value === false || $value === 'false' || $value === '0' || $value === 0 || $value === '';
-
-            // Multiselect operators
-            case 'contains_all':
-                if (!is_array($value)) return false;
-                $requiredValues = is_array($filterValue) ? $filterValue : [$filterValue];
-                foreach ($requiredValues as $required) {
-                    if (!in_array($required, $value)) return false;
-                }
-                return true;
-
-            default:
-                return false;
-        }
+        return $this->news()->applyMetaVoxFilters(
+            $pages,
+            $filters,
+            $operator,
+            fn(array $fileIds): array => $this->getMetaVoxDataForFiles($fileIds)
+        );
     }
 
     /**
@@ -7204,24 +6971,13 @@ class PageService {
      * @return array Filtered pages that are currently published
      */
     private function applyPublicationDateFilter(array $pages): array {
-        // Delegate to the shared, time-aware publication gate so a News list uses
-        // exactly the same definition of "published" as the rest of the app
-        // (this also fixes the earlier date-only comparison where "today 03:25"
-        // already counted as published). A page is kept only when it is
-        // effectively published right now — which includes hiding manual drafts,
-        // even when no publication date fields are configured or MetaVox is
-        // absent. Previously this returned early in those cases, so "show only
-        // published pages" let drafts through.
-        $metaVoxData = $this->publicationMetaForFiles(array_column($pages, 'fileId'));
-
-        return array_values(array_filter($pages, function($page) use ($metaVoxData) {
-            $fileId = $page['fileId'] ?? null;
-            // Without a fileId we cannot look up dates, but the page's own
-            // draft/published status is still authoritative — don't let a draft
-            // through just because its metadata is unavailable.
-            $meta = $fileId ? ($metaVoxData[$fileId] ?? []) : [];
-            return $this->effectivePublishState($page, $meta) === 'published';
-        }));
+        // The gate itself stays here — the tree, search and single-page reads
+        // share it — and is handed to the news service as callables.
+        return $this->news()->applyPublicationDateFilter(
+            $pages,
+            fn(array $fileIds): array => $this->publicationMetaForFiles($fileIds),
+            fn(array $page, array $meta): string => $this->effectivePublishState($page, $meta)
+        );
     }
 
     /**
@@ -7432,45 +7188,10 @@ class PageService {
     }
 
     /**
-     * Parse a date string to Y-m-d format for comparison
-     *
-     * @param string $dateStr Date string in various formats
-     * @return string|null Normalized date in Y-m-d format, or null if parsing failed
+     * The date-only parser used by the MetaVox filter operators moved to
+     * NewsPageService with matchesFilter(), its only caller. The publication
+     * paths here use the time-aware parseDateTime() above instead.
      */
-    private function parseDate(string $dateStr): ?string {
-        if (empty($dateStr)) {
-            return null;
-        }
-
-        $dateStr = trim($dateStr);
-
-        // Try common date formats
-        $formats = [
-            'Y-m-d',        // ISO format: 2025-01-15
-            'd-m-Y',        // European: 15-01-2025
-            'm/d/Y',        // US: 01/15/2025
-            'd/m/Y',        // European with slash: 15/01/2025
-            'Y/m/d',        // Alternative ISO: 2025/01/15
-            'Y-m-d H:i:s',  // ISO with time: 2025-01-15 14:30:00
-            'd-m-Y H:i:s',  // European with time
-            'Y-m-d\TH:i:s', // ISO 8601: 2025-01-15T14:30:00
-        ];
-
-        foreach ($formats as $format) {
-            $date = \DateTime::createFromFormat($format, $dateStr);
-            if ($date !== false) {
-                return $date->format('Y-m-d');
-            }
-        }
-
-        // Try strtotime as fallback for natural language dates
-        $timestamp = strtotime($dateStr);
-        if ($timestamp !== false) {
-            return date('Y-m-d', $timestamp);
-        }
-
-        return null;
-    }
 
     /**
      * Public batch accessor for MetaVox fields, so list-context callers (page
@@ -7676,19 +7397,7 @@ class PageService {
      * Format a timestamp in a localized date format
      */
     private function formatDateLocalized(int $timestamp, string $language): string {
-        $months = [
-            'nl' => ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'],
-            'en' => ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
-            'de' => ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'],
-            'fr' => ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'],
-        ];
-
-        $monthNames = $months[$language] ?? $months['en'];
-        $monthIndex = (int)date('n', $timestamp) - 1;
-        $day = date('j', $timestamp);
-        $year = date('Y', $timestamp);
-
-        return "$day {$monthNames[$monthIndex]} $year";
+        return $this->news()->formatDateLocalized($timestamp, $language);
     }
 
     /**
@@ -7696,69 +7405,14 @@ class PageService {
      * Returns top-level folders in the language folder that contain pages
      */
     public function getNewsSourcFolders(): array {
-        $folder = $this->getLanguageFolder();
-        $folders = [];
-
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            if ($item->getType() !== \OCP\Files\FileInfo::TYPE_FOLDER) {
-                continue;
-            }
-
-            $folderName = $item->getName();
-
-            // Skip special folders
-            if (PagePathHelper::isInfrastructureFolder($folderName)) {
-                continue;
-            }
-
-            // Check if this folder contains any pages
-            if ($this->folderContainsPages($item)) {
-                $folders[] = [
-                    'path' => $folderName,
-                    'name' => $folderName,
-                ];
-            }
-        }
-
-        // Sort alphabetically
-        usort($folders, function($a, $b) {
-            return strcasecmp($a['name'], $b['name']);
-        });
-
-        return $folders;
+        return $this->news()->getSourceFolders($this->getLanguageFolder());
     }
 
     /**
      * Check if a folder contains any pages (recursively)
      */
     private function folderContainsPages($folder): bool {
-        $folderName = $folder->getName();
-
-        // Check if this folder itself is a page
-        try {
-            $folder->get($folderName . '.json');
-            return true;
-        } catch (NotFoundException $e) {
-            // Not a page folder
-        }
-
-        // Check subfolders
-        foreach ($this->getCachedDirectoryListing($folder) as $item) {
-            if ($item->getType() === \OCP\Files\FileInfo::TYPE_FOLDER) {
-                $subFolderName = $item->getName();
-
-                // Skip special folders
-                if (PagePathHelper::isInfrastructureFolder($subFolderName)) {
-                    continue;
-                }
-
-                if ($this->folderContainsPages($item)) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
+        return $this->news()->folderContainsPages($folder);
     }
 
     // =========================================================================
