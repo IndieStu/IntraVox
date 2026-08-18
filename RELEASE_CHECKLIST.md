@@ -100,6 +100,9 @@ Since v1.6.0, IntraVox translations come from Transifex (`o:nextcloud:p:nextclou
   git push github main     # the Nextcloud bot reads the POT from GitHub only
   ```
   The bot then ingests the POT and **deletes it** in its next `fix(l10n)` commit — that delete is **normal**; the POT is a transient handoff file, the durable record is the manifest. Translators now have the strings, with lead time.
+- **Never commit the manifest ahead of the code that uses the strings.** The guard compares manifest against code *per commit*, not across a series, so an l10n commit that lands before its feature commit fails CI — and reports the new strings as **removed** (manifest has them, code does not yet), which reads as the exact opposite of what happened. `main` goes red until the next commit repairs it.
+
+  Commit the feature first and the manifest second, or put both in one commit. This is only about ordering within a push; the rule above still stands: the strings go to Transifex the same day, not at release time.
 - **Runtime source of truth is the bot's paired `l10n/<lang>.{js,json}` files.** Never hand-edit them. **Never run `npm run l10n:generate-js`** to "reconcile" with the bot — it regenerates `.js` from `.json` and silently drops any string missing from `.json`, desyncing the pair. That script exists only for genuine first-time/local generation. (There is intentionally no bare `npm run l10n` any more — it was the footgun that caused this.)
 - Do **not** switch POT generation to `translationtool.phar`/bare `xgettext` — xgettext does not parse Vue templates and drops ~700 frontend strings. The `l10n/en.json` extractor (`scripts/extract-en-json.js`) scans both `src/**` and `lib/**`, so it is the complete source for frontend + PHP.
 
