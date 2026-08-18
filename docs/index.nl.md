@@ -58,6 +58,14 @@ Technische documentatie voor integratie, evaluatie en bijdrage.
 - [Template API quickstart](architecture/template-api-quickstart.md) — Template-API in 5 minuten
 - [OpenAPI-tooling](architecture/openapi-tooling.md) — OpenAPI-specs genereren en valideren
 
+#### Architectuur-overwegingen
+
+Ontwerpbeslissingen en vergelijkingen die het product vormgeven.
+
+- [Nextcloud-native architectuur](architecture/considerations/nextcloud-native-architecture.md) — Waarom "pagina = map" enterprise-features van Nextcloud erft
+- [Collectives-vergelijking](architecture/considerations/collectives-comparison.md) — Hoe IntraVox zich verhoudt tot Nextcloud Collectives
+- [SharePoint-vergelijking](architecture/considerations/sharepoint-comparison.nl.md) — Mapping voor beslissers tussen SharePoint Online moderne pagina's en IntraVox, inclusief soevereiniteit en wetgeving
+
 ## Aan de slag
 
 Nieuw bij IntraVox? Start met de [snelstart-gids](getting-started.md) voor een per-rol quickstart.

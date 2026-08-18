@@ -64,6 +64,7 @@ Design decisions and comparisons that shape the product.
 
 - [Nextcloud-Native Architecture](architecture/considerations/nextcloud-native-architecture.md) — Why "page = folder" inherits enterprise features from Nextcloud
 - [Collectives Comparison](architecture/considerations/collectives-comparison.md) — How IntraVox compares to Nextcloud Collectives
+- [SharePoint Comparison](architecture/considerations/sharepoint-comparison.md) — Decision-maker mapping between SharePoint Online modern pages and IntraVox, including sovereignty and legislation
 - [OpenMetrics](architecture/considerations/openmetrics.md) — OpenMetrics exposition considerations
 - [Versioning](architecture/considerations/versioning.md) — Versioning design decisions
 
