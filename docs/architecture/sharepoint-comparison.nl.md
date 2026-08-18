@@ -33,7 +33,7 @@ Voor lezers die SharePoint kennen: zo vertalen de concepten zich naar IntraVox.
 | SharePoint Online | IntraVox | Toelichting |
 |-------------------|----------|-------------|
 | Communication site | IntraVox-instance / top-level paginaboom | IntraVox is broadcast-georiënteerd, zoals een communication site |
-| Site page (moderne pagina) | Pagina | In IntraVox is een pagina een map met een JSON-bestand — zie [Nextcloud-native architectuur](nextcloud-native-architecture.md) |
+| Site page (moderne pagina) | Pagina | In IntraVox is een pagina een map met een JSON-bestand — zie [Architectuur-overzicht](overview.nl.md) |
 | Web part | Widget | Zelfde bouwblok-model |
 | Sectie-layouts (1–3 kolommen, verticale sectie) | Rijen, kolommen en zijkolommen | Inclusief inklapbare secties |
 | Site-navigatie / megamenu | Navigatie-editor met megamenu | Plus breadcrumbs en een paginaboom |
@@ -68,8 +68,8 @@ Voor lezers die SharePoint kennen: zo vertalen de concepten zich naar IntraVox.
 | Paginaplanning | Publiceren op / Verlopen op | IntraVox ondersteunt ook een vervaldatum |
 | Check-out | Page locking | Voorkomt gelijktijdig bewerken |
 | Versiegeschiedenis | Paginaversiebeheer | Geërfd van Nextcloud Files-versies; preview en herstel |
-| Pagina-goedkeuring (Power Automate) | Approval-workflow-scenario | Zie [Scenario's](../../admin/scenarios.nl.md) — op basis van GroupFolder-ACL, geen aparte workflow-engine |
-| Comments en likes | Engagement: comments en reacties | Per instance configureerbaar; zie [Engagement](../../admin/engagement.nl.md) |
+| Pagina-goedkeuring (Power Automate) | Approval-workflow-scenario | Zie [Scenario's](../admin/scenarios.nl.md) — op basis van GroupFolder-ACL, geen aparte workflow-engine |
+| Comments en likes | Engagement: comments en reacties | Per instance configureerbaar; zie [Engagement](../admin/engagement.nl.md) |
 | News digest / auto-news | Persoonlijke RSS-feeds met token-authenticatie | Ander mechanisme, zelfde doel: op de hoogte blijven |
 | Delen met externe gebruikers | Publiek delen met link-tokens | Anonieme paginadeling |
 
@@ -77,11 +77,11 @@ Voor lezers die SharePoint kennen: zo vertalen de concepten zich naar IntraVox.
 
 | SharePoint Online | IntraVox | Toelichting |
 |-------------------|----------|-------------|
-| Site owner / member / visitor | Admin / Manager / Editor / User | Zie [Autorisatie](../../admin/authorization.nl.md) |
+| Site owner / member / visitor | Admin / Manager / Editor / User | Zie [Autorisatie](../admin/authorization.nl.md) |
 | Rechten op item- en bibliotheekniveau | GroupFolder-ACL per map/pagina | Fijnmazig, groepsgebaseerd |
 | Audience targeting | ACL-gebaseerde zichtbaarheid | Andere filosofie: IntraVox beperkt *toegang*, SharePoint filtert *presentatie* — met ACL kunnen onbevoegden de content überhaupt niet zien |
 | Microsoft Search | Nextcloud unified search | Pagina's worden geïndexeerd zoals andere Nextcloud-content |
-| Microsoft Graph / SharePoint REST API | IntraVox REST API (OpenAPI) | Zie [API-referentie](../api-reference.nl.md) |
+| Microsoft Graph / SharePoint REST API | IntraVox REST API (OpenAPI) | Zie [API-referentie](api-reference.nl.md) |
 | Purview (retentie, DLP, audit) | Nextcloud audit-log, retentie- en workflow-apps | 🟡 Deels — Nextcloud biedt bouwstenen, geen geïntegreerde compliance-suite |
 | Migratie-tooling | Confluence-import, ZIP-export/-import, MetaVox-metadata | SharePoint-pagina-import is niet ingebouwd; de Feed-widget kan tijdens de overgang SharePoint-feeds tonen |
 
@@ -176,11 +176,10 @@ De echte keuze is architecturaal: **een feature-rijk platform in andermans juris
 ## Referenties
 
 **IntraVox-documentatie**
-- [Nextcloud-native architectuur](nextcloud-native-architecture.md) — waarom "pagina = map" enterprise-features van Nextcloud erft
-- [Autorisatie](../../admin/authorization.nl.md) — rollen, permissies, GroupFolder-ACL
-- [Beveiliging](../../admin/security.nl.md) — beveiligingsmodel en sanitization-lagen
-- [Export & Import](../../admin/export-import.nl.md) — exitstrategie in de praktijk
-- [Collectives-vergelijking](collectives-comparison.md) — zustervergelijking binnen het Nextcloud-ecosysteem
+- [Architectuur-overzicht](overview.nl.md) — hoe IntraVox pagina's als mappen in Nextcloud opslaat
+- [Autorisatie](../admin/authorization.nl.md) — rollen, permissies, GroupFolder-ACL
+- [Beveiliging](../admin/security.nl.md) — beveiligingsmodel en sanitization-lagen
+- [Export & Import](../admin/export-import.nl.md) — exitstrategie in de praktijk
 
 **Extern**
 - [Microsoft EU Data Boundary](https://www.microsoft.com/en-us/trust-center/privacy/european-data-boundary-eudb)

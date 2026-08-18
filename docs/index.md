@@ -57,6 +57,7 @@ Technical documentation for integration, evaluation, and contribution.
 - [API Development Guide](architecture/api-development.md) — Build against the IntraVox API
 - [Template API Quickstart](architecture/template-api-quickstart.md) — Template API in 5 minutes
 - [OpenAPI Tooling](architecture/openapi-tooling.md) — Generating and validating OpenAPI specs
+- [SharePoint Comparison](architecture/sharepoint-comparison.md) — Decision-maker mapping between SharePoint Online modern pages and IntraVox, including sovereignty and legislation
 
 #### Architectural Considerations
 
@@ -64,7 +65,6 @@ Design decisions and comparisons that shape the product.
 
 - [Nextcloud-Native Architecture](architecture/considerations/nextcloud-native-architecture.md) — Why "page = folder" inherits enterprise features from Nextcloud
 - [Collectives Comparison](architecture/considerations/collectives-comparison.md) — How IntraVox compares to Nextcloud Collectives
-- [SharePoint Comparison](architecture/considerations/sharepoint-comparison.md) — Decision-maker mapping between SharePoint Online modern pages and IntraVox, including sovereignty and legislation
 - [OpenMetrics](architecture/considerations/openmetrics.md) — OpenMetrics exposition considerations
 - [Versioning](architecture/considerations/versioning.md) — Versioning design decisions
 

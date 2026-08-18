@@ -33,7 +33,7 @@ For readers who know SharePoint: this is how its concepts translate to IntraVox.
 | SharePoint Online | IntraVox | Notes |
 |-------------------|----------|-------|
 | Communication site | IntraVox instance / top-level page tree | IntraVox is broadcast-oriented, like a communication site |
-| Site page (modern page) | Page | In IntraVox, a page is a folder with a JSON file — see [Nextcloud-Native Architecture](nextcloud-native-architecture.md) |
+| Site page (modern page) | Page | In IntraVox, a page is a folder with a JSON file — see [Architecture Overview](overview.md) |
 | Web part | Widget | Same building-block model |
 | Section layouts (1–3 columns, vertical section) | Rows, columns, and side columns | Including collapsible sections |
 | Site navigation / megamenu | Navigation editor with megamenu | Plus breadcrumbs and a page tree |
@@ -68,8 +68,8 @@ For readers who know SharePoint: this is how its concepts translate to IntraVox.
 | Page scheduling | Publish on / Expire on | IntraVox also supports expiry |
 | Check-out | Page locking | Prevents concurrent edits |
 | Version history | Page versioning | Inherited from Nextcloud Files versions; preview and restore |
-| Page approval (Power Automate) | Approval workflow scenario | See [Scenarios](../../admin/scenarios.md) — GroupFolder-ACL based, no separate workflow engine |
-| Comments and likes | Engagement: comments and reactions | Configurable per instance; see [Engagement](../../admin/engagement.md) |
+| Page approval (Power Automate) | Approval workflow scenario | See [Scenarios](../admin/scenarios.md) — GroupFolder-ACL based, no separate workflow engine |
+| Comments and likes | Engagement: comments and reactions | Configurable per instance; see [Engagement](../admin/engagement.md) |
 | News digest / auto-news | Personal RSS feeds with token authentication | Different mechanism, same "stay informed" goal |
 | Sharing with external users | Public sharing with link tokens | Anonymous page sharing |
 
@@ -77,11 +77,11 @@ For readers who know SharePoint: this is how its concepts translate to IntraVox.
 
 | SharePoint Online | IntraVox | Notes |
 |-------------------|----------|-------|
-| Site owner / member / visitor | Admin / Manager / Editor / User | See [Authorization](../../admin/authorization.md) |
+| Site owner / member / visitor | Admin / Manager / Editor / User | See [Authorization](../admin/authorization.md) |
 | Item- and library-level permissions | GroupFolder ACL per folder/page | Fine-grained, group-based |
 | Audience targeting | ACL-based visibility | Different philosophy: IntraVox restricts *access*, SharePoint filters *presentation* — with ACL, unauthorized users cannot see the content at all |
 | Microsoft Search | Nextcloud unified search | Pages are indexed like other Nextcloud content |
-| Microsoft Graph / SharePoint REST API | IntraVox REST API (OpenAPI) | See [API Reference](../api-reference.md) |
+| Microsoft Graph / SharePoint REST API | IntraVox REST API (OpenAPI) | See [API Reference](api-reference.md) |
 | Purview (retention, DLP, audit) | Nextcloud audit log, retention & workflow apps | 🟡 Partial — Nextcloud offers building blocks, not an integrated compliance suite |
 | Migration tooling | Confluence import, ZIP export/import, MetaVox metadata | SharePoint page import is not built in; the Feed widget can consume SharePoint feeds during transition |
 
@@ -176,11 +176,10 @@ The real choice is architectural: **a feature-rich platform in someone else's ju
 ## References
 
 **IntraVox documentation**
-- [Nextcloud-Native Architecture](nextcloud-native-architecture.md) — why "page = folder" inherits enterprise features
-- [Authorization](../../admin/authorization.md) — roles, permissions, GroupFolder ACL
-- [Security](../../admin/security.md) — security model and sanitization layers
-- [Export & Import](../../admin/export-import.md) — exit strategy in practice
-- [Collectives Comparison](collectives-comparison.md) — companion comparison within the Nextcloud ecosystem
+- [Architecture Overview](overview.md) — how IntraVox stores pages as folders in Nextcloud
+- [Authorization](../admin/authorization.md) — roles, permissions, GroupFolder ACL
+- [Security](../admin/security.md) — security model and sanitization layers
+- [Export & Import](../admin/export-import.md) — exit strategy in practice
 
 **External**
 - [Microsoft EU Data Boundary](https://www.microsoft.com/en-us/trust-center/privacy/european-data-boundary-eudb)
