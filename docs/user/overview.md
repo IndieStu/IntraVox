@@ -62,7 +62,7 @@ The button next to the breadcrumb opens the **Page structure** panel, which has 
 - **Pages** — the whole intranet as a tree; click any page to open it.
 - **On this page** — the headings of the page you are reading, so you can jump straight to a section of a long page.
 
-![The Page structure panel open beside a page, with the Pages and On this page tabs](../screenshots/page-contents.png)
+![The Page structure panel open beside a page, with the Pages and On this page tabs](../../screenshots/page-contents.png)
 
 *Since 2.2.0 the panel stays open while you read on: it is a table of contents, not a dialog you have to reopen every time.*
 

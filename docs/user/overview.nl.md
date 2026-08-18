@@ -60,7 +60,7 @@ De knop naast de breadcrumb opent het **Paginastructuur**-paneel, dat twee tabs 
 - **Pagina's** — het hele intranet als boom; klik een pagina aan om die te openen.
 - **Op deze pagina** — de koppen van de pagina die je leest, zodat je direct naar een sectie van een lange pagina kunt springen.
 
-![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../screenshots/page-contents.png)
+![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../../screenshots/page-contents.png)
 
 *Sinds 2.2.0 blijft het paneel open terwijl je doorleest: het is een inhoudsopgave, geen dialoog die je elke keer opnieuw moet openen.*
 

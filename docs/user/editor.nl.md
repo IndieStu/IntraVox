@@ -639,7 +639,7 @@ Voor je uploadt:
 
 Het **Paginastructuur**-paneel opent via de knop naast de breadcrumb, op dezelfde hoogte als de Details-knop (ℹ️) en daar tegenover gespiegeld: structuur links, details rechts. *Sinds 2.2.0* is het een paneel naast de content in plaats van een pop-up, dus het blijft open terwijl je van pagina naar pagina klikt — het is een inhoudsopgave, geen dialoog die je steeds wegklikt.
 
-![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../screenshots/page-contents.png)
+![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../../screenshots/page-contents.png)
 
 *Het paneel blijft open terwijl je navigeert. De twee tabs bovenin schakelen tussen de paginaboom en de koppen van de pagina die je leest.*
 
