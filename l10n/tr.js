@@ -70,6 +70,7 @@ OC.L10N.register(
     "Actions" : "İşlemler",
     "Recover" : "Geri yükle",
     "Delete" : "Sil",
+    "New connection" : "Yeni bağlantı",
     "Active" : "Etkin",
     "Inactive" : "Etkin değil",
     "Name" : "Ad",
