@@ -201,7 +201,7 @@ Visitors accessing a shared link see a clean, read-only page:
 - Page title and content (text, images, videos, tables, etc.)
 - Navigation bar with pages within the share scope
 - Breadcrumb navigation
-- Page tree browser for finding pages
+- The **Page structure** panel for finding pages, with both of its tabs: the page tree within the share scope, and **On this page** — the headings of the page being read (*since 2.2.0*; see [On this page](editor.md#on-this-page))
 - Footer content (if configured)
 
 The following features are **not available** for anonymous visitors:

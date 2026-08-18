@@ -6,7 +6,7 @@
          doesn't require scrolling all the way back up on long pages.
          Hidden when the language-fallback notice is showing — it is a
          full-screen, self-contained state with no page to act on. -->
-    <div v-if="!showLanguageFallback" class="intravox-topbar">
+    <div v-if="!showLanguageFallback" class="intravox-topbar" ref="topbar">
 
     <!-- Header with page title and actions -->
     <header class="intravox-header">
@@ -137,14 +137,37 @@
     <div class="intravox-nav-bar">
       <Navigation :items="navigation.items"
                   :type="navigation.type"
-                  @navigate="navigateToItem"
-                  @show-tree="showPageTree = true" />
+                  @navigate="navigateToItem" />
     </div>
 
     </div><!-- /.intravox-topbar -->
 
     <!-- Main content area with sidebar -->
-    <div class="app-content-wrapper">
+    <div class="app-content-wrapper"
+         :style="{ '--intravox-topbar-height': topbarHeight + 'px' }">
+
+      <!-- Page structure panel: inhoudsopgave links van de content. Blijft
+           open tijdens navigeren tot de gebruiker hem sluit. -->
+      <PageTreeModal
+        v-if="showPageTree"
+        ref="pageTreeModal"
+        variant="panel"
+        :current-page-id="currentPage?.uniqueId"
+        :language="currentPage?.language || null"
+        :can-manage="canEditNavigation"
+        :toc-page-key="tocPageKey"
+        :force-pages-tab="isEditMode"
+        @close="setPageTreeOpen(false)"
+        @navigate="selectPage"
+        @manage="showStructureManager = true"
+        @reorder="reorderPages"
+        @move="movePage"
+        @rename="renamePageFromTree"
+        @delete="deletePageFromTree"
+        @set-homepage="handleSetHomepage"
+        @copy="copyPageFromTree"
+        @homepage="homepageUniqueId = $event"
+      />
       <div v-if="loading" class="loading" role="status" aria-live="polite">
         {{ t('intravox', 'Loading …') }}
       </div>
@@ -185,6 +208,16 @@
 
         <!-- Breadcrumb row with Details button -->
         <div class="breadcrumb-row">
+          <!-- Structuur-toggle op hetzelfde niveau als de Details-knop (i),
+               gespiegeld: structuur links, details rechts -->
+          <button class="details-btn structure-btn"
+                  :class="{ 'structure-btn-active': showPageTree }"
+                  :aria-expanded="showPageTree ? 'true' : 'false'"
+                  @click="setPageTreeOpen(!showPageTree)"
+                  :aria-label="t('intravox', 'Page structure')"
+                  :title="t('intravox', 'Page structure')">
+            <FileTree :size="20" />
+          </button>
           <Breadcrumb v-if="breadcrumb.length > 0"
                       :breadcrumb="breadcrumb"
                       @navigate="selectPage" />
@@ -192,9 +225,9 @@
           <!-- Also available while editing: the sidebar holds the MetaVox tab
                with the Publish on date, which editors need during editing. -->
           <button class="details-btn"
-                  :class="{ 'details-btn-disabled': showDetailsSidebar }"
-                  :disabled="showDetailsSidebar"
-                  @click="showDetailsSidebar = true"
+                  :class="{ 'structure-btn-active': showDetailsSidebar }"
+                  :aria-expanded="showDetailsSidebar ? 'true' : 'false'"
+                  @click="setDetailsSidebarOpen(!showDetailsSidebar)"
                   :aria-label="t('intravox', 'Details')"
                   :title="t('intravox', 'Details')">
             <Information :size="20" />
@@ -206,6 +239,7 @@
           :page="displayPage"
           :engagement-settings="globalEngagementSettings"
           @navigate="selectPage"
+          @rows-changed="tocRevision++"
         />
         <template v-else-if="isEditMode && currentPage">
           <!-- Explains why this page is hidden from readers (draft, scheduled or
@@ -223,7 +257,13 @@
         </template>
       </main>
 
-      <!-- Page Details Sidebar (inside content wrapper) -->
+      <!-- Page Details Sidebar (inside content wrapper). NcAppSidebar is
+           position:relative met height:100% — bedoeld voor Nextclouds #content,
+           waar de omgeving een vaste hoogte heeft. In onze meescrollende layout
+           zou hij daardoor wegschuiven; de sticky-wrapper houdt hem, net als het
+           structuur-paneel, onder de topbar staan. -->
+      <div v-show="currentPage && !loading && !error && showDetailsSidebar"
+           class="details-sidebar-sticky">
       <PageDetailsSidebar
         v-show="currentPage && !loading && !error"
         :is-open="showDetailsSidebar"
@@ -243,17 +283,21 @@
         @navigate="selectPage"
         @translations-changed="handleTranslationsChanged"
       />
+      </div><!-- /.details-sidebar-sticky -->
     </div>
 
-    />
 
+    <!-- Structuur beheren: in een modal, waar de actieknoppen per pagina de
+         ruimte hebben die het smalle paneel niet heeft -->
     <PageTreeModal
-      v-if="showPageTree"
-      ref="pageTreeModal"
+      v-if="showStructureManager"
+      ref="structureManager"
+      variant="modal"
+      start-in-manage-mode
       :current-page-id="currentPage?.uniqueId"
       :language="currentPage?.language || null"
       :can-manage="canEditNavigation"
-      @close="showPageTree = false"
+      @close="handleStructureManagerClose"
       @navigate="selectPage"
       @reorder="reorderPages"
       @move="movePage"
@@ -263,7 +307,6 @@
       @copy="copyPageFromTree"
       @homepage="homepageUniqueId = $event"
     />
-
 
     <NewPageModal
       v-if="showNewPageModal"
@@ -340,6 +383,7 @@ import EyeOff from 'vue-material-design-icons/EyeOff.vue';
 import ClockOutline from 'vue-material-design-icons/ClockOutline.vue';
 import Pencil from 'vue-material-design-icons/Pencil.vue';
 import Information from 'vue-material-design-icons/Information.vue';
+import FileTree from 'vue-material-design-icons/FileTree.vue';
 import { defineAsyncComponent } from 'vue';
 import PageViewer from './components/PageViewer.vue';
 import Navigation from './components/Navigation.vue';
@@ -348,7 +392,7 @@ import PageActionsMenu from './components/PageActionsMenu.vue';
 import Breadcrumb from './components/Breadcrumb.vue';
 import ShareButton from './components/ShareButton.vue';
 import CacheService from './services/CacheService.js';
-import { isSectionAnchor, scrollToHashAnchor } from './utils/headingAnchors.js';
+import { isSectionAnchor, scrollToHashAnchor, parseFragment } from './utils/headingAnchors.js';
 
 // Lazy-loaded components (only loaded when needed)
 // This reduces initial bundle size and improves first load performance
@@ -395,6 +439,7 @@ export default {
     ClockOutline,
     Pencil,
     Information,
+    FileTree,
     PageViewer,
     PageEditor,
     PageTreeModal,
@@ -426,7 +471,15 @@ export default {
       isEditMode: false,
       loading: true,
       error: null,
-      showPageTree: false,
+      // Inhoudsopgave-paneel: voorkeur overleeft navigatie én reload
+      showPageTree: window.localStorage?.getItem('intravox:page-tree-open') === '1',
+      // Hoogte van de sticky topbar, als CSS-var doorgegeven aan het paneel
+      topbarHeight: 0,
+      // Structuur-beheermodal (los van het inhoudsopgave-paneel)
+      showStructureManager: false,
+      // Hoogt op wanneer de gerenderde pagina van vorm verandert (secties
+      // open/dicht), zodat de inhoudsopgave opnieuw scant
+      tocRevision: 0,
       showMoveDialog: false,
       homepageUniqueId: null,
       moveToRoot: false,
@@ -438,7 +491,9 @@ export default {
       // Shared by the page-header action and the page-tree rename button.
       renameTarget: null,
       showSaveAsTemplateModal: false,
-      showDetailsSidebar: false,
+      // Net als het structuur-paneel: de gebruiker bepaalt hoeveel chrome er
+      // staat, en die keuze overleeft navigatie en herladen
+      showDetailsSidebar: window.localStorage?.getItem('intravox:details-open') === '1',
       breadcrumb: [],
       navigation: {
         type: 'dropdown',
@@ -700,6 +755,14 @@ export default {
       return this.versionPage || this.currentPage;
     },
     /**
+     * Sleutel die verandert zodra de inhoudsopgave opnieuw moet scannen: een
+     * andere pagina, een versievoorbeeld, of een sectie die open/dicht klapt.
+     */
+    tocPageKey() {
+      const id = this.displayPage?.uniqueId || '';
+      return `${id}:${this.isShowingVersion ? 'v' : ''}:${this.tocRevision}`;
+    },
+    /**
      * Check if we're currently showing a version preview
      */
     isShowingVersion() {
@@ -791,11 +854,26 @@ export default {
       attributes: true,
       attributeFilter: ['lang']
     });
+
+    // Topbar-hoogte bijhouden voor het sticky structuur-paneel en voor de
+    // scroll-offset van koppen; de hoogte varieert (editmodus-knoppen, smalle
+    // schermen, titel over twee regels)
+    this.topbarObserver = new ResizeObserver(() => {
+      this.setTopbarHeight(this.$refs.topbar?.offsetHeight || 0);
+    });
+    if (this.$refs.topbar) {
+      this.setTopbarHeight(this.$refs.topbar.offsetHeight);
+      this.topbarObserver.observe(this.$refs.topbar);
+    }
   },
   beforeUnmount() {
     window.removeEventListener('hashchange', this.handleHashChange);
     window.removeEventListener('beforeunload', this.handleBeforeUnload);
     this.stopLockHeartbeat();
+    if (this.topbarObserver) {
+      this.topbarObserver.disconnect();
+    }
+    document.documentElement.style.removeProperty('--intravox-topbar-height');
     if (this.langObserver) {
       this.langObserver.disconnect();
     }
@@ -803,6 +881,41 @@ export default {
   methods: {
     t(app, text, vars) {
       return translate(app, text, vars);
+    },
+    async handleStructureManagerClose() {
+      this.showStructureManager = false;
+      // De boom in het paneel kan verouderd zijn na verplaatsen/hernoemen
+      await this.refreshPageTrees();
+    },
+    // Ververst beide bomen: het inhoudsopgave-paneel en (indien open) de
+    // beheermodal, die dezelfde structuur tonen
+    async refreshPageTrees() {
+      await Promise.all([
+        this.$refs.pageTreeModal?.loadTree(),
+        this.$refs.structureManager?.loadTree()
+      ].filter(Boolean));
+    },
+    setTopbarHeight(height) {
+      this.topbarHeight = height;
+      // Ook op :root, zodat scroll-margin-top van koppen (Widget.vue) de echte
+      // topbar-hoogte gebruikt; die CSS staat buiten .app-content-wrapper.
+      document.documentElement.style.setProperty('--intravox-topbar-height', `${height}px`);
+    },
+    setPageTreeOpen(open) {
+      this.showPageTree = open;
+      try {
+        window.localStorage.setItem('intravox:page-tree-open', open ? '1' : '0');
+      } catch (e) {
+        // Zonder storage (private mode) geldt de voorkeur alleen deze sessie
+      }
+    },
+    setDetailsSidebarOpen(open) {
+      this.showDetailsSidebar = open;
+      try {
+        window.localStorage.setItem('intravox:details-open', open ? '1' : '0');
+      } catch (e) {
+        // Zonder storage (private mode) geldt de voorkeur alleen deze sessie
+      }
     },
     async loadPages() {
       try {
@@ -853,13 +966,15 @@ export default {
             }
           }
 
-          // Priority 3: Hash in URL — but ignore a section anchor (#h-…), which
-          // is intra-page navigation, not a page identifier.
-          if (!targetPage && hash && !isSectionAnchor(hash)) {
-            const pageIdentifier = hash.substring(1); // Remove '#'
-            targetPage = this.pages.find(p => p.uniqueId === pageIdentifier);
-            if (targetPage) {
-              foundInHash = true;
+          // Priority 3: Hash in URL. Een sectielink draagt de pagina bij zich
+          // (`#<pageId>#h-<slug>`); een kaal `#h-…` benoemt geen pagina.
+          if (!targetPage && hash) {
+            const pageIdentifier = parseFragment(hash).pageId;
+            if (pageIdentifier) {
+              targetPage = this.pages.find(p => p.uniqueId === pageIdentifier);
+              if (targetPage) {
+                foundInHash = true;
+              }
             }
           }
 
@@ -876,7 +991,7 @@ export default {
           if (!targetPage) {
             const requestedId = uniqueIdFromUrl
               || new URLSearchParams(window.location.search).get('page')
-              || (hash && !isSectionAnchor(hash) ? hash.substring(1) : null);
+              || (hash ? parseFragment(hash).pageId : null);
 
             if (requestedId) {
               const resolved = await this.resolvePageById(requestedId);
@@ -1011,7 +1126,7 @@ export default {
       }
 
       this.sidebarInitialTab = tabId;
-      this.showDetailsSidebar = true;
+      this.setDetailsSidebarOpen(true);
     },
     /**
      * Adopt the translation set after the editor linked or unlinked one, so the
@@ -1108,11 +1223,10 @@ export default {
           this.originalPage = null;
         }
 
-        // Close sidebar when navigating to a different page
-        if (this.showDetailsSidebar && this.currentPage?.uniqueId !== pageId) {
-          this.showDetailsSidebar = false;
-          this.sidebarInitialTab = 'details-tab';
-        }
+        // Bij navigatie blijft de sidebar staan (zoals het structuur-paneel):
+        // hij is een vaste werkbalk, niet iets dat per pagina opnieuw geopend
+        // moet worden. De gekozen tab blijft ook staan — de sidebar herlaadt
+        // zijn inhoud zelf via zijn pageId-watcher.
 
         // Check cache first
         const cacheKey = `page-${pageId}`;
@@ -1775,9 +1889,7 @@ export default {
       const sourceId = item && item.uniqueId ? item.uniqueId : item;
       if (!sourceId) return;
       await this.copyPage(sourceId, parentId);
-      if (this.$refs.pageTreeModal) {
-        await this.$refs.pageTreeModal.loadTree();
-      }
+      await this.refreshPageTrees();
     },
     renameCurrentPage() {
       if (!this.currentPage?.uniqueId) return;
@@ -1804,9 +1916,7 @@ export default {
       }
       this.renameTarget = null;
       await Promise.all([this.loadPages(), this.loadNavigation()]);
-      if (this.$refs.pageTreeModal) {
-        await this.$refs.pageTreeModal.loadTree();
-      }
+      await this.refreshPageTrees();
     },
     async copyPage(sourceId, targetParentId) {
       try {
@@ -1832,9 +1942,7 @@ export default {
         this.homepageUniqueId = uniqueId;
         showSuccess(this.t('intravox', 'Homepage updated'));
         await this.loadPages();
-        if (this.$refs.pageTreeModal) {
-          await this.$refs.pageTreeModal.loadTree();
-        }
+        await this.refreshPageTrees();
       } catch (err) {
         showError(this.t('intravox', 'Could not set homepage: {error}', { error: err.message }));
       }
@@ -1853,17 +1961,13 @@ export default {
         this.loadPages();
       } catch (err) {
         showError(this.t('intravox', 'Could not save page order: {error}', { error: err.message }));
-        if (this.$refs.pageTreeModal) {
-          await this.$refs.pageTreeModal.loadTree();
-        }
+        await this.refreshPageTrees();
       }
     },
     async deletePageFromTree(node) {
       const pageId = node && node.uniqueId ? node.uniqueId : node;
       await this.deletePage(pageId);
-      if (this.$refs.pageTreeModal) {
-        await this.$refs.pageTreeModal.loadTree();
-      }
+      await this.refreshPageTrees();
     },
     // The page-structure modal drives the inline move UI and calls this with the
     // resolved payload + a done(ok) callback so it can refresh itself.
@@ -1993,7 +2097,7 @@ export default {
 
         // Open sidebar with Versions tab
         this.sidebarInitialTab = 'versions-tab';
-        this.showDetailsSidebar = true;
+        this.setDetailsSidebarOpen(true);
       } catch (err) {
         console.error('IntraVox: Error reloading pages after restore:', err);
       }
@@ -2002,9 +2106,16 @@ export default {
       // Handle URL hash changes for navigation
       const hash = window.location.hash;
 
-      // A section anchor (#h-…) is intra-page navigation, not a page switch —
-      // scroll to it and don't treat it as a uniqueId (which would fall back to home).
+      // Sectie-anker: `#<pageId>#h-<slug>` benoemt de pagina erbij, zodat een
+      // gedeelde sectielink niet op de homepage uitkomt. Staat die pagina nog
+      // niet open, dan eerst navigeren; het scrollen doet PageViewer na render.
       if (isSectionAnchor(hash)) {
+        const { pageId } = parseFragment(hash);
+        if (pageId && this.currentPage?.uniqueId !== pageId
+            && this.pages.some(p => p.uniqueId === pageId)) {
+          await this.selectPage(pageId, false);
+          return;
+        }
         scrollToHashAnchor();
         return;
       }
@@ -2091,7 +2202,7 @@ export default {
       return date.toLocaleString();
     },
     handleCloseSidebar() {
-      this.showDetailsSidebar = false;
+      this.setDetailsSidebarOpen(false);
       // Reset to default tab when closing
       this.sidebarInitialTab = 'details-tab';
       // Clear version preview when closing sidebar
@@ -2406,14 +2517,49 @@ export default {
   min-height: calc(100vh - 200px); /* Ensure content takes up space */
   box-sizing: border-box;
   flex: 1;
+  /* Naast het structuur-paneel mag brede content (tabellen) het paneel niet
+     wegdrukken */
+  min-width: 0;
   overflow-y: auto;
 }
 
-/* Breadcrumb row with Details button */
+/* Details-sidebar meelaten plakken onder de sticky topbar, zoals het
+   structuur-paneel links. NcAppSidebar zet zelf position:relative + height:100%
+   (bedoeld voor Nextclouds #content, dat niet meescrollt). Die eigen regel wint
+   qua specificiteit, dus de sticky context moet van een wrapper eromheen komen
+   in plaats van van een klasse op het component zelf. */
+.details-sidebar-sticky {
+  position: sticky;
+  top: var(--intravox-topbar-height, 0px);
+  align-self: flex-start;
+  height: calc(100vh - var(--header-height, 50px) - var(--intravox-topbar-height, 0px));
+  flex-shrink: 0;
+}
+
+/* De sidebar vult de sticky doos; lange tabinhoud (bv. Versions) scrollt
+   binnenin in plaats van afgekapt te worden. */
+.details-sidebar-sticky :deep(.app-sidebar) {
+  height: 100%;
+  max-height: 100%;
+  overflow-y: auto;
+}
+
+@media (max-width: 1024px) {
+  .details-sidebar-sticky {
+    position: fixed;
+    top: calc(var(--header-height, 50px) + var(--intravox-topbar-height, 0px));
+    inset-inline-end: 0;
+    bottom: 0;
+    max-height: none;
+    z-index: 2000;
+  }
+}
+
+/* Breadcrumb row with structure toggle (left) and Details button (right) */
 .breadcrumb-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   margin-bottom: 8px;
   gap: 16px;
 }
@@ -2451,6 +2597,15 @@ export default {
   opacity: 0.4;
   cursor: default;
   pointer-events: none;
+}
+
+/* De i-knop blijft rechts uitgelijnd; structuur-knop en breadcrumb staan links */
+.breadcrumb-row .details-btn:not(.structure-btn) {
+  margin-left: auto;
+}
+
+.structure-btn-active {
+  background-color: var(--color-primary-element-light);
 }
 
 .loading, .error {

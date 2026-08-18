@@ -20,13 +20,14 @@
            children stay reachable. -->
       <span v-if="isPlaceholder"
             class="tree-item-content tree-item-content--placeholder"
-            :title="t('intravox', 'This level has no page in this language yet')">
+            :title="`${item.title} — ${t('intravox', 'This level has no page in this language yet')}`">
         <FolderOutline :size="18" class="tree-icon" />
         <span class="tree-item-title">{{ item.title }}</span>
       </span>
 
-      <!-- Page icon and title -->
-      <button v-else class="tree-item-content" @click="$emit('navigate', item.uniqueId)">
+      <!-- Page icon and title. De titel wordt in het smalle paneel afgekapt met
+           ellipsis, dus de volledige naam moet via de tooltip leesbaar blijven. -->
+      <button v-else class="tree-item-content" :title="item.title" @click="$emit('navigate', item.uniqueId)">
         <FileDocument :size="18" class="tree-icon" />
         <span class="tree-item-title">{{ item.title }}</span>
         <span v-if="isThisHomepage" class="home-badge">{{ t('intravox', 'Home') }}</span>
@@ -278,8 +279,16 @@ export default {
   background: var(--color-background-hover);
 }
 
+/* Zelfde actieve markering als de inhoudsopgave: vlak + balk + accentkleur,
+   zodat beide weergaven van het paneel één taal spreken. */
 .tree-item-row.is-current {
   background: var(--color-primary-element-light);
+  box-shadow: inset 3px 0 0 var(--color-primary-element);
+}
+
+.tree-item-row.is-current .tree-item-title,
+.tree-item-row.is-current .tree-icon {
+  color: var(--color-primary-element);
 }
 
 .tree-toggle {
@@ -321,6 +330,13 @@ export default {
   color: var(--color-main-text);
   border-radius: 4px;
   min-width: 0;
+  /* Nextcloud maakt élke button bold; in een navigatieboom leest dat als één
+     grote nadruk. Vet is voorbehouden aan de huidige pagina. */
+  font-weight: normal;
+}
+
+.tree-item-row.is-current .tree-item-title {
+  font-weight: 600;
 }
 
 .tree-item-content:hover {
@@ -408,10 +424,13 @@ export default {
   color: var(--color-error);
 }
 
+/* 16px i.p.v. 24px: in het 320px-paneel eet inspringing de titelbreedte op.
+   Op niveau 3+ scheelt dit 4 à 5 tekens, terwijl de hiërarchie afleesbaar
+   blijft — de chevrons markeren de niveaus al. */
 .tree-children {
   list-style: none;
   margin: 0;
-  padding: 0 0 0 24px;
+  padding: 0 0 0 16px;
 }
 
 .tree-show-more {

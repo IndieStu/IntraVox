@@ -127,7 +127,8 @@ class Application extends App implements IBootstrap {
                 $c->get(\OCP\Files\IRootFolder::class),
                 $c->get(\OCA\IntraVox\Service\SetupService::class),
                 $c->get(\Psr\Log\LoggerInterface::class),
-                $c->get(\OCA\IntraVox\Service\LanguageService::class)
+                $c->get(\OCA\IntraVox\Service\LanguageService::class),
+                $c->get(\OCP\ICacheFactory::class)
             );
         });
 

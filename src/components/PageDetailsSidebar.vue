@@ -3,7 +3,7 @@
     v-if="isOpen"
     :name="pageName"
     :subtitle="pageSubtitle"
-    :active.sync="activeTab"
+    :active="activeTab"
     @update:active="onTabChange"
     @close="handleClose"
   >
@@ -369,14 +369,25 @@ export default {
         this.loadMetadata().catch(() => {});
       }
     },
-    pageId() {
-      // Note: Sidebar is closed on navigation (in App.vue), so this is a fallback
-      if (this.isOpen) {
-        this.versionsLoaded = false;
-        this.selectedVersion = null;
-        this.versions = [];
-        this.currentVersion = null;
-        this.metadata = null;
+    pageId(newId) {
+      // De sidebar blijft sinds 2.0.2.17 open tijdens navigeren, dus hij moet
+      // zijn eigen inhoud verversen: alleen wissen liet een leeg paneel achter
+      // en een verouderde versielijst.
+      if (!this.isOpen || !newId) return;
+
+      this.selectedVersion = null;
+      this.versions = [];
+      this.currentVersion = null;
+      this.metadata = null;
+      this.versionsLoaded = false;
+
+      // Herlaad wat de zichtbare tab nodig heeft; de rest blijft lui laden
+      // zodra de gebruiker die tab opent.
+      if (this.activeTab === 'versions-tab') {
+        this.loadVersions();
+        this.versionsLoaded = true;
+      } else {
+        this.loadMetadata().catch(() => {});
       }
     },
     initialTab(newTab) {
@@ -531,11 +542,12 @@ export default {
       return generateUrl('/apps/files/?dir={dir}', { dir: folderPath });
     },
     onTabChange(newTabId) {
-      // Load versions when tab is activated (lazy loading)
-      if (newTabId === 'versions-tab' && !this.versionsLoaded) {
-        this.loadVersions();
-        this.versionsLoaded = true;
-      }
+      // NcAppSidebar beheert de actieve tab zelf; `:active.sync` is Vue 2-syntax
+      // en doet in Vue 3 niets, dus zonder deze toewijzing bleef activeTab op
+      // 'details-tab' hangen. Daardoor herlaadde de sidebar bij navigatie de
+      // metadata terwijl de gebruiker naar Versions keek.
+      // Het laden zelf gebeurt in de activeTab-watcher — één plek.
+      this.activeTab = newTabId;
     },
     async loadVersions() {
       this.loadingVersions = true;

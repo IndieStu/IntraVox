@@ -5,6 +5,8 @@ namespace OCA\IntraVox\Service;
 
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
+use OCP\ICache;
+use OCP\ICacheFactory;
 use Psr\Log\LoggerInterface;
 use OCA\IntraVox\Service\Path\PagePathHelper;
 
@@ -27,21 +29,42 @@ class SystemFileService {
     private const MAX_JSON_DEPTH = 64;
     private const FALLBACK_LANGUAGE = 'en';
 
+    /** @var int Cache TTL for the public page tree, matching PageService. */
+    private const PAGE_TREE_CACHE_TTL = 300; // 5 minutes
+
+    /** @var array Per-request cache: the same tree is often asked for twice. */
+    private static array $pageTreeCache = [];
+
+    /**
+     * Drop the in-process tree cache. The distributed half shares PageService's
+     * 'intravox-pages' namespace, so its clear() already covers that; this
+     * handles the static copy inside a single request.
+     */
+    public static function clearStaticTreeCache(): void {
+        self::$pageTreeCache = [];
+    }
+
     private IRootFolder $rootFolder;
     private SetupService $setupService;
     private LoggerInterface $logger;
     private LanguageService $languageService;
+    private ?ICache $distributedCache = null;
 
     public function __construct(
         IRootFolder $rootFolder,
         SetupService $setupService,
         LoggerInterface $logger,
-        LanguageService $languageService
+        LanguageService $languageService,
+        ICacheFactory $cacheFactory
     ) {
         $this->rootFolder = $rootFolder;
         $this->setupService = $setupService;
         $this->logger = $logger;
         $this->languageService = $languageService;
+
+        if ($cacheFactory->isAvailable()) {
+            $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
+        }
     }
 
     /**
@@ -190,6 +213,28 @@ class SystemFileService {
             $language = self::FALLBACK_LANGUAGE;
         }
 
+        // Building this tree costs one file read per page. Without a cache a
+        // shared intranet of a few thousand pages would rebuild it on every
+        // visit — and since 2.2.0 the structure panel loads it on every page.
+        $cacheKey = 'system-tree-' . $language;
+        $now = time();
+
+        if (isset(self::$pageTreeCache[$cacheKey])
+            && ($now - self::$pageTreeCache[$cacheKey]['time']) < self::PAGE_TREE_CACHE_TTL) {
+            return self::$pageTreeCache[$cacheKey]['tree'];
+        }
+
+        if ($this->distributedCache !== null) {
+            $cached = $this->distributedCache->get($cacheKey);
+            if ($cached !== null) {
+                $decoded = json_decode($cached, true);
+                if (is_array($decoded)) {
+                    self::$pageTreeCache[$cacheKey] = ['tree' => $decoded, 'time' => $now];
+                    return $decoded;
+                }
+            }
+        }
+
         try {
             $groupFolder = $this->setupService->getSharedFolder();
             if ($groupFolder === null) {
@@ -272,6 +317,11 @@ class SystemFileService {
                 }
             } catch (\Exception $e) {
                 // Non-fatal: fall back to home.json-first ordering.
+            }
+
+            self::$pageTreeCache[$cacheKey] = ['tree' => $tree, 'time' => $now];
+            if ($this->distributedCache !== null) {
+                $this->distributedCache->set($cacheKey, json_encode($tree), self::PAGE_TREE_CACHE_TTL);
             }
 
             return $tree;

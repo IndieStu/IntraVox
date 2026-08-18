@@ -51,7 +51,7 @@ De 3 criteria met gedeeltelijke compliance (1.2.1, 1.2.2, 1.2.5) betreffen capti
 | **2.3.1 Drie flashes** | Geen flikkerende content. |
 | **2.4.1 Blokken overslaan** | Skip-to-content-link op zowel hoofdapp als publieke pagina's. |
 | **2.4.3 Focus-volgorde** | DOM-volgorde = visuele volgorde. Geen `.blur()`-anti-patterns. |
-| **2.4.5 Meerdere manieren** | Navigatiebalk, breadcrumb, zoekfunctie en pagina-tree. |
+| **2.4.5 Meerdere manieren** | Navigatiebalk, breadcrumb, zoekfunctie, paginaboom en de inhoudsopgave per pagina ("Op deze pagina"). |
 | **2.4.6 Koppen en labels** | Alle form-inputs hebben een geassocieerd label. Kop-hiërarchie is correct. |
 | **2.4.7 Focus zichtbaar** | Globale `*:focus-visible`-outline (2px solid, 2px offset) via `main.css`. |
 | **2.5.1 Pointer-gestures** | Drag-and-drop heeft knop-alternatieven. |

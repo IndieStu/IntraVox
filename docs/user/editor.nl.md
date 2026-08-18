@@ -637,9 +637,22 @@ Voor je uploadt:
 
 ### Paginastructuur
 
-Het **Paginastructuur**-paneel (te openen via de knop in de navigatiebalk) toont al je echte pagina's in een boom. In de standaardweergave blader je door de hiërarchie en klik je een pagina aan om die te openen.
+Het **Paginastructuur**-paneel opent via de knop naast de breadcrumb, op dezelfde hoogte als de Details-knop (ℹ️) en daar tegenover gespiegeld: structuur links, details rechts. *Sinds 2.2.0* is het een paneel naast de content in plaats van een pop-up, dus het blijft open terwijl je van pagina naar pagina klikt — het is een inhoudsopgave, geen dialoog die je steeds wegklikt.
 
-Zet je **Structuur beheren** aan (beschikbaar waar je bewerkrechten hebt), dan wordt elke rij een set knoppen om de echte pagina's te ordenen — dit is iets anders dan **Navigatie bewerken**, dat alleen de links in de navigatiebalk en hun volgorde wijzigt.
+![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../screenshots/page-contents.png)
+
+*Het paneel blijft open terwijl je navigeert. De twee tabs bovenin schakelen tussen de paginaboom en de koppen van de pagina die je leest.*
+
+Het paneel heeft twee tabs:
+
+- **Pagina's** — al je echte pagina's in een boom. Blader door de hiërarchie en klik een pagina aan om die te openen.
+- **Op deze pagina** — de koppen van de pagina die je op dat moment leest. Zie [Op deze pagina](#op-deze-pagina) hieronder.
+
+Of het paneel open staat, en welke van de twee tabs je het laatst gebruikte, wordt onthouden terwijl je navigeert en als je de pagina herlaadt. Op schermen smaller dan 1024px wordt het paneel een overlay over de content in plaats van dat het de content opzij duwt.
+
+> De details-zijbalk rechts (de ⓘ-knop, met de tabs Details, Versies, Vertalingen en MetaVox) gedraagt zich *sinds 2.2.0* net zo: de knop is een echte schakelaar die hem zowel opent als sluit, hij blijft open als je naar een andere pagina gaat — en volgt dan mee met de pagina waar je bent — en hij houdt z'n plek op het scherm terwijl je scrollt.
+
+Zet je **Structuur beheren** aan (beschikbaar waar je bewerkrechten hebt), dan wordt elke rij van de tab **Pagina's** een set knoppen om de echte pagina's te ordenen — dit is iets anders dan **Navigatie bewerken**, dat alleen de links in de navigatiebalk en hun volgorde wijzigt.
 
 ![Paginastructuur in beheer-modus, met knoppen per rij en de twee toelichtingsbanners](../screenshots/PageStructure-edit.png)
 
@@ -671,6 +684,27 @@ Pagina-titels mogen elk teken bevatten, inclusief apostrofs en ampersands (`Coll
 Een mapnaam hoeft alleen uniek te zijn **tussen z'n directe buren** — de pagina's onder dezelfde ouder. Twee pagina's op verschillende plekken mogen dus dezelfde naam dragen: een pagina "Team" onder *Over ons* en een tweede onder *Sales* krijgen allebei het schone adres `team`. Is de naam naast de deur écht bezet, dan zet IntraVox er een nummer achter: `team-2`, `team-3`.
 
 Omdat elke taal een eigen boom is, houdt een vertaling de naam van de pagina waaruit hij is gemaakt. Titels blijven altijd ongemoeid — alleen het map-adres verandert, en alleen als twee buren anders zouden botsen.
+
+### Op deze pagina
+
+*Sinds 2.2.0.* De tweede tab van het Paginastructuur-paneel toont de koppen van de pagina die je leest, zodat een lange pagina een inhoudsopgave krijgt zonder dat iemand die hoeft bij te houden. Klik op een kop om naar die sectie te springen. De kop die je op dat moment leest is gemarkeerd, en die markering loopt mee terwijl je scrollt.
+
+Het inspringen is relatief aan de pagina: een pagina waarvan de hoogste kop een H2 is begint links uitgelijnd in plaats van één stap ingesprongen, zodat de lijst de vórm van de pagina toont en niet de kopniveaus die je toevallig gebruikt hebt.
+
+De lijst wordt gelezen uit de pagina zoals die getoond wordt, niet uit de opgeslagen indeling. Dát is wat hem compleet maakt: IntraVox kent twee soorten koppen — losse **Kop**-widgets en koppen die in een **Tekst**-blok geschreven zijn — en alleen de getoonde pagina heeft ze allebei, in leesvolgorde. Daar volgen twee dingen uit:
+
+- **Koppen in een ingeklapte sectie blijven buiten de lijst** totdat je die sectie openklapt. Je kunt niet springen naar iets wat niet op het scherm staat, dus zo'n kop vermelden zou een doodlopend spoor zijn.
+- **Een versie-preview toont de koppen van díe versie**, omdat de lijst simpelweg volgt wat er op dat moment getoond wordt.
+
+Kop-widgets worden op elk niveau vermeld (H1 tot en met H6). Koppen die in een tekstblok geschreven zijn, worden vermeld van H1 tot en met H4 — diepere koppen binnen een tekstblok gelden als gewone nadruk en krijgen geen anker om naartoe te springen. Een pagina zonder koppen toont een korte melding.
+
+Terwijl je een pagina bewerkt, valt het paneel terug op de tab **Pagina's**: koppen krijgen hun ankers pas in de getoonde pagina, dus er zou niets te tonen zijn. Je tabkeuze is niet vergeten — verlaat je de bewerkmodus, dan staat de inhoudsopgave er weer.
+
+#### Naar een sectie linken
+
+Klik je een kop in de lijst aan, dan komt er een link naar die sectie in de adresbalk te staan, die je kunt kopiëren en delen. Het adres benoemt zowel de pagina als de sectie (`#<paginaId>#h-<sectie>`), zodat de link de juiste pagina opent én naar de juiste plek scrollt.
+
+> Links die je vóór 2.2.0 deelde gebruikten een korter formaat dat alleen de sectie benoemde. Die blijven werken op de pagina die al open staat, maar ze kunnen zelf geen pagina benoemen — kopieer de link opnieuw als je er een wilt die het delen overleeft.
 
 ### De startpagina instellen
 

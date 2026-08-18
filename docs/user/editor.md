@@ -598,9 +598,22 @@ Before uploading:
 
 ### Page Structure
 
-The **Page structure** panel (opened from the button in the navigation toolbar) shows all your actual pages in a tree. In its default state you can browse the hierarchy and click any page to open it.
+The **Page structure** panel opens from the button next to the breadcrumb, on the same level as the Details button (ℹ️) and mirrored against it: structure on the left, details on the right. *Since 2.2.0* it is a panel beside the content rather than a pop-up, so it stays open while you click from page to page — it is a table of contents, not a dialog you dismiss.
 
-Switching on **Manage structure** (available where you have edit rights) turns each row into a set of controls for organizing the real pages — this is different from **Edit navigation**, which only changes the links in the navigation bar and their order.
+![The Page structure panel open beside a page, with the Pages and On this page tabs](../../screenshots/page-contents.png)
+
+*The panel stays open while you navigate. The two tabs at the top switch between the page tree and the headings of the page you are reading.*
+
+The panel has two tabs:
+
+- **Pages** — all your actual pages in a tree. Browse the hierarchy and click any page to open it.
+- **On this page** — the headings of the page you are currently reading. See [On this page](#on-this-page) below.
+
+Whether the panel is open, and which of the two tabs you last used, is remembered as you navigate and when you reload. On screens narrower than 1024px the panel becomes an overlay over the content instead of pushing it aside.
+
+> The details sidebar on the right (the ⓘ button, with the Details, Versions, Translations and MetaVox tabs) behaves the same way *since 2.2.0*: the button is a real toggle that both opens and closes it, it stays open while you move to another page — following along with the page you are on — and it keeps its position on screen while you scroll.
+
+Switching on **Manage structure** (available where you have edit rights) turns each row of the **Pages** tab into a set of controls for organizing the real pages — this is different from **Edit navigation**, which only changes the links in the navigation bar and their order.
 
 ![Page structure in manage mode, with per-row controls and the two guidance banners](../../screenshots/PageStructure-edit.png)
 
@@ -632,6 +645,27 @@ Page titles can contain any character, including apostrophes and ampersands (`Co
 A folder name only has to be unique **among its direct neighbours** — the pages sharing the same parent. Two pages in different places may carry the same name, so a "Team" page under *About* and another under *Sales* both get the clean address `team`. When the name really is taken next door, IntraVox appends a number: `team-2`, `team-3`.
 
 Because each language is a separate tree, a translation keeps the name of the page it was made from. Titles are never affected — only the folder address, and only when two neighbours would otherwise collide.
+
+### On this page
+
+*Since 2.2.0.* The second tab of the Page structure panel lists the headings of the page you are reading, so a long page gets a table of contents without anyone having to maintain one. Click a heading to jump to that section. The heading you are currently reading is marked, and the marker follows along as you scroll.
+
+Indentation is relative to the page: a page whose highest heading is an H2 starts flush left rather than indented once, so the list shows the shape of the page instead of the level numbers you happened to use.
+
+The list is read from the page as it is rendered, not from the stored layout. That is what makes it complete: IntraVox has two kinds of headings — stand-alone **Heading** widgets and headings written inside a **Text** block — and only the rendered page has both, in reading order. Two consequences follow from this:
+
+- **Headings inside a collapsed section stay out of the list** until you open that section. You cannot jump to something that is not on screen, so listing it would be a dead end.
+- **A version preview shows that version's headings**, because the list simply reflects whatever is currently rendered.
+
+Heading widgets are listed at every level (H1 through H6). Headings written inside a text block are listed from H1 through H4 — deeper ones inside a text block are treated as ordinary emphasis and get no anchor to jump to. A page without headings shows a short note saying so.
+
+While you are editing a page, the panel falls back to the **Pages** tab: headings only get their anchors in the rendered page, so there would be nothing to list. Your tab choice is not forgotten — leave edit mode and the table of contents is back.
+
+#### Linking to a section
+
+Clicking a heading in the list puts a link to that section in the address bar, which you can copy and share. The address names both the page and the section (`#<pageId>#h-<section>`), so the link opens the right page and scrolls to the right place.
+
+> Links you shared before 2.2.0 used a shorter format that named only the section. Those keep working on the page that is already open, but they cannot name a page on their own — re-copy the link if you want one that survives being shared.
 
 ### Configuring the homepage
 

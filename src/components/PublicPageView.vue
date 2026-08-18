@@ -53,34 +53,53 @@
 					:items="navigation.items"
 					:type="navigation.type"
 					:is-public="true"
-					@navigate="handleNavigation"
-					@show-tree="showPageTree = true" />
-			</div>
-
-			<!-- Breadcrumb -->
-			<div v-if="breadcrumb.length > 0" class="public-breadcrumb">
-				<Breadcrumb
-					:breadcrumb="breadcrumb"
-					@navigate="handleBreadcrumbNavigate" />
-			</div>
-
-			<!-- Page Tree Modal -->
-			<PageTreeModal
-				v-if="showPageTree"
-				:share-token="token"
-				:current-page-id="currentPageUniqueId"
-				@navigate="handleTreeNavigate"
-				@close="showPageTree = false" />
-
-			<!-- Main content -->
-			<main class="public-content" id="intravox-main-content">
-				<PageViewer
-					:page="pageData"
-					:is-public="true"
-					:share-token="token"
-					:engagement-settings="engagementSettings"
 					@navigate="handleNavigation" />
-			</main>
+			</div>
+
+			<!-- Content area met het structuur-paneel ernaast, zoals in de
+			     ingelogde weergave. De Details-sidebar hoort hier bewust niet:
+			     metadata en versiegeschiedenis zijn niet publiek (er bestaan
+			     geen share-endpoints voor). -->
+			<div class="public-content-wrapper">
+				<PageTreeModal
+					v-if="showPageTree"
+					ref="pageTreePanel"
+					variant="panel"
+					:share-token="token"
+					:current-page-id="currentPageUniqueId"
+					:toc-page-key="tocPageKey"
+					@navigate="handleTreeNavigate"
+					@close="setPageTreeOpen(false)" />
+
+				<div class="public-main-column">
+					<!-- Breadcrumb met de structuur-toggle ervoor -->
+					<div class="public-breadcrumb">
+						<button class="structure-btn"
+							:class="{ 'structure-btn-active': showPageTree }"
+							:aria-expanded="showPageTree ? 'true' : 'false'"
+							:aria-label="t('intravox', 'Page structure')"
+							:title="t('intravox', 'Page structure')"
+							@click="setPageTreeOpen(!showPageTree)">
+							<FileTree :size="20" />
+						</button>
+						<Breadcrumb
+							v-if="breadcrumb.length > 0"
+							:breadcrumb="breadcrumb"
+							@navigate="handleBreadcrumbNavigate" />
+					</div>
+
+					<!-- Main content -->
+					<main class="public-content" id="intravox-main-content">
+						<PageViewer
+							:page="pageData"
+							:is-public="true"
+							:share-token="token"
+							:engagement-settings="engagementSettings"
+							@navigate="handleNavigation"
+							@rows-changed="tocRevision++" />
+					</main>
+				</div>
+			</div>
 
 			<!-- Footer -->
 			<div v-if="footerContent" class="public-footer">
@@ -98,11 +117,12 @@ import { defineAsyncComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
 import axios from '@nextcloud/axios'
-import { isSectionAnchor, scrollToHashAnchor } from '../utils/headingAnchors.js'
+import { isSectionAnchor, scrollToHashAnchor, parseFragment } from '../utils/headingAnchors.js'
 import PageViewer from './PageViewer.vue'
 import Navigation from './Navigation.vue'
 import Footer from './Footer.vue'
 import Breadcrumb from './Breadcrumb.vue'
+import FileTree from 'vue-material-design-icons/FileTree.vue'
 
 export default {
 	name: 'PublicPageView',
@@ -111,6 +131,7 @@ export default {
 		Navigation,
 		Footer,
 		Breadcrumb,
+		FileTree,
 		// Async to match App.vue's strategy. See scripts/check-import-consistency.js.
 		PageTreeModal: defineAsyncComponent(() => import('./PageTreeModal.vue')),
 	},
@@ -134,7 +155,10 @@ export default {
 			navigation: null,
 			footerContent: '',
 			breadcrumb: [],
-			showPageTree: false,
+			// Structuur-paneel: open/dicht wordt onthouden, zoals in de app
+			showPageTree: window.localStorage?.getItem('intravox:page-tree-open') === '1',
+			// Hoogt op als secties open/dicht klappen, zodat de inhoudsopgave herscant
+			tocRevision: 0,
 			loading: true,
 			error: null,
 			passwordRequired: false,
@@ -152,6 +176,13 @@ export default {
 	computed: {
 		currentPageUniqueId() {
 			return this.pageData?.uniqueId || this.pageUniqueId || ''
+		},
+		/**
+		 * Verandert zodra de inhoudsopgave opnieuw moet scannen: andere pagina,
+		 * of een sectie die open/dicht klapt.
+		 */
+		tocPageKey() {
+			return `${this.currentPageUniqueId}::${this.tocRevision}`
 		},
 	},
 	async mounted() {
@@ -216,15 +247,11 @@ export default {
 			if (pageFromQuery) {
 				return pageFromQuery
 			}
-			// Fall back to hash (legacy URLs)
-			const hash = window.location.hash
-			if (hash.startsWith('#page-')) {
-				return hash.substring(1)
-			}
-			if (hash.length > 1) {
-				return hash.substring(1)
-			}
-			return ''
+			// Fall back to hash. Een sectielink draagt de pagina bij zich
+			// (`#<pageId>#h-<slug>`); zonder splitsen zou de hele string als
+			// pagina-id gelden en de pagina niet gevonden worden.
+			const { pageId } = parseFragment(window.location.hash)
+			return pageId || ''
 		},
 		async getHomepageUniqueId() {
 			try {
@@ -304,8 +331,17 @@ export default {
 				this.loadPageByUniqueId(pageId)
 			}
 		},
+		setPageTreeOpen(open) {
+			this.showPageTree = open
+			try {
+				window.localStorage.setItem('intravox:page-tree-open', open ? '1' : '0')
+			} catch (e) {
+				// Zonder storage (private mode) geldt de voorkeur alleen deze sessie
+			}
+		},
 		handleTreeNavigate(uniqueId) {
-			this.showPageTree = false
+			// Het paneel blijft open tijdens navigeren — het is een inhoudsopgave,
+			// geen eenmalige keuzedialoog.
 			if (uniqueId) {
 				this.loadPageByUniqueId(uniqueId)
 			}
@@ -397,12 +433,56 @@ export default {
 	padding: 0 20px;
 }
 
+/* Content-zone met het structuur-paneel links, zoals in de ingelogde weergave */
+.public-content-wrapper {
+	display: flex;
+	position: relative;
+	width: 100%;
+	flex: 1;
+	min-height: 0;
+}
+
+.public-main-column {
+	flex: 1;
+	min-width: 0;
+	display: flex;
+	flex-direction: column;
+}
+
 .public-breadcrumb {
-	padding: 0 20px;
+	display: flex;
+	align-items: center;
+	gap: 16px;
+	padding: 8px 20px 0;
 	max-width: min(1600px, 95vw);
 	margin: 0 auto;
 	width: 100%;
 	box-sizing: border-box;
+}
+
+/* Structuur-toggle, gelijk aan de knop in de ingelogde weergave */
+.structure-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 36px;
+	height: 36px;
+	padding: 0;
+	background: none;
+	border: none;
+	border-radius: var(--border-radius);
+	color: var(--color-main-text);
+	cursor: pointer;
+	flex-shrink: 0;
+	transition: background-color 0.1s ease;
+}
+
+.structure-btn:hover {
+	background-color: var(--color-background-hover);
+}
+
+.structure-btn-active {
+	background-color: var(--color-primary-element-light);
 }
 
 .public-content {

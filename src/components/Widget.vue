@@ -26,7 +26,7 @@
       <a
         v-if="!editable && anchorId"
         class="heading-anchor"
-        :href="`#${anchorId}`"
+        :href="buildSectionFragment(pageId, anchorId)"
         :title="t('intravox', 'Copy link to this section')"
         :aria-label="t('intravox', 'Copy link to this section')"
         @click.prevent="copyAnchorLink(anchorId)"
@@ -211,7 +211,8 @@ import { defineAsyncComponent } from 'vue';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import { showSuccess } from '@nextcloud/dialogs';
-import { markdownToHtml } from '../utils/markdownSerializer.js';
+import { markdownToHtml, markdownToInlineHtml } from '../utils/markdownSerializer.js';
+import { buildSectionFragment } from '../utils/headingAnchors.js';
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 
 export default {
@@ -283,7 +284,9 @@ export default {
   },
   computed: {
     sanitizedContent() {
-      return this.sanitizeHtml(this.widget.content || '');
+      // Inline parsen: een kop is één regel tekst. Met de blockparser werd
+      // "1. Titel" een genummerde lijst en verdween het cijfer uit de kop.
+      return markdownToInlineHtml(this.widget.content || '');
     },
     hasImageLink() {
       // Check if image has a valid link configured
@@ -411,22 +414,25 @@ export default {
      * current page in `?page=` and the section in the `#h-…` fragment so it works
      * in both the public share view and the logged-in view.
      */
+    buildSectionFragment,
     async copyAnchorLink(anchorId) {
       try {
         const url = new URL(window.location.href);
+        // De pagina hoort in het fragment: de ingelogde app leest `?page=` niet,
+        // dus zonder pagina-id opende een gedeelde sectielink de homepage.
         if (this.pageId) url.searchParams.set('page', this.pageId);
-        url.hash = `#${anchorId}`;
+        url.hash = buildSectionFragment(this.pageId, anchorId);
         const link = url.toString();
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(link);
           showSuccess(this.t('intravox', 'Section link copied'));
         } else {
           // Fallback: navigate to the anchor so the URL at least updates.
-          window.location.hash = `#${anchorId}`;
+          window.location.hash = buildSectionFragment(this.pageId, anchorId);
         }
       } catch (e) {
         // Clipboard blocked (e.g. no permission) — fall back to updating the hash.
-        window.location.hash = `#${anchorId}`;
+        window.location.hash = buildSectionFragment(this.pageId, anchorId);
       }
     },
     /**
@@ -889,7 +895,9 @@ export default {
 
 /* Heading Widget */
 .widget-heading {
-  margin: 16px 0 16px 0;
+  /* Asymmetrisch: lucht boven markeert de sectiegrens, strak eronder bindt
+     de kop aan zijn eigen tekst */
+  margin: 20px 0 8px 0;
   color: inherit;
   font-weight: 600;
 }
@@ -951,8 +959,12 @@ export default {
   opacity: 1;
 }
 
-/* Give deep-linked headings a little scroll offset so the sticky share header
-   (if any) doesn't cover them after scrollIntoView. */
+/* Scroll-offset voor koppen, zodat de sticky topbar (titelbalk + navigatie) ze
+   niet afdekt na scrollIntoView — zowel bij een deep-link als bij een klik in de
+   inhoudsopgave. De hoogte wordt live gemeten in App.vue (ResizeObserver op de
+   topbar) en als --intravox-topbar-height op :root gezet; de topbar verandert
+   namelijk van hoogte in bewerkmodus en op smalle schermen. 80px is de fallback
+   voor de publieke share-view, die geen eigen topbar meet. */
 .widget-heading.has-anchor,
 .widget-text :deep(h1[id^="h-"]),
 .widget-text :deep(h2[id^="h-"]),
@@ -960,7 +972,7 @@ export default {
 .widget-text :deep(h4[id^="h-"]),
 .widget-text :deep(h5[id^="h-"]),
 .widget-text :deep(h6[id^="h-"]) {
-  scroll-margin-top: 80px;
+  scroll-margin-top: calc(var(--intravox-topbar-height, 80px) + 16px);
 }
 
 /* Image Widget */

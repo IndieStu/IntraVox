@@ -2,6 +2,7 @@ import { createApp } from 'vue';
 import { translate, translatePlural } from '@nextcloud/l10n';
 import App from './App.vue';
 import PublicPageView from './components/PublicPageView.vue';
+import { parseFragment } from './utils/headingAnchors.js';
 
 // Get the root element
 const rootElement = document.getElementById('app-intravox');
@@ -22,8 +23,10 @@ if (isPublic && shareToken) {
 	// Public page mode - render simplified view (token-based sharing)
 	// Priority: ?page= query param (survives chat apps/email) > #hash (legacy)
 	const pageFromQuery = urlParams.get('page') || '';
-	const hash = window.location.hash;
-	const pageFromHash = hash.startsWith('#page-') ? hash.substring(1) : (hash.length > 1 ? hash.substring(1) : '');
+	// Een sectielink draagt de pagina bij zich: `#<pageId>#h-<slug>`. Zonder
+	// splitsen werd die hele string als pagina-id doorgegeven en meldde de
+	// share "pagina niet beschikbaar".
+	const pageFromHash = parseFragment(window.location.hash).pageId || '';
 	const pageUniqueId = pageFromQuery || pageFromHash;
 
 	app = createApp(PublicPageView, {

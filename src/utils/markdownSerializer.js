@@ -344,6 +344,35 @@ export function markdownToHtml(markdown) {
 }
 
 /**
+ * Convert a single line of markdown to HTML, zonder blokstructuur.
+ *
+ * Voor een heading-widget: de inhoud is één regel tekst, geen document. Met de
+ * gewone blockparser wordt "1. Titel" een genummerde lijst — het cijfer
+ * verdwijnt dan in de opsomming en de kop rendert als ". Titel". Inline parsen
+ * houdt opmaak (vet, cursief, links, code) intact en laat de rest met rust.
+ *
+ * @param {string} markdown
+ * @return {string} gesaniteerde HTML zonder omhullende <p>/<ol>
+ */
+export function markdownToInlineHtml(markdown) {
+  if (!markdown) return '';
+
+  try {
+    const html = marked.parseInline(markdown);
+    if (typeof html !== 'string') {
+      return escapeHtml(markdown);
+    }
+    return DOMPurify.sanitize(html, {
+      ALLOWED_TAGS: ['br', 'strong', 'em', 'u', 's', 'a', 'code'],
+      ALLOWED_ATTR: ['href', 'target', 'rel', 'class']
+    });
+  } catch (err) {
+    console.error('Inline markdown parsing error:', err);
+    return escapeHtml(markdown);
+  }
+}
+
+/**
  * Convert HTML to Markdown
  * Simplified conversion that handles the most common cases
  */

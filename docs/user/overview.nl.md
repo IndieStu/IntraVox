@@ -53,6 +53,19 @@ Home > Afdelingen > HR > Beleid
 
 Klik op elke breadcrumb om terug te gaan naar dat niveau.
 
+### Paginastructuur en inhoudsopgave
+
+De knop naast de breadcrumb opent het **Paginastructuur**-paneel, dat twee tabs heeft:
+
+- **Pagina's** — het hele intranet als boom; klik een pagina aan om die te openen.
+- **Op deze pagina** — de koppen van de pagina die je leest, zodat je direct naar een sectie van een lange pagina kunt springen.
+
+![Het Paginastructuur-paneel open naast een pagina, met de tabs Pagina's en Op deze pagina](../screenshots/page-contents.png)
+
+*Sinds 2.2.0 blijft het paneel open terwijl je doorleest: het is een inhoudsopgave, geen dialoog die je elke keer opnieuw moet openen.*
+
+Het paneel onthoudt of het open stond en welke tab je gebruikte, zodat het er de volgende keer weer is. Op een smal scherm opent het over de content in plaats van ernaast.
+
 ### Zijbalk-navigatie
 
 Sommige pagina's hebben een zijbalk voor snelle toegang tot gerelateerde content.

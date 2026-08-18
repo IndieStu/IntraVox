@@ -1,12 +1,7 @@
 <template>
   <nav class="intravox-navigation">
-    <!-- Page Structure Button (left of navigation) -->
-    <button class="page-tree-btn"
-            @click="handleTreeClick"
-            :aria-label="t('intravox', 'Page structure')"
-            :title="t('intravox', 'Page structure')">
-      <FileTree :size="20" />
-    </button>
+    <!-- De structuur-toggle staat in beide weergaven op breadcrumb-niveau
+         (App.vue / PublicPageView.vue), niet meer in de navigatiebalk. -->
 
     <!-- Mobile hamburger menu -->
     <div class="mobile-nav">
@@ -205,6 +200,7 @@
           <!-- Mega menu dropdown -->
           <div v-if="activeMegaMenu === getItemKey(item)"
                class="megamenu-dropdown"
+               :style="getMegaMenuStyle(item)"
                @mouseenter="keepMegaMenuOpen"
                @mouseleave="hideMegaMenu">
             <div class="megamenu-grid">
@@ -272,7 +268,6 @@ import { NcActions, NcActionButton } from '@nextcloud/vue';
 import ChevronDown from 'vue-material-design-icons/ChevronDown.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import Menu from 'vue-material-design-icons/Menu.vue';
-import FileTree from 'vue-material-design-icons/FileTree.vue';
 
 export default {
   name: 'Navigation',
@@ -281,8 +276,7 @@ export default {
     NcActionButton,
     ChevronDown,
     ChevronRight,
-    Menu,
-    FileTree
+    Menu
   },
   props: {
     items: {
@@ -299,7 +293,7 @@ export default {
       default: false
     }
   },
-  emits: ['navigate', 'show-tree'],
+  emits: ['navigate'],
   data() {
     return {
       // Mobile menu state
@@ -345,9 +339,6 @@ export default {
         return `#${item.uniqueId}`;
       }
       return '#';
-    },
-    handleTreeClick(event) {
-      this.$emit('show-tree');
     },
     handleItemClick(item) {
       this.$emit('navigate', item);
@@ -397,7 +388,14 @@ export default {
       if (trigger && menu) {
         const rect = trigger.getBoundingClientRect();
         menu.style.top = `${rect.bottom + 4}px`; // 4px margin
-        menu.style.left = `${rect.left}px`;
+        // Klem binnen de viewport zodat brede panelen niet rechts buiten beeld vallen
+        const maxLeft = window.innerWidth - menu.offsetWidth - 8;
+        menu.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+        if (menu.classList.contains('megamenu-dropdown')) {
+          // Begrens de hoogte: fixed-position menu scrollt niet mee, dus zonder
+          // max-height zijn items onder de viewport onbereikbaar
+          menu.style.maxHeight = `${window.innerHeight - rect.bottom - 12}px`;
+        }
       }
     },
     toggleDropdownSection(sectionId) {
@@ -446,6 +444,13 @@ export default {
         this.activeMegaMenu = null;
         this.currentTriggerElement = null;
       }, 200);
+    },
+    getMegaMenuStyle(item) {
+      // Paneelbreedte volgt het aantal level-2 secties, tot maximaal 4 kolommen
+      const cols = Math.min(4, Math.max(1, (item.children || []).length));
+      // 220px per kolom + 32px gap + 24px padding en 1px border aan weerszijden
+      const width = cols * 220 + (cols - 1) * 32 + 50;
+      return { width: `min(${width}px, calc(100vw - 16px))` };
     }
   }
 };
@@ -460,31 +465,6 @@ export default {
 }
 
 /* Page Tree Button */
-.page-tree-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  margin-right: 8px;
-  background: none;
-  border: none;
-  border-radius: var(--border-radius);
-  color: var(--color-main-text);
-  cursor: pointer;
-  transition: background-color 0.1s ease;
-  flex-shrink: 0;
-}
-
-.page-tree-btn:hover {
-  background-color: var(--color-background-hover);
-}
-
-.page-tree-btn:active {
-  background-color: var(--color-primary-element-light);
-}
-
 /* Mobile Navigation */
 .mobile-nav {
   display: none;
@@ -805,8 +785,9 @@ a.dropdown-section-header:active,
   position: fixed; /* Changed from absolute to fixed to escape parent overflow */
   top: auto; /* Will be set by JavaScript */
   left: auto; /* Will be set by JavaScript */
-  min-width: 600px;
-  max-width: 900px;
+  /* Breedte komt uit getMegaMenuStyle(); border-box zodat padding+border meetellen */
+  box-sizing: border-box;
+  overflow-y: auto; /* Met max-height uit JS: scrollen i.p.v. onbereikbare items */
   margin-top: 4px;
   background: var(--color-main-background);
   border: 1px solid var(--color-border);
@@ -818,7 +799,8 @@ a.dropdown-section-header:active,
 
 .megamenu-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  /* auto-fit laat lege tracks inklappen bij minder secties dan kolommen */
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 32px 32px;
 }
 

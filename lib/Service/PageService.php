@@ -192,6 +192,10 @@ class PageService {
         // same reason; subsequent reads re-initialize the counter at 0 and
         // rebuild from source.
         self::$pageTreeCache = [];
+        // The public share view builds its tree in SystemFileService, which
+        // keeps its own in-process copy. The distributed half shares this
+        // namespace and is covered by the clear() below.
+        SystemFileService::clearStaticTreeCache();
         if ($this->distributedCache !== null) {
             $this->distributedCache->clear();
         }

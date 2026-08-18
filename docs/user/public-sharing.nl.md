@@ -201,7 +201,7 @@ Bezoekers die een gedeelde link openen zien een schone, alleen-lezen-pagina:
 - Pagina-titel en -content (tekst, afbeeldingen, video's, tabellen, etc.)
 - Navigatiebalk met pagina's binnen de share-scope
 - Breadcrumb-navigatie
-- Pagina-tree-browser om pagina's te vinden
+- Het **Paginastructuur**-paneel om pagina's te vinden, met beide tabs: de paginaboom binnen de share-scope, en **Op deze pagina** — de koppen van de pagina die gelezen wordt (*sinds 2.2.0*; zie [Op deze pagina](editor.nl.md#op-deze-pagina))
 - Footer-content (indien geconfigureerd)
 
 De volgende features zijn **niet** beschikbaar voor anonieme bezoekers:

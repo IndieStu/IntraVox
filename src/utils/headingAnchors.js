@@ -66,7 +66,42 @@ export function makeUniqueAnchorId() {
 export function isSectionAnchor(fragment) {
 	if (!fragment) return false;
 	const f = fragment.startsWith('#') ? fragment.slice(1) : fragment;
-	return f.startsWith(ANCHOR_PREFIX);
+	return f.startsWith(ANCHOR_PREFIX) || f.includes('#' + ANCHOR_PREFIX);
+}
+
+/**
+ * Splits een fragment in pagina-id en sectie-anker.
+ *
+ * Een sectie-link moet de pagina zelf benoemen, anders opent hij bij een ander
+ * de homepage: `#page-<uuid>#h-<slug>`. Het kale `#h-<slug>` blijft werken voor
+ * links die al gedeeld zijn — dan geldt de pagina die al open staat.
+ *
+ * @param {string} fragment
+ * @return {{pageId: string|null, anchorId: string|null}}
+ */
+export function parseFragment(fragment) {
+	if (!fragment) return { pageId: null, anchorId: null };
+	const f = fragment.startsWith('#') ? fragment.slice(1) : fragment;
+	const sep = f.indexOf('#' + ANCHOR_PREFIX);
+	if (sep > -1) {
+		return { pageId: f.slice(0, sep) || null, anchorId: f.slice(sep + 1) };
+	}
+	if (f.startsWith(ANCHOR_PREFIX)) {
+		return { pageId: null, anchorId: f };
+	}
+	return { pageId: f, anchorId: null };
+}
+
+/**
+ * Bouwt het fragment voor een sectie-link: pagina-id én kop, zodat de link
+ * ook buiten de huidige sessie de juiste pagina opent.
+ *
+ * @param {string|null} pageId
+ * @param {string} anchorId
+ * @return {string} bv. "#page-abc#h-intro"
+ */
+export function buildSectionFragment(pageId, anchorId) {
+	return pageId ? `#${pageId}#${anchorId}` : `#${anchorId}`;
 }
 
 /**
@@ -77,9 +112,9 @@ export function isSectionAnchor(fragment) {
  * @return {boolean} whether it scrolled
  */
 export function scrollToHashAnchor() {
-	const hash = window.location.hash;
-	if (!isSectionAnchor(hash)) return false;
-	const el = document.getElementById(hash.slice(1));
+	const { anchorId } = parseFragment(window.location.hash);
+	if (!anchorId) return false;
+	const el = document.getElementById(anchorId);
 	if (!el) return false;
 	el.scrollIntoView({ behavior: 'smooth', block: 'start' });
 	return true;

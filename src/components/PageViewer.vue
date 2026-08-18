@@ -42,7 +42,7 @@
         v-for="(row, rowIndex) in page.layout.rows"
         :key="rowIndex"
         class="page-row"
-        :class="{ 'collapsible-row': row.collapsible }"
+        :class="{ 'collapsible-row': row.collapsible, 'has-background': !!row.backgroundColor }"
         :style="getRowStyle(row)"
       >
         <!-- Section Header (only for collapsible rows) -->
@@ -166,7 +166,7 @@ export default {
       default: false
     }
   },
-  emits: ['navigate'],
+  emits: ['navigate', 'rows-changed'],
   data() {
     return {
       pageReactions: {},
@@ -290,6 +290,9 @@ export default {
         ...this.collapsedRows,
         [rowKey]: !currentState
       };
+      // De inhoudsopgave toont alleen zichtbare koppen; open/dichtklappen
+      // verandert die verzameling.
+      this.$emit('rows-changed');
     },
     getSideColumnWidgets(side) {
       const sideColumn = this.page?.layout?.sideColumns?.[side];
@@ -456,7 +459,8 @@ export default {
 
 .page-row {
   margin-bottom: 12px;
-  padding: 16px;
+  /* Binnenmarge zit op .row-content; hier padding geeft dubbele witruimte */
+  padding: 0;
   border-radius: var(--border-radius-container-large);
   box-sizing: border-box;
   /* Without these, a wide child (table with min-content larger than its
@@ -469,7 +473,6 @@ export default {
 
 /* Collapsible row styling */
 .page-row.collapsible-row {
-  padding: 0;
   overflow: hidden;
 }
 
@@ -509,10 +512,19 @@ export default {
 
 /* Row content container */
 .row-content {
-  padding: 16px;
+  /* Kale rijen lopen als documentflow: alleen horizontale padding, zodat
+     tekst uitlijnt met tekst in rijen mét achtergrondkleur */
+  padding: 0 16px;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* Rijen met achtergrond of sectieheader zijn visueel een blok en houden
+   hun binnenmarge */
+.page-row.has-background .row-content,
+.page-row.collapsible-row .row-content {
+  padding: 16px;
 }
 
 .page-row.collapsible-row .row-content {
@@ -532,7 +544,6 @@ export default {
 }
 
 .page-column {
-  min-height: 50px;
   box-sizing: border-box;
   min-width: 0;
   overflow: hidden;
@@ -584,12 +595,21 @@ export default {
 
   .page-row {
     margin-bottom: 16px;
-    padding: 16px 12px;
+    padding: 0;
     border-radius: var(--border-radius-container-large) !important;
     width: 100%;
     max-width: 100%;
     box-sizing: border-box;
     overflow: hidden; /* Ensures border-radius is visible */
+  }
+
+  .row-content {
+    padding: 0 12px;
+  }
+
+  .page-row.has-background .row-content,
+  .page-row.collapsible-row .row-content {
+    padding: 12px;
   }
 
   .page-row.collapsible-row {

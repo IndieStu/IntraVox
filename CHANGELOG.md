@@ -4,6 +4,44 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.2.0] - 2026-08-18 — A page structure panel that stays open, and a table of contents
+
+The page structure moved out of its pop-up and became a panel beside the content, the way a space sidebar works in Confluence. It stays open while you navigate, and it now has a second view: the headings of the page you are reading.
+
+### Added
+
+- **The page structure is now a panel instead of a pop-up.** It opens from a button next to the breadcrumb — on the same level as the Details button (ℹ️), mirrored: structure on the left, details on the right. The button left the navigation bar, which is now just menu items.
+
+  The panel stays open while you click through pages: it is a table of contents, not a dialog you dismiss. Whether it is open, and which of its two views you last used, is remembered across navigation and page reloads. On screens narrower than 1024px it becomes an overlay instead of pushing the content aside.
+
+- **"On this page": a table of contents of the headings on the current page.** The second tab in the panel lists the headings of the page you are reading, indented by level, and scrolls to a section when you click one. The heading you are currently reading is marked, and that marker follows along as you scroll.
+
+  The headings are read from the rendered page rather than from the stored layout, which is what makes it complete: IntraVox has two kinds of headings — stand-alone heading widgets and headings written inside a text block — and only the rendered page has both, in reading order. It also means a version preview shows that version's headings, and headings inside a collapsed section stay out of the list until you open it.
+
+- **Both views are available in shared (anonymous) pages too.** The public view had the old pop-up; it now has the same panel with the same two tabs. The Details sidebar deliberately stays out: metadata and version history are not public, and there are no share endpoints for them.
+
+### Changed
+
+- **The Details sidebar stays where you put it.** It used to close itself whenever you opened another page, and its button could only open it — closing was possible only from inside the panel. It is now a real toggle that remembers its state, and it keeps its position on screen while you scroll instead of sliding out of view.
+
+- **Less vertical space between rows.** Every row carried two layers of padding, a leftover from the collapsible-rows feature: the row itself and the content wrapper inside it, together 32px above and below every row boundary. Rows with a background colour keep their inner margin — they are visible blocks — while plain rows now flow like a document. Headings gained asymmetric margins (more above than below), so a heading sits with the text it introduces.
+
+- **The mega menu uses the width it needs, up to four columns.** It was locked to two columns regardless of screen width, which made a menu with many sections grow downwards until entries fell off the bottom of the screen. The panel width now follows the number of sections, and is kept inside the viewport so a menu on the right no longer opens off-screen.
+
+- **The page structure and the table of contents share one visual language:** the same row height, the same active marker, the same indentation step. Nextcloud styles every button as bold, which made both lists shout; regular weight is back, with bold reserved for the current item.
+
+### Fixed
+
+- **A heading starting with a number no longer loses it.** "1. Accessing Admin Settings" rendered as ". Accessing Admin Settings": heading widgets were parsed as a markdown *document*, where `1. ` opens a numbered list, so the number was absorbed into list markup. Headings are now parsed as a single line — bold, italics and links still work.
+
+- **Deep links to a section keep working when shared.** A section anchor replaced the page identifier in the address, so `#h-some-section` was all that remained: anyone opening that link landed on the homepage. Section links now name both (`#<pageId>#h-<slug>`). Links already shared in the old format still work on the page that is open.
+
+- **Clicking a heading no longer scrolls it under the navigation bar.** The scroll offset assumed a fixed 80px header, while the actual top bar — title bar plus navigation — is taller, and taller still while editing. It now uses the measured height, so the heading lands clear of the bar in both views.
+
+- **The Details sidebar refreshes when you navigate.** Now that it stays open, it has to follow the page you are on: it went blank on the Details tab and kept the previous page's list on Versions. Along the way, tab changes were not being recorded at all — a Vue 2 idiom (`:active.sync`) that silently does nothing in Vue 3 — so the sidebar believed you were always on the Details tab.
+
+- **The page tree in shared pages is cached.** Building it costs one file read per page, and the public route — unlike the logged-in one — rebuilt it from disk on every request. That went unnoticed while the tree lived in a pop-up you opened occasionally; a panel that loads on every page visit makes it structural. The public tree now uses the same five-minute cache as the rest of the app, and is invalidated by the same page edits. On a 250-page intranet the call went from ~580ms to ~110ms; the cost no longer grows with each visitor.
+
 ## [2.0.1] - 2026-08-15 — Page folder names: renaming, and names that stay put
 
 ### Added

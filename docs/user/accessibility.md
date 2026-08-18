@@ -50,7 +50,7 @@ The 3 criteria with partial compliance (1.2.1, 1.2.2, 1.2.5) concern captions an
 | **2.3.1 Three flashes** | No flashing content. |
 | **2.4.1 Bypass blocks** | Skip-to-content link on both the main app and public pages. |
 | **2.4.3 Focus order** | DOM order = visual order. No `.blur()` anti-patterns. |
-| **2.4.5 Multiple ways** | Navigation bar, breadcrumb, search and page tree. |
+| **2.4.5 Multiple ways** | Navigation bar, breadcrumb, search, page tree, and the per-page table of contents ("On this page"). |
 | **2.4.6 Headings and labels** | All form inputs have an associated label. Heading hierarchy is correct. |
 | **2.4.7 Focus visible** | Global `*:focus-visible` outline (2px solid, 2px offset) via `main.css`. |
 | **2.5.1 Pointer gestures** | Drag-and-drop has button alternatives. |

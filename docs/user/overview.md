@@ -55,6 +55,19 @@ Home > Departments > HR > Policies
 
 Click any breadcrumb to go back to that level.
 
+### Page structure and table of contents
+
+The button next to the breadcrumb opens the **Page structure** panel, which has two tabs:
+
+- **Pages** — the whole intranet as a tree; click any page to open it.
+- **On this page** — the headings of the page you are reading, so you can jump straight to a section of a long page.
+
+![The Page structure panel open beside a page, with the Pages and On this page tabs](../screenshots/page-contents.png)
+
+*Since 2.2.0 the panel stays open while you read on: it is a table of contents, not a dialog you have to reopen every time.*
+
+The panel remembers whether it was open and which tab you used, so it is there again the next time you visit. On a narrow screen it opens over the content rather than beside it.
+
 ### Sidebar Navigation
 
 Some pages have a sidebar for quick access to related content.

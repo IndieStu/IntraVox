@@ -1,26 +1,72 @@
 <template>
-  <NcModal @close="$emit('close')"
-           :name="modalTitle"
-           size="normal">
-    <div class="page-tree-content">
-      <CollapsibleHint v-if="!loading && !error && tree.length > 0"
+  <!-- Twee varianten: 'modal' (publieke share-view) en 'panel' (vast linker-
+       paneel als inhoudsopgave in de app). Zelfde boom en beheer-logica. -->
+  <component
+    :is="isPanel ? 'aside' : 'NcModal'"
+    :class="isPanel ? 'page-tree-panel' : null"
+    v-bind="isPanel ? { 'aria-label': modalTitle } : { name: modalTitle, size: 'normal' }"
+    @close="$emit('close')">
+    <div class="page-tree-content" :class="{ 'is-panel': isPanel }">
+      <div v-if="isPanel" class="panel-header">
+        <h2 class="panel-title">{{ modalTitle }}</h2>
+        <button class="panel-close"
+                @click="$emit('close')"
+                :aria-label="t('intravox', 'Close')"
+                :title="t('intravox', 'Close')">
+          <Close :size="20" />
+        </button>
+      </div>
+      <!-- Twee weergaven in het paneel: de paginaboom en de inhoudsopgave van
+           de huidige pagina. Alleen in paneelmodus — de modal toont altijd de boom. -->
+      <div v-if="isPanel" class="panel-tabs" role="tablist">
+        <button class="panel-tab"
+                :class="{ 'is-active': activeTab === 'pages' }"
+                role="tab"
+                :aria-selected="activeTab === 'pages' ? 'true' : 'false'"
+                @click="setActiveTab('pages')">
+          {{ t('intravox', 'Pages') }}
+        </button>
+        <button class="panel-tab"
+                :class="{ 'is-active': activeTab === 'toc' }"
+                role="tab"
+                :aria-selected="activeTab === 'toc' ? 'true' : 'false'"
+                @click="setActiveTab('toc')">
+          {{ t('intravox', 'On this page') }}
+        </button>
+      </div>
+
+      <PageToc v-if="isPanel"
+               v-show="activeTab === 'toc'"
+               :page-key="tocPageKey"
+               :current-page-id="currentPageId" />
+
+      <!-- Modal: hint en beheerknop bovenaan. In de paneelvariant staan ze in
+           een stille voettekst onderaan, zodat de boom zelf bovenaan begint. -->
+      <div v-show="!isPanel || activeTab === 'pages'" class="tree-view">
+      <!-- In beheermodus vertelt de waarschuwing hieronder het verhaal al;
+           de algemene uitleg is dan dubbelop. -->
+      <CollapsibleHint v-if="!isPanel && !manageMode && !loading && !error && tree.length > 0"
                        :summary="t('intravox', 'About the page structure')">
         {{ t('intravox', 'This shows all your actual pages. Use "Manage structure" to move, reorder, copy or delete them. Only top-level pages can be set as the homepage; to make a subpage the homepage, move it to the top level first. To change the links in the navigation bar and their order, use "Edit navigation".') }}
       </CollapsibleHint>
 
-      <div v-if="canManageAny && !loading && !error && tree.length > 0" class="page-tree-toolbar">
-        <NcButton type="tertiary"
-                  @click="manageMode = !manageMode">
+      <NcNoteCard v-if="manageMode" type="warning">
+        {{ t('intravox', 'Changes here move and rename the actual pages and their folders. This is different from "Edit navigation", which only changes the links in the navigation bar.') }}
+      </NcNoteCard>
+
+      <!-- Opent de modal al ín beheermodus (vanuit het paneel), dan sluit Done
+           de modal; anders schakelt hij de beheermodus uit. -->
+      <div v-if="!isPanel && canManageAny && !loading && !error && tree.length > 0"
+           class="page-tree-toolbar">
+        <NcButton :type="manageMode ? 'primary' : 'tertiary'"
+                  @click="toggleManageMode">
           <template #icon>
-            <Cog :size="20" />
+            <Check v-if="manageMode" :size="20" />
+            <Cog v-else :size="20" />
           </template>
           {{ manageMode ? t('intravox', 'Done') : t('intravox', 'Manage structure') }}
         </NcButton>
       </div>
-
-      <NcNoteCard v-if="manageMode" type="warning">
-        {{ t('intravox', 'Changes here move and rename the actual pages and their folders. This is different from "Edit navigation", which only changes the links in the navigation bar.') }}
-      </NcNoteCard>
 
       <div v-if="loading" class="loading-state">
         <NcLoadingIcon :size="32" />
@@ -86,8 +132,21 @@
           />
         </ul>
       </div>
+
+      <!-- Stille voettekst: alleen de ingang naar beheren. De uitleg staat in
+           de beheermodal zelf, waar hij hoort bij de acties die hij beschrijft. -->
+      <div v-if="isPanel && canManageAny && !loading && !error && tree.length > 0"
+           class="panel-footer">
+        <!-- Beheren opent een modal: de actieknoppen per pagina passen niet
+             in een 320px-paneel zonder de titels te verdringen -->
+        <button class="panel-footer__action" @click="$emit('manage')">
+          <Cog :size="16" />
+          <span>{{ t('intravox', 'Manage structure') }}</span>
+        </button>
+      </div>
+      </div><!-- /.tree-view -->
     </div>
-  </NcModal>
+  </component>
 </template>
 
 <script>
@@ -95,10 +154,17 @@ import { translate, translatePlural } from '@nextcloud/l10n';
 import { NcModal, NcLoadingIcon, NcButton, NcNoteCard, NcCheckboxRadioSwitch } from '@nextcloud/vue';
 import CollapsibleHint from './CollapsibleHint.vue';
 import Cog from 'vue-material-design-icons/Cog.vue';
+import Close from 'vue-material-design-icons/Close.vue';
+import Check from 'vue-material-design-icons/Check.vue';
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
 import PageTreeItem from './PageTreeItem.vue';
 import PageTreeSelect from './PageTreeSelect.vue';
+import PageToc from './PageToc.vue';
+
+// Onthoudt welke weergave het paneel toonde, in de stijl van
+// 'intravox:page-tree-open' in App.vue
+const TAB_STORAGE_KEY = 'intravox:page-panel-tab';
 
 export default {
   name: 'PageTreeModal',
@@ -111,9 +177,38 @@ export default {
     CollapsibleHint,
     PageTreeItem,
     PageTreeSelect,
-    Cog
+    PageToc,
+    Cog,
+    Close,
+    Check
   },
   props: {
+    /**
+     * 'modal' (default) toont de boom in een NcModal; 'panel' rendert hem als
+     * vast linkerpaneel dat open blijft tijdens navigeren (inhoudsopgave).
+     */
+    variant: {
+      type: String,
+      default: 'modal',
+      validator: (value) => ['modal', 'panel'].includes(value)
+    },
+    // Opent de modal direct in beheermodus (vanuit "Manage structure" in het paneel)
+    startInManageMode: {
+      type: Boolean,
+      default: false
+    },
+    // Verandert wanneer de gerenderde pagina wijzigt; laat de inhoudsopgave
+    // opnieuw scannen
+    tocPageKey: {
+      type: String,
+      default: ''
+    },
+    // Bewerkmodus: koppen krijgen dan geen anker-id, dus de inhoudsopgave zou
+    // leeg zijn. Het paneel valt in dat geval terug op de paginaboom.
+    forcePagesTab: {
+      type: Boolean,
+      default: false
+    },
     currentPageId: {
       type: String,
       default: null
@@ -138,7 +233,7 @@ export default {
       default: false
     }
   },
-  emits: ['close', 'navigate', 'reorder', 'move', 'rename', 'delete', 'copy', 'set-homepage', 'homepage'],
+  emits: ['close', 'navigate', 'reorder', 'move', 'rename', 'delete', 'copy', 'set-homepage', 'homepage', 'manage'],
   data() {
     return {
       tree: [],
@@ -151,10 +246,14 @@ export default {
       moveTargetId: null,
       moveToRoot: false,
       moveInProgress: false,
-      manageMode: false
+      manageMode: this.startInManageMode,
+      activeTab: this.readStoredTab()
     };
   },
   computed: {
+    isPanel() {
+      return this.variant === 'panel';
+    },
     modalTitle() {
       return this.t('intravox', 'Page structure');
     },
@@ -187,6 +286,23 @@ export default {
     // the tree must swap along with it rather than keep showing the old one.
     language() {
       this.loadTree();
+    },
+    // In paneelmodus blijft de component gemonteerd tijdens navigeren; de
+    // markering van de huidige pagina moet dan client-side meebewegen.
+    currentPageId() {
+      this.markCurrentPage();
+    },
+    // Bewerken maakt de inhoudsopgave onbruikbaar (geen anker-ids), dus terug
+    // naar de boom. De opgeslagen voorkeur blijft staan voor na het bewerken.
+    forcePagesTab: {
+      immediate: true,
+      handler(force) {
+        if (force) {
+          this.activeTab = 'pages';
+        } else {
+          this.activeTab = this.readStoredTab();
+        }
+      }
     }
   },
   async mounted() {
@@ -268,7 +384,46 @@ export default {
     },
     handleNavigate(uniqueId) {
       this.$emit('navigate', uniqueId);
-      this.$emit('close');
+      // Het paneel is een inhoudsopgave: het blijft open tot de gebruiker het
+      // zelf sluit. Alleen de modal sluit na navigeren.
+      if (!this.isPanel) {
+        this.$emit('close');
+      }
+    },
+    readStoredTab() {
+      try {
+        return window.localStorage.getItem(TAB_STORAGE_KEY) === 'toc' ? 'toc' : 'pages';
+      } catch (e) {
+        return 'pages';
+      }
+    },
+    setActiveTab(tab) {
+      this.activeTab = tab;
+      try {
+        window.localStorage.setItem(TAB_STORAGE_KEY, tab);
+      } catch (e) {
+        // Zonder storage (private mode) geldt de keuze alleen deze sessie
+      }
+    },
+    toggleManageMode() {
+      // Opende de modal speciaal om te beheren, dan is beheren klaar = modal
+      // dicht. Anders valt hij terug op de gewone boomweergave.
+      if (this.manageMode && this.startInManageMode) {
+        this.$emit('close');
+        return;
+      }
+      this.manageMode = !this.manageMode;
+    },
+    markCurrentPage() {
+      const mark = (nodes) => {
+        for (const node of nodes || []) {
+          node.isCurrent = node.uniqueId === this.currentPageId;
+          mark(node.children);
+        }
+      };
+      mark(this.tree);
+      this.expandPathToCurrent(this.tree);
+      this.expandedNodes = new Set(this.expandedNodes);
     },
     // ---- Manage: reorder / move / delete (issue #69) ----
     findSiblingList(nodes, parentId) {
@@ -369,6 +524,155 @@ export default {
 <style scoped>
 .page-tree-content {
   padding: 20px;
+}
+
+/* --- Paneel-variant: vaste linkerkolom als inhoudsopgave --- */
+.page-tree-panel {
+  width: 320px;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  background: var(--color-main-background);
+  border-right: 1px solid var(--color-border);
+  /* Plakt onder de sticky topbar; --intravox-topbar-height wordt door App.vue
+     gezet omdat de topbar-hoogte varieert (editmodus, smalle schermen) */
+  position: sticky;
+  top: var(--intravox-topbar-height, 0px);
+  align-self: flex-start;
+  max-height: calc(100vh - var(--header-height, 50px) - var(--intravox-topbar-height, 0px));
+  overflow-y: auto;
+}
+
+.page-tree-panel .page-tree-content {
+  padding: 12px 16px 16px;
+}
+
+.page-tree-content.is-panel .page-tree {
+  max-height: none;
+  overflow-y: visible;
+}
+
+/* Voettekst: beheer + uitleg, visueel ondergeschikt aan de boom */
+.panel-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.panel-footer__action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  background: none;
+  border: none;
+  color: var(--color-text-maxcontrast);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.panel-footer__action:hover {
+  color: var(--color-main-text);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  /* Blijft in beeld terwijl een lange boom scrollt */
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--color-main-background);
+  padding-bottom: 4px;
+}
+
+/* Uitgelijnd op de kop van NcAppSidebar (de Details-sidebar rechts), zodat de
+   twee zijpanelen naast elkaar dezelfde typografie hebben: 20px, heading-gewicht,
+   normale tekstkleur. */
+.panel-title {
+  margin: 0;
+  padding: 7px 0;
+  font-size: 20px;
+  font-weight: var(--font-weight-heading, bold);
+  color: var(--color-main-text);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.panel-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Zelfde klikoppervlak en ronding als de sluitknop van NcAppSidebar */
+  width: var(--default-clickable-area, 44px);
+  height: var(--default-clickable-area, 44px);
+  padding: 0;
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-element, var(--border-radius));
+  color: var(--color-main-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background-color 0.1s ease;
+}
+
+.panel-close:hover {
+  background-color: var(--color-background-hover);
+}
+
+/* Tabbalk: paginaboom vs inhoudsopgave van de huidige pagina.
+   Bewust zonder iconen, anders dan de tabs van de Details-sidebar: dit zijn
+   twee wéérgaven van hetzelfde paneel (een schakelaar), geen vier losse
+   inhoudssecties. De vórm volgt wel de sidebar-tabs — knopvlak met lichte
+   achtergrond als actieve staat — zodat beide panelen dezelfde taal spreken. */
+.panel-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.panel-tab {
+  flex: 1;
+  padding: 8px;
+  background: none;
+  border: none;
+  border-radius: var(--border-radius-element, var(--border-radius));
+  color: var(--color-text-maxcontrast);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.panel-tab:hover {
+  background-color: var(--color-background-hover);
+  color: var(--color-main-text);
+}
+
+.panel-tab.is-active {
+  background-color: var(--color-primary-element-light);
+  color: var(--color-main-text);
+  font-weight: 600;
+}
+
+/* Smal scherm: paneel als overlay over de content i.p.v. induwen */
+@media (max-width: 1024px) {
+  .page-tree-panel {
+    position: fixed;
+    left: 0;
+    top: calc(var(--header-height, 50px) + var(--intravox-topbar-height, 0px));
+    bottom: 0;
+    max-height: none;
+    width: min(320px, 85vw);
+    z-index: 2000;
+    box-shadow: 4px 0 16px var(--color-box-shadow);
+  }
 }
 
 .page-tree-toolbar {
