@@ -144,7 +144,7 @@ IntraVox se ejecuta donde ejecutas Nextcloud: tu propio hardware, un proveedor e
     <bugs>https://github.com/nextcloud/IntraVox/issues</bugs>
     <repository type="git">https://github.com/nextcloud/IntraVox.git</repository>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/intravox%20home.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/page-contents.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/pagestructure.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/Intravox%20edit-page.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/calendarwidget-intro.gif</screenshot>
     <screenshot>https://raw.githubusercontent.com/nextcloud/IntraVox/main/screenshots/People-overview.png</screenshot>
