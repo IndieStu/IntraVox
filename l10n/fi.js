@@ -227,6 +227,7 @@ OC.L10N.register(
     "Move up" : "Siirrä ylös",
     "Move down" : "Siirrä alas",
     "Rename" : "Nimeä uudelleen",
+    "Close" : "Sulje",
     "Done" : "Valmis",
     "Clear search" : "Tyhjennä haku",
     "Clear selection" : "Tyhjennä valinta",

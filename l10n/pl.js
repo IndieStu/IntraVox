@@ -240,6 +240,7 @@ OC.L10N.register(
     "Move up" : "Przenieś wyżej",
     "Move down" : "Przenieś niżej",
     "Rename" : "Zmień nazwę",
+    "Close" : "Zamknij",
     "Done" : "Gotowe",
     "Move page" : "Przenieś stronę",
     "Search pages" : "Szukaj stron",

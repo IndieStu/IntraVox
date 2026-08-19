@@ -104,6 +104,7 @@ OC.L10N.register(
     "Restore" : "Restaurar",
     "Disabled" : "Deshabilitado",
     "Current" : "Actual",
+    "Close" : "Cerrar",
     "Avatar" : "Avatar",
     "Contact" : "Contacto",
     "Address" : "Dirección",

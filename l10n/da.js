@@ -255,6 +255,7 @@ OC.L10N.register(
     "Move up" : "Flyt op",
     "Move down" : "Flyt ned",
     "Rename" : "Omdøb",
+    "Close" : "Luk",
     "Done" : "Færdig",
     "Move page" : "Flyt side",
     "Search pages" : "Søg på sider",

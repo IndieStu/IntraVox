@@ -89,6 +89,7 @@ OC.L10N.register(
     "Disabled" : "Deaktivert",
     "Current" : "Gjeldande",
     "Rename" : "Endra namn",
+    "Close" : "Lukk",
     "Done" : "Ferdig",
     "Clear search" : "Tøm søk",
     "Clear selection" : "Tøm utval",

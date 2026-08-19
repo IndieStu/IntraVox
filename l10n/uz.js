@@ -132,6 +132,7 @@ OC.L10N.register(
     "Duplicate row" : "Qatorni nusxalash",
     "Column {column}" : "Column {column}",
     "Rename" : "Nomini o'zgartirish",
+    "Close" : "Yopish",
     "Done" : "Bajarildi",
     "Clear search" : "Qidiruvni tozalash",
     "Group" : "Guruh",

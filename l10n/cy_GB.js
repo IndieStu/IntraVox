@@ -66,6 +66,7 @@ OC.L10N.register(
     "Version" : "Fersiwn",
     "Restore" : "Adfer",
     "Rename" : "Ailenwi",
+    "Close" : "Cau",
     "Group" : "Grŵp",
     "Avatar" : "Afatar",
     "Contact" : "Cysylltu",

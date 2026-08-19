@@ -319,6 +319,7 @@ OC.L10N.register(
     "Move up" : "Pakelti",
     "Move down" : "Nuleisti",
     "Rename" : "Pervadinti",
+    "Close" : "Užverti",
     "Done" : "Atlikta",
     "Search pages" : "Ieškoti puslapių",
     "Clear search" : "Išvalyti paiešką",

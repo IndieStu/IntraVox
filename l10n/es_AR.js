@@ -121,6 +121,7 @@ OC.L10N.register(
     "Disabled" : "Deshabilitado",
     "Current" : "Actual",
     "Rename" : "Renombrar",
+    "Close" : "Cerrar",
     "Done" : "Terminado",
     "Group" : "Grupo",
     "Organisation" : "Organización",

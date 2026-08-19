@@ -242,6 +242,7 @@ OC.L10N.register(
     "Move up" : "Mozgatás fel",
     "Move down" : "Mozgatás le",
     "Rename" : "Átnevezés",
+    "Close" : "Bezárás",
     "Done" : "Kész",
     "Move page" : "Oldal áthelyezése",
     "Search pages" : "Oldalak keresése",

@@ -150,6 +150,7 @@ OC.L10N.register(
     "Current" : "Atuale",
     "Move up" : "Tràmuda fache a susu",
     "Move down" : "Tràmuda fache a bàsciu",
+    "Close" : "Serra",
     "Show more" : "Mustra de prus",
     "Group" : "Grupu",
     "Organisation" : "Organizatzione",

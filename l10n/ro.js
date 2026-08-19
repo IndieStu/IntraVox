@@ -148,6 +148,7 @@ OC.L10N.register(
     "Move up" : "Mută înainte",
     "Move down" : "Mută în jos",
     "Rename" : "Redenumire",
+    "Close" : "Închide",
     "Done" : "Realizat",
     "Group" : "Grup",
     "Organisation" : "Organizație",

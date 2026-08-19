@@ -195,6 +195,7 @@ OC.L10N.register(
     "Move up" : "Færa upp",
     "Move down" : "Færa niður",
     "Rename" : "Endurnefna",
+    "Close" : "Loka",
     "Done" : "Lokið",
     "Clear search" : "Hreinsa leit",
     "Show more" : "Birta meira",

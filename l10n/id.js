@@ -234,6 +234,7 @@ OC.L10N.register(
     "Move up" : "Pindah ke atas",
     "Move down" : "Pindah ke bawah",
     "Rename" : "Ganti nama",
+    "Close" : "Tutup",
     "Done" : "Selesai",
     "Clear search" : "Hapus pencarian",
     "Show more" : "Tampilkan lebih banyak",

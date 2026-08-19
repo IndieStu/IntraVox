@@ -234,6 +234,7 @@ OC.L10N.register(
     "Move up" : "Move up",
     "Move down" : "Move down",
     "Rename" : "ປ່ຽນຊື່",
+    "Close" : "ປິດ",
     "Done" : "ສະຖານະ",
     "Clear search" : "Clear search",
     "Clear selection" : "Clear selection",

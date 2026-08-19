@@ -155,6 +155,7 @@ OC.L10N.register(
     "Move up" : "Move up",
     "Move down" : "Move down",
     "Rename" : "სახელის გადარქმევა",
+    "Close" : "Close",
     "Done" : "მზადაა",
     "Clear search" : "ძებნის გასუფთავება",
     "Clear selection" : "Clear selection",

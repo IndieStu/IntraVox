@@ -243,6 +243,7 @@ OC.L10N.register(
     "Move up" : "Presunúť hore",
     "Move down" : "Presunúť dole",
     "Rename" : "Premenovať",
+    "Close" : "Zavrieť",
     "Done" : "Hotovo",
     "Move page" : "Presunúť stránku",
     "Search pages" : "Hľadať stránky",

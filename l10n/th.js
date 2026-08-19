@@ -106,6 +106,7 @@ OC.L10N.register(
     "Disabled" : "ปิดใช้งาน",
     "Current" : "ปัจจุบัน",
     "Rename" : "เปลี่ยนชื่อ",
+    "Close" : "ปิด",
     "Clear search" : "ล้างการค้นหา",
     "Group" : "กลุ่ม",
     "Avatar" : "ภาพแทนตัว",

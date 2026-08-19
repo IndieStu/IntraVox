@@ -197,6 +197,7 @@ OC.L10N.register(
     "Move up" : "Mover arriba",
     "Move down" : "Mover abajo",
     "Rename" : "Renombrar",
+    "Close" : "Cerrar",
     "Done" : "Hecho",
     "Move page" : "Mover página",
     "Search pages" : "Buscar páginas",

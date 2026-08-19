@@ -252,6 +252,7 @@ OC.L10N.register(
     "Move up" : "يۆتكەڭ",
     "Move down" : "تۆۋەنگە يۆتكەڭ",
     "Rename" : "ئىسىم ئۆزگەرتىش",
+    "Close" : "ياپ",
     "Done" : "پۈتتى",
     "Search pages" : "ئىزدەش بەتلىرى",
     "Clear search" : "ئىزدەشنى تازىلاش",

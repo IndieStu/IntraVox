@@ -264,6 +264,7 @@ OC.L10N.register(
     "Move up" : "向上移動",
     "Move down" : "向下移動",
     "Rename" : "重新命名",
+    "Close" : "關閉",
     "Done" : "完成",
     "Search pages" : "搜尋頁面",
     "Clear search" : "清除搜尋",

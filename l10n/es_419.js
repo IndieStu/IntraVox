@@ -102,6 +102,7 @@ OC.L10N.register(
     "Version" : "Versión",
     "Restore" : "Restaurar",
     "Current" : "Actual",
+    "Close" : "Cerrar",
     "Avatar" : "Avatar",
     "Contact" : "Contacto",
     "Address" : "Dirección",

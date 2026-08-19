@@ -173,6 +173,7 @@ OC.L10N.register(
     "Move up" : "Mover arriba",
     "Move down" : "Mover abajo",
     "Rename" : "Renombrar",
+    "Close" : "Cerrar",
     "Done" : "Terminado",
     "Clear search" : "Limpiar búsqueda",
     "Show more" : "Mostrar más",

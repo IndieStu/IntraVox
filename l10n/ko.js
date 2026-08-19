@@ -211,6 +211,7 @@ OC.L10N.register(
     "Move up" : "위로 이동",
     "Move down" : "아래로 이동",
     "Rename" : "이름 바꾸기",
+    "Close" : "닫기",
     "Done" : "완료",
     "Clear search" : "찾기 초기화",
     "Show more" : "더 보기",

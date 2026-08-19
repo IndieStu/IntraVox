@@ -118,6 +118,7 @@ OC.L10N.register(
     "Disabled" : "Desactivat",
     "Current" : "En aqueste moment",
     "Rename" : "Tornar nommar",
+    "Close" : "Plegar",
     "Group" : "Grop",
     "Organisation" : "Organizacion",
     "Role" : "Ròtle",

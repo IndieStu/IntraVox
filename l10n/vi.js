@@ -156,6 +156,7 @@ OC.L10N.register(
     "Move up" : "Di chuyển lên",
     "Move down" : "Di chuyển xuống",
     "Rename" : "Đổi tên",
+    "Close" : "Đóng",
     "Done" : "Hoàn tất",
     "Group" : "Nhóm",
     "Organisation" : "Tổ chức",

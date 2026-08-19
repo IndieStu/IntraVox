@@ -272,6 +272,7 @@ OC.L10N.register(
     "Move up" : "انتقال به بالا",
     "Move down" : "انتقال به پایین",
     "Rename" : "تغییرنام",
+    "Close" : "بستن",
     "Done" : "انجام شد",
     "Move page" : "Move page",
     "Search pages" : "جستجوی صفحات",

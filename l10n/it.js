@@ -237,6 +237,7 @@ OC.L10N.register(
     "Move up" : "Sposta su",
     "Move down" : "Sposta giù",
     "Rename" : "Rinomina",
+    "Close" : "Chiudi",
     "Done" : "Completato",
     "Move page" : "Sposta pagina",
     "Clear search" : "Svuota ricerca",

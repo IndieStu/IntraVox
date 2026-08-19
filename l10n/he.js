@@ -163,6 +163,7 @@ OC.L10N.register(
     "Current" : "נוכחי",
     "Move down" : "להוריד למטה",
     "Rename" : "שינוי שם",
+    "Close" : "סגירה",
     "Done" : "הסתיים",
     "Show more" : "להציג יותר",
     "Group" : "קבוצה",

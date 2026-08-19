@@ -250,6 +250,7 @@ OC.L10N.register(
     "Move up" : "Переместить выше",
     "Move down" : "Переместить ниже",
     "Rename" : "Переименовать",
+    "Close" : "Закрыть",
     "Done" : "Выполненные",
     "Clear search" : "Очистить поиск",
     "Clear selection" : "Очистить выбор",

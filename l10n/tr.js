@@ -285,6 +285,7 @@ OC.L10N.register(
     "Move up" : "Yukarı taşı",
     "Move down" : "Aşağı taşı",
     "Rename" : "Yeniden adlandır",
+    "Close" : "Kapat",
     "Done" : "Tamam",
     "Move page" : "Sayfayı taşı",
     "Search pages" : "Sayfa ara",

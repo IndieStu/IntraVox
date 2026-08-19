@@ -229,6 +229,7 @@ OC.L10N.register(
     "Move up" : "Flytt opp",
     "Move down" : "Flytt ned",
     "Rename" : "Endre navn",
+    "Close" : "Lukk",
     "Done" : "Ferdig",
     "Search pages" : "Søk etter sider",
     "Clear search" : "Tøm søk",

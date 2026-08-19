@@ -241,6 +241,7 @@ OC.L10N.register(
     "Move up" : "Hamia juu",
     "Move down" : "Hamia chini",
     "Rename" : "Badili jina",
+    "Close" : "Funga",
     "Done" : "Imefanyika",
     "Search pages" : "Tafuta kurasa",
     "Clear search" : "Futa utafutaji",

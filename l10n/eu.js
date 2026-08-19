@@ -238,6 +238,7 @@ OC.L10N.register(
     "Move up" : "Eraman gora",
     "Move down" : "Eraman behera",
     "Rename" : "Berrizendatu",
+    "Close" : "Itxi",
     "Done" : "Egina",
     "Move page" : "Mugitu orria",
     "Search pages" : "Bilatu orriak",

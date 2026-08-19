@@ -264,6 +264,7 @@ OC.L10N.register(
     "Move up" : "Mover cara arriba",
     "Move down" : "Mover cara abaixo",
     "Rename" : "Cambiar o nome",
+    "Close" : "Pechar",
     "Done" : "Feito",
     "Move page" : "Mover a páxina",
     "Search pages" : "Buscar páxinas",

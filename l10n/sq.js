@@ -119,6 +119,7 @@ OC.L10N.register(
     "Disabled" : "I/E çaktivizuar",
     "Current" : "E tanishmja",
     "Rename" : "Riemërtoje",
+    "Close" : "Mbylleni",
     "Done" : "U bë",
     "Group" : "Grup",
     "Avatar" : "Avatari",

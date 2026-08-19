@@ -98,6 +98,7 @@ OC.L10N.register(
     "Disabled" : "არაა მოქმედი",
     "Current" : "ამჟამინდელი",
     "Rename" : "სახელის შეცვლა",
+    "Close" : "დახურვა",
     "Done" : "დასრულდა",
     "Avatar" : "ავატარი",
     "Contact" : "კონტაქტი",

@@ -178,6 +178,7 @@ OC.L10N.register(
     "Move up" : "Помести горе",
     "Move down" : "Помести доле",
     "Rename" : "Преименувај",
+    "Close" : "Затвори",
     "Done" : "Готово",
     "Clear search" : "Исчисти пребарување",
     "Clear selection" : "Исчисти ги селектираните",

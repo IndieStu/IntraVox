@@ -120,6 +120,7 @@ OC.L10N.register(
     "Current" : "Nuna",
     "Move down" : "Movi malsupren",
     "Rename" : "Alinomi",
+    "Close" : "Malfermi",
     "Done" : "Farita",
     "Show more" : "Montri pli",
     "Group" : "Grupo",

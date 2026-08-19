@@ -102,6 +102,7 @@ OC.L10N.register(
     "Restore" : "Restaurar",
     "Disabled" : "Deshabilitado",
     "Current" : "Actual",
+    "Close" : "Cerrar",
     "Group" : "Grupo",
     "Avatar" : "Avatar",
     "Contact" : "Contacto",

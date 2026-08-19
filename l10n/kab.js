@@ -181,6 +181,7 @@ OC.L10N.register(
     "Move up" : "Ali",
     "Move down" : "Ader",
     "Rename" : "Beddel isem",
+    "Close" : "Mdel",
     "Done" : "Immed",
     "Clear search" : "Sfeḍ anadi",
     "Show more" : "Sken ugar",
