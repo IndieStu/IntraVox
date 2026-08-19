@@ -32,6 +32,14 @@ class SetupService {
     private LanguageService $languageService;
     private IAppManager $appManager;
 
+    /**
+     * Per-request memo of groupfolder ids by mount point name.
+     * array_key_exists, not isset: "no such folder" must be cached too.
+     *
+     * @var array<string, int|null>
+     */
+    private array $groupFolderIdCache = [];
+
     public function __construct(
         IRootFolder $rootFolder,
         IConfig $config,
@@ -344,22 +352,49 @@ class SetupService {
     }
 
     /**
+     * Resolve a groupfolder id by mount point name, once per request.
+     *
+     * getAllFolders() is three unbounded queries plus an object per row, and
+     * getSharedFolder() has 41 call sites across controllers and services —
+     * several of them on the page-render path. Walking every groupfolder on
+     * the instance that many times per request is the enterprise blocker; on
+     * an instance with thousands of team folders it dominates page load.
+     *
+     * Only the id lookup is memoised. The Folder node it resolves to is
+     * deliberately NOT cached: that object is user-view dependent, and this
+     * service is used both from request scope and from occ.
+     *
+     * @return int|null Highest matching folder id, or null if there is none.
+     */
+    private function groupFolderIdByName(string $folderName): ?int {
+        if (array_key_exists($folderName, $this->groupFolderIdCache)) {
+            return $this->groupFolderIdCache[$folderName];
+        }
+
+        $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
+        $folders = $groupfolderManager->getAllFolders();
+        $folderId = null;
+        $highestId = 0;
+
+        foreach ($folders as $id => $folderData) {
+            $mountPoint = $this->getMountPointFromFolderData($folderData);
+            if ($mountPoint === $folderName && $id > $highestId) {
+                $folderId = (int)$id;
+                $highestId = $id;
+            }
+        }
+
+        $this->groupFolderIdCache[$folderName] = $folderId;
+
+        return $folderId;
+    }
+
+    /**
      * Get a groupfolder by name (generic)
      */
     private function getSharedFolderByName(string $folderName) {
         try {
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-            $folders = $groupfolderManager->getAllFolders();
-            $folderId = null;
-            $highestId = 0;
-
-            foreach ($folders as $id => $folderData) {
-                $mountPoint = $this->getMountPointFromFolderData($folderData);
-                if ($mountPoint === $folderName && $id > $highestId) {
-                    $folderId = $id;
-                    $highestId = $id;
-                }
-            }
+            $folderId = $this->groupFolderIdByName($folderName);
 
             if ($folderId === null) {
                 throw new \Exception("Groupfolder '{$folderName}' not found.");
@@ -715,6 +750,10 @@ class SetupService {
             }
 
             $folderId = $groupfolderManager->createFolder($folderName);
+            // Setup runs in the same request that may already have looked this
+            // name up and memoised "not found"; drop that so the folder we just
+            // created is visible to getSharedFolder() below.
+            unset($this->groupFolderIdCache[$folderName]);
             $this->logger->info("Created groupfolder '{$folderName}' with ID: {$folderId}");
             return $folderId;
 

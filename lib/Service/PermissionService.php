@@ -53,6 +53,16 @@ class PermissionService {
      */
     private array $nodePermissionsCache = [];
 
+    /**
+     * Per-request memo of the groupfolder id, keyed by mount point name.
+     * Uses array_key_exists, not isset: a resolved-to-null answer must be
+     * cached too, otherwise a broken install re-walks every groupfolder on
+     * the instance for every permission check.
+     *
+     * @var array<string, int|null>
+     */
+    private array $groupFolderIdCache = [];
+
     /** Distributed cache TTL for the per-language page path map (5 minutes). */
     private const PAGE_PATH_MAP_TTL = 300;
 
@@ -89,8 +99,39 @@ class PermissionService {
      * Get the GroupFolder ID for IntraVox (or IntraVox Site)
      */
     private function getGroupFolderId(string $folderName = 'IntraVox'): ?int {
+        if (array_key_exists($folderName, $this->groupFolderIdCache)) {
+            return $this->groupFolderIdCache[$folderName];
+        }
+
+        $folderId = $this->resolveGroupFolderId($folderName);
+        $this->groupFolderIdCache[$folderName] = $folderId;
+
+        return $folderId;
+    }
+
+    /**
+     * Resolve the groupfolder id by mount point name.
+     *
+     * getAllFolders() is three unbounded queries plus one object construction
+     * per row, so this walks every groupfolder on the instance to find the one
+     * we want. That is why {@see getGroupFolderId()} memoises the answer for
+     * the request: this used to run on every single permission check, which on
+     * an instance with thousands of team folders meant walking all of them to
+     * render one page.
+     *
+     * Matching on the mount point name is also why renaming the IntraVox
+     * groupfolder breaks resolution. Keying on folder_id instead is the
+     * multi-site registry's job; until that exists this stays name-based, but
+     * it is now called once per request rather than once per check.
+     */
+    protected function resolveGroupFolderId(string $folderName): ?int {
         try {
             if (!$this->appManager->isEnabledForUser('groupfolders')) {
+                $this->logger->warning(
+                    'IntraVox permission check with the groupfolders app disabled; denying access. '
+                    . 'IntraVox stores all content in a groupfolder, so this is a broken installation, '
+                    . 'not an unconfigured one.'
+                );
                 return null;
             }
 
@@ -112,6 +153,14 @@ class PermissionService {
                     $folderId = (int)$id;
                     $highestId = $id;
                 }
+            }
+
+            if ($folderId === null) {
+                $this->logger->warning(
+                    'No groupfolder named "' . $folderName . '" found; denying access. '
+                    . 'Either IntraVox has not been set up yet, or the groupfolder was renamed '
+                    . '(resolution is by mount point name).'
+                );
             }
 
             return $folderId;
@@ -160,8 +209,16 @@ class PermissionService {
     private function calculatePermissions(string $relativePath, string $userId): int {
         $folderId = $this->getGroupFolderId();
         if ($folderId === null) {
-            $this->logger->debug('No GroupFolder found, using default permissions');
-            return self::PERMISSION_ALL; // Fallback if groupfolders not setup
+            // Fail CLOSED. This used to return PERMISSION_ALL "if groupfolders
+            // is not set up", but every IntraVox page lives inside a
+            // groupfolder — setup refuses to run without one. So there is no
+            // legitimate state in which we cannot find the folder and should
+            // still hand out full rights; the reachable causes are a disabled
+            // groupfolders app, a renamed groupfolder, or setup never having
+            // run. Granting write access on any of those is a hole, and one
+            // that would become impossible to bisect once pages can live in
+            // more than one site. getGroupFolderId() logs which cause it was.
+            return 0;
         }
 
         try {
@@ -176,7 +233,12 @@ class PermissionService {
             $userGroups = $this->groupManager->getUserGroupIds($user);
 
             // Get folder configuration
-            $folderData = $groupfolderManager->getFolder($folderId, $this->rootFolder->getMountPoint()->getNumericStorageId());
+            // getFolder() takes one argument. The extra storage id we used to
+            // pass was silently discarded (PHP ignores excess args on userland
+            // methods), so this is not a behaviour change — but it was a call
+            // that only looked correct, and any groupfolders release that adds
+            // a second parameter would have started feeding it our storage id.
+            $folderData = $groupfolderManager->getFolder($folderId);
 
             // Calculate base permissions from group membership
             $basePermissions = 0;
