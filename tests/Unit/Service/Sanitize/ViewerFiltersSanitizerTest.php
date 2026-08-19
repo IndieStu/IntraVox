@@ -4,8 +4,13 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Tests\Unit\Service\Sanitize;
 
-use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Service\Sanitize\ColorSanitizer;
+use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
+use OCA\IntraVox\Service\Sanitize\PageShapeSanitizer;
+use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
+use OCP\IConfig;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\LoggerInterface;
 
 /**
  * Round-trip guard for viewerFilters.
@@ -17,12 +22,15 @@ use PHPUnit\Framework\TestCase;
  */
 class ViewerFiltersSanitizerTest extends TestCase {
 	private function sanitize(array $raw, string $pattern = '/^[a-z][a-z0-9_]{0,63}$/i'): array {
-		$service = (new \ReflectionClass(PageService::class))->newInstanceWithoutConstructor();
+		$sanitizer = new PageShapeSanitizer(
+			$this->createMock(IConfig::class),
+			$this->createMock(LoggerInterface::class),
+			new HtmlSanitizer(),
+			new UrlSanitizer(),
+			new ColorSanitizer(),
+		);
 
-		$method = new \ReflectionMethod(PageService::class, 'sanitizeViewerFilters');
-		$method->setAccessible(true);
-
-		return $method->invoke($service, $raw, $pattern);
+		return $sanitizer->sanitizeViewerFilters($raw, $pattern);
 	}
 
 	public function testFullConfigSurvivesRoundTrip(): void {

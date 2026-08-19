@@ -211,21 +211,7 @@ class PageSlugUniquenessTest extends TestCase {
             if (!interface_exists($class) && !class_exists($class)) {
                 continue;
             }
-            try {
-                $prop->setValue($svc, $this->createMock($class));
-            } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
-                // final helpers (the sanitizers) cannot be doubled; they are pure
-                // transformers, so use the real thing.
-                $ctor = (new \ReflectionClass($class))->getConstructor();
-                $args = [];
-                foreach ($ctor?->getParameters() ?? [] as $param) {
-                    $pType = $param->getType();
-                    $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
-                        ? $this->createMock($pType->getName())
-                        : null;
-                }
-                $prop->setValue($svc, new $class(...$args));
-            }
+            $prop->setValue($svc, $this->doubleOrBuild($class));
         }
 
         return $svc;
@@ -447,4 +433,26 @@ class PageSlugUniquenessTest extends TestCase {
         );
         $this->assertArrayNotHasKey('order', $spy->seen, 'a copy must not inherit sibling order');
     }
+
+    /**
+     * Mock $class, or — when it is final and therefore not doubleable — build a
+     * real one and recurse for its own final dependencies (PageShapeSanitizer
+     * takes three final leaf sanitizers).
+     */
+    private function doubleOrBuild(string $class): object {
+        try {
+            return $this->createMock($class);
+        } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
+            $ctor = (new \ReflectionClass($class))->getConstructor();
+            $args = [];
+            foreach ($ctor?->getParameters() ?? [] as $param) {
+                $pType = $param->getType();
+                $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
+                    ? $this->doubleOrBuild($pType->getName())
+                    : null;
+            }
+            return new $class(...$args);
+        }
+    }
+
 }

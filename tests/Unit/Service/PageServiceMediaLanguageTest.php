@@ -194,19 +194,7 @@ class PageServiceMediaLanguageTest extends TestCase {
             if (!interface_exists($class) && !class_exists($class)) {
                 continue;
             }
-            try {
-                $prop->setValue($svc, $this->createMock($class));
-            } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
-                $ctor = (new \ReflectionClass($class))->getConstructor();
-                $args = [];
-                foreach ($ctor?->getParameters() ?? [] as $param) {
-                    $pType = $param->getType();
-                    $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
-                        ? $this->createMock($pType->getName())
-                        : null;
-                }
-                $prop->setValue($svc, new $class(...$args));
-            }
+            $prop->setValue($svc, $this->doubleOrBuild($class));
         }
 
         // sanitizeId() is delegated to a final helper that the loop above
@@ -416,4 +404,26 @@ class PageServiceMediaLanguageTest extends TestCase {
             'home media belongs to the language folder holding home.json'
         );
     }
+
+    /**
+     * Mock $class, or — when it is final and therefore not doubleable — build a
+     * real one and recurse for its own final dependencies (PageShapeSanitizer
+     * takes three final leaf sanitizers).
+     */
+    private function doubleOrBuild(string $class): object {
+        try {
+            return $this->createMock($class);
+        } catch (\PHPUnit\Framework\MockObject\Generator\ClassIsFinalException $e) {
+            $ctor = (new \ReflectionClass($class))->getConstructor();
+            $args = [];
+            foreach ($ctor?->getParameters() ?? [] as $param) {
+                $pType = $param->getType();
+                $args[] = $pType instanceof \ReflectionNamedType && !$pType->isBuiltin()
+                    ? $this->doubleOrBuild($pType->getName())
+                    : null;
+            }
+            return new $class(...$args);
+        }
+    }
+
 }

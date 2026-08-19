@@ -100,6 +100,16 @@ class PageWalkerSkipTest extends TestCase {
                 $this->createMock(\OCA\IntraVox\Service\PageIndexService::class),
                 $this->createMock(\Psr\Log\LoggerInterface::class)
             ));
+        // The walker sanitizes every page it serves; a mock would return null
+        // and make the assertions pass for the wrong reason.
+        (new \ReflectionProperty(PageService::class, 'shapeSanitizer'))
+            ->setValue($svc, new \OCA\IntraVox\Service\Sanitize\PageShapeSanitizer(
+                $this->createMock(\OCP\IConfig::class),
+                $this->createMock(\Psr\Log\LoggerInterface::class),
+                new \OCA\IntraVox\Service\Sanitize\HtmlSanitizer(),
+                new \OCA\IntraVox\Service\Sanitize\UrlSanitizer(),
+                new \OCA\IntraVox\Service\Sanitize\ColorSanitizer(),
+            ));
 
         $pages = $svc->listPagesWithContent();
         $ids = array_column($pages, 'uniqueId');
