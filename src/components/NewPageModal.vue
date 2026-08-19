@@ -4,22 +4,33 @@
            size="large">
     <div class="new-page-modal-content">
       <!-- Mode Tabs -->
-      <div class="mode-tabs" role="tablist">
+      <div class="mode-tabs"
+           role="tablist"
+           :aria-label="t('intravox', 'Page creation mode')"
+           @keydown="onModeKeydown">
         <button
+          id="intravox-newpage-tab-blank"
+          ref="tabBlank"
           class="mode-tab"
           :class="{ active: mode === 'blank' }"
           role="tab"
+          aria-controls="intravox-newpage-panel-blank"
           :aria-selected="mode === 'blank'"
+          :tabindex="mode === 'blank' ? 0 : -1"
           @click="mode = 'blank'"
         >
           <FileOutline :size="18" />
           {{ t('intravox', 'Blank page') }}
         </button>
         <button
+          id="intravox-newpage-tab-template"
+          ref="tabTemplate"
           class="mode-tab"
           :class="{ active: mode === 'template' }"
           role="tab"
+          aria-controls="intravox-newpage-panel-template"
           :aria-selected="mode === 'template'"
+          :tabindex="mode === 'template' ? 0 : -1"
           @click="mode = 'template'; loadTemplates()"
         >
           <FileDocumentMultipleOutline :size="18" />
@@ -28,7 +39,7 @@
       </div>
 
       <!-- Blank Page Mode -->
-      <div v-if="mode === 'blank'" class="mode-content" role="tabpanel">
+      <div v-if="mode === 'blank'" id="intravox-newpage-panel-blank" class="mode-content" role="tabpanel" aria-labelledby="intravox-newpage-tab-blank">
         <label for="new-page-title" class="modal-description">{{ t('intravox', 'Enter a title for the new page') }}</label>
         <input
           id="new-page-title"
@@ -42,7 +53,7 @@
       </div>
 
       <!-- Template Mode -->
-      <div v-else class="mode-content" role="tabpanel">
+      <div v-else id="intravox-newpage-panel-template" class="mode-content" role="tabpanel" aria-labelledby="intravox-newpage-tab-template">
         <!-- Loading state -->
         <div v-if="loadingTemplates" class="templates-loading">
           <NcLoadingIcon :size="32" />
@@ -150,6 +161,28 @@ export default {
   methods: {
     t(app, text, vars = {}) {
       return translate(app, text, vars);
+    },
+    onModeKeydown(event) {
+      // WAI-ARIA tabs: pijltjes wisselen van tab, Home/End naar de uiterste.
+      const volgorde = ['blank', 'template'];
+      const huidig = volgorde.indexOf(this.mode);
+      let doel = null;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        doel = volgorde[(huidig + 1) % volgorde.length];
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        doel = volgorde[(huidig - 1 + volgorde.length) % volgorde.length];
+      } else if (event.key === 'Home') {
+        doel = volgorde[0];
+      } else if (event.key === 'End') {
+        doel = volgorde[volgorde.length - 1];
+      }
+      if (!doel) return;
+      event.preventDefault();
+      this.mode = doel;
+      if (doel === 'template') this.loadTemplates();
+      this.$nextTick(() => {
+        (doel === 'blank' ? this.$refs.tabBlank : this.$refs.tabTemplate)?.focus();
+      });
     },
     async loadTemplates() {
       if (this.templates.length > 0) return; // Already loaded

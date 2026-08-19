@@ -7,27 +7,42 @@
     @update:open="handleClose"
   >
     <!-- Tab Navigation -->
-    <div class="media-picker-tabs" role="tablist">
+    <div class="media-picker-tabs"
+         role="tablist"
+         :aria-label="t('intravox', 'Media source')"
+         @keydown="onTabKeydown">
       <button
+        :id="'intravox-media-tab-upload'"
+        ref="tabUpload"
         :class="['tab-button', { active: activeTab === 'upload' }]"
         role="tab"
+        aria-controls="intravox-media-panel-upload"
         :aria-selected="activeTab === 'upload'"
+        :tabindex="activeTab === 'upload' ? 0 : -1"
         @click="activeTab = 'upload'"
       >
         {{ t('intravox', 'Upload') }}
       </button>
       <button
+        :id="'intravox-media-tab-page'"
+        ref="tabPage"
         :class="['tab-button', { active: activeTab === 'page' }]"
         role="tab"
+        aria-controls="intravox-media-panel-page"
         :aria-selected="activeTab === 'page'"
+        :tabindex="activeTab === 'page' ? 0 : -1"
         @click="switchToTab('page')"
       >
         {{ t('intravox', 'Page media') }}
       </button>
       <button
+        :id="'intravox-media-tab-resources'"
+        ref="tabResources"
         :class="['tab-button', { active: activeTab === 'resources' }]"
         role="tab"
+        aria-controls="intravox-media-panel-resources"
         :aria-selected="activeTab === 'resources'"
+        :tabindex="activeTab === 'resources' ? 0 : -1"
         @click="switchToTab('resources')"
       >
         {{ t('intravox', 'Shared library') }}
@@ -37,7 +52,7 @@
     <!-- Tab Content -->
     <div class="media-picker-content">
       <!-- Upload Tab -->
-      <div v-if="activeTab === 'upload'" class="tab-panel" role="tabpanel">
+      <div v-if="activeTab === 'upload'" id="intravox-media-panel-upload" class="tab-panel" role="tabpanel" aria-labelledby="intravox-media-tab-upload">
         <div class="upload-section">
           <input
             ref="fileInput"
@@ -76,7 +91,7 @@
       </div>
 
       <!-- Page Media Tab -->
-      <div v-if="activeTab === 'page'" class="tab-panel" role="tabpanel">
+      <div v-if="activeTab === 'page'" id="intravox-media-panel-page" class="tab-panel" role="tabpanel" aria-labelledby="intravox-media-tab-page">
         <div v-if="isLoadingMedia" class="loading-state">
           <span class="loading-spinner"></span>
           <p>{{ t('intravox', 'Loading media …') }}</p>
@@ -114,7 +129,7 @@
       </div>
 
       <!-- Resources Tab -->
-      <div v-if="activeTab === 'resources'" class="tab-panel" role="tabpanel">
+      <div v-if="activeTab === 'resources'" id="intravox-media-panel-resources" class="tab-panel" role="tabpanel" aria-labelledby="intravox-media-tab-resources">
         <!-- Breadcrumb Navigation -->
         <div v-if="currentResourcesPath" class="breadcrumb-nav">
           <button
@@ -394,6 +409,34 @@ export default {
       })
     },
 
+    onTabKeydown(event) {
+      // WAI-ARIA tabs: pijltjes wisselen van tab, Home/End naar de uiterste.
+      const volgorde = ['upload', 'page', 'resources'];
+      const huidig = volgorde.indexOf(this.activeTab);
+      let doel = null;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        doel = volgorde[(huidig + 1) % volgorde.length];
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        doel = volgorde[(huidig - 1 + volgorde.length) % volgorde.length];
+      } else if (event.key === 'Home') {
+        doel = volgorde[0];
+      } else if (event.key === 'End') {
+        doel = volgorde[volgorde.length - 1];
+      }
+      if (!doel) return;
+      event.preventDefault();
+      // switchToTab laadt de inhoud van de doeltab; 'upload' heeft dat niet nodig.
+      if (doel === 'upload') {
+        this.activeTab = 'upload';
+      } else {
+        this.switchToTab(doel);
+      }
+      this.$nextTick(() => {
+        const refs = { upload: 'tabUpload', page: 'tabPage', resources: 'tabResources' };
+        const el = this.$refs[refs[doel]];
+        (Array.isArray(el) ? el[0] : el)?.focus();
+      });
+    },
     async switchToTab(tab) {
       this.activeTab = tab
       if (tab === 'page' && this.pageMediaList.length === 0) {
@@ -611,8 +654,11 @@ export default {
 }
 
 .tab-button.active {
-  color: #0082c9;
-  border-bottom-color: #0082c9;
+  /* Hardgecodeerde #0082c9 gaf 3.19:1 op de actieve-tab-achtergrond — onder de
+     4.5:1 van WCAG 1.4.3. De themavariabele is donkerder (4.69:1) en volgt
+     bovendien het ingestelde thema, zoals de rest van de app. */
+  color: var(--color-primary-element);
+  border-bottom-color: var(--color-primary-element);
 }
 
 .media-picker-content {

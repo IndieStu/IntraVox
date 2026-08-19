@@ -1,6 +1,6 @@
 {
-    "count": 1369,
-    "sha256": "184de03ea750f806b716ad204f0d50abd12ad8ed9d966d2c285eca2518979835",
+    "count": 1371,
+    "sha256": "89f74bb5c2a89ee4ce2f45d5c8e7901520a744585a673166fc7e6ca3c733451c",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -719,6 +719,7 @@
         "Maximum items",
         "Maximum people to show",
         "Maximum photos",
+        "Media source",
         "Medium",
         "Mega menu",
         "Merge (keep existing, add missing)",
@@ -885,6 +886,7 @@
         "Page counts per language (e.g., EN: 45, NL: 32)",
         "Page created",
         "Page created from template",
+        "Page creation mode",
         "Page deleted",
         "Page details and history",
         "Page limit reached for one or more languages. Upgrade for unlimited pages.",
