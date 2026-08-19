@@ -76,9 +76,6 @@ class PageService {
     /** @var array Request-level cache for page data */
     private array $pageDataCache = [];
 
-    /** @var array Request-level cache for page list */
-    private ?array $listPagesCache = null;
-
     /** @var array Request-level cache for pages by folder path */
     private array $folderPathCache = [];
 
@@ -173,7 +170,6 @@ class PageService {
             $this->locator()->clearRequestCaches();
             $this->permissionService->clearNodePermissionsCache();
         }
-        $this->listPagesCache = null;
 
         // The expensive part — the static tree cache and the two distributed
         // caches (IPC/Redis clear()) — is what makes a 100-item bulk op wipe the
