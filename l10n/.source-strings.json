@@ -1,6 +1,6 @@
 {
-    "count": 1366,
-    "sha256": "5c641c698f1242780c74468afbad6909300373a71111000dc29c0f71ca276cd4",
+    "count": 1367,
+    "sha256": "7e118e6565c0df320a44f6600081db5c769d41dce8ef6fb526c7c1c43169996f",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -896,6 +896,7 @@
         "Page settings",
         "Page settings saved",
         "Page structure",
+        "Page structure views",
         "Page title",
         "Page unlocked",
         "Pages",

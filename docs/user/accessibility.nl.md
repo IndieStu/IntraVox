@@ -45,7 +45,7 @@ De 3 criteria met gedeeltelijke compliance (1.2.1, 1.2.2, 1.2.5) betreffen capti
 
 | Criterium | Implementatie |
 |---|---|
-| **2.1.1 Toetsenbord** | Alle interacties zijn met toetsenbord toegankelijk. 15+ toetsenbord-handlers (Enter, Escape, pijltjes, Ctrl+Enter). Feed-connection-cards in admin-instellingen zijn toetsenbord-navigeerbaar (`tabindex`, Enter/Space toggle). Feed-items hebben `focus-visible`-outline. |
+| **2.1.1 Toetsenbord** | Alle interacties zijn met toetsenbord toegankelijk. Het structuurpaneel is volledig bedienbaar: pijltjestoetsen wisselen tussen de twee tabs, en elk item in de boom en de inhoudsopgave is een echte knop. 15+ toetsenbord-handlers (Enter, Escape, pijltjes, Ctrl+Enter). Feed-connection-cards in admin-instellingen zijn toetsenbord-navigeerbaar (`tabindex`, Enter/Space toggle). Feed-items hebben `focus-visible`-outline. |
 | **2.1.2 Geen toetsenbord-val** | Escape sluit modals en dropdowns. NcModal heeft ingebouwde focus-trap. |
 | **2.2.2 Pauze, stop, verberg** | Carousel-autoplay stopt met `prefers-reduced-motion`. Globale CSS vermindert alle animaties. |
 | **2.3.1 Drie flashes** | Geen flikkerende content. |
@@ -71,7 +71,7 @@ De 3 criteria met gedeeltelijke compliance (1.2.1, 1.2.2, 1.2.5) betreffen capti
 | Criterium | Implementatie |
 |---|---|
 | **4.1.1 Parsing** | Geldig HTML via Vue-compiler. Geen dubbele ID's of ARIA-conflicten. |
-| **4.1.2 Naam, rol, waarde** | ARIA-rollen op tabs (`role="tablist/tab/tabpanel"`), combobox (`role="combobox/listbox"`), carousel (`role="region"`). `aria-expanded` op dropdowns. |
+| **4.1.2 Naam, rol, waarde** | ARIA-rollen op tabs (`role="tablist/tab/tabpanel"`), combobox (`role="combobox/listbox"`), carousel (`role="region"`). `aria-expanded` op dropdowns en op de structuur-toggle. De tabs van het structuurpaneel volgen het volledige patroon: `aria-controls` verwijst naar een echt tabpanel, roving `tabindex`, en pijltjes/Home/End verplaatsen focus en selectie samen. |
 | **4.1.3 Status-berichten** | `aria-live="polite"` op loading-states (inclusief feed-widget). `role="alert"` op foutmeldingen. `role="status"` op loading-spinners in admin-instellingen. |
 
 ## Technische details

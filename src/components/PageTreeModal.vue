@@ -18,31 +18,55 @@
       </div>
       <!-- Twee weergaven in het paneel: de paginaboom en de inhoudsopgave van
            de huidige pagina. Alleen in paneelmodus — de modal toont altijd de boom. -->
-      <div v-if="isPanel" class="panel-tabs" role="tablist">
-        <button class="panel-tab"
+      <!-- Volledig ARIA-tabspatroon: role=tab hoort aria-controls te hebben en
+           te wijzen op een role=tabpanel, en de pijltjestoetsen horen tussen de
+           tabs te bewegen terwijl Tab naar de inhoud springt (roving tabindex).
+           Zonder dat leest een schermlezer wel "tab", maar klopt de belofte niet. -->
+      <div v-if="isPanel"
+           class="panel-tabs"
+           role="tablist"
+           :aria-label="t('intravox', 'Page structure views')"
+           @keydown="onTabKeydown">
+        <button id="intravox-tab-pages"
+                ref="tabPages"
+                class="panel-tab"
                 :class="{ 'is-active': activeTab === 'pages' }"
                 role="tab"
+                aria-controls="intravox-tabpanel-pages"
                 :aria-selected="activeTab === 'pages' ? 'true' : 'false'"
+                :tabindex="activeTab === 'pages' ? 0 : -1"
                 @click="setActiveTab('pages')">
           {{ t('intravox', 'Pages') }}
         </button>
-        <button class="panel-tab"
+        <button id="intravox-tab-toc"
+                ref="tabToc"
+                class="panel-tab"
                 :class="{ 'is-active': activeTab === 'toc' }"
                 role="tab"
+                aria-controls="intravox-tabpanel-toc"
                 :aria-selected="activeTab === 'toc' ? 'true' : 'false'"
+                :tabindex="activeTab === 'toc' ? 0 : -1"
                 @click="setActiveTab('toc')">
           {{ t('intravox', 'On this page') }}
         </button>
       </div>
 
-      <PageToc v-if="isPanel"
-               v-show="activeTab === 'toc'"
-               :page-key="tocPageKey"
-               :current-page-id="currentPageId" />
+      <div v-if="isPanel"
+           v-show="activeTab === 'toc'"
+           id="intravox-tabpanel-toc"
+           role="tabpanel"
+           aria-labelledby="intravox-tab-toc">
+        <PageToc :page-key="tocPageKey"
+                 :current-page-id="currentPageId" />
+      </div>
 
       <!-- Modal: hint en beheerknop bovenaan. In de paneelvariant staan ze in
            een stille voettekst onderaan, zodat de boom zelf bovenaan begint. -->
-      <div v-show="!isPanel || activeTab === 'pages'" class="tree-view">
+      <div v-show="!isPanel || activeTab === 'pages'"
+           class="tree-view"
+           :id="isPanel ? 'intravox-tabpanel-pages' : null"
+           :role="isPanel ? 'tabpanel' : null"
+           :aria-labelledby="isPanel ? 'intravox-tab-pages' : null">
       <!-- In beheermodus vertelt de waarschuwing hieronder het verhaal al;
            de algemene uitleg is dan dubbelop. -->
       <CollapsibleHint v-if="!isPanel && !manageMode && !loading && !error && tree.length > 0"
@@ -396,6 +420,29 @@ export default {
       } catch (e) {
         return 'pages';
       }
+    },
+    onTabKeydown(event) {
+      // WAI-ARIA tabs: pijltjes wisselen van tab, Home/End springen naar de
+      // uiterste. Tab zelf verlaat de balk richting de inhoud.
+      const volgorde = ['pages', 'toc'];
+      const huidig = volgorde.indexOf(this.activeTab);
+      let doel = null;
+      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+        doel = volgorde[(huidig + 1) % volgorde.length];
+      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+        doel = volgorde[(huidig - 1 + volgorde.length) % volgorde.length];
+      } else if (event.key === 'Home') {
+        doel = volgorde[0];
+      } else if (event.key === 'End') {
+        doel = volgorde[volgorde.length - 1];
+      }
+      if (!doel) return;
+      event.preventDefault();
+      this.setActiveTab(doel);
+      this.$nextTick(() => {
+        const ref = doel === 'pages' ? this.$refs.tabPages : this.$refs.tabToc;
+        ref?.focus();
+      });
     },
     setActiveTab(tab) {
       this.activeTab = tab;

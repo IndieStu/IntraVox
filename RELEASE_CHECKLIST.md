@@ -221,6 +221,68 @@ Your just-written strings are unreviewed — review them in the editor:
 
 ---
 
+## 2b. Accessibility (WCAG 2.1 AA)
+
+`docs/user/accessibility.md` claims IntraVox meets ~47 of the 50 WCAG 2.1 AA
+criteria. Dutch government bodies are legally bound to WCAG 2.1 AA (Wet
+Digitale Overheid), so that claim is a promise to buyers, not marketing —
+it has to stay true per release. Run these checks on any release that adds
+or changes UI.
+
+- [ ] **New interactive components are reachable and operable by keyboard.**
+      Tab reaches them, Enter/Space activates, Escape closes what opens.
+      Native `<button>`/`<a>` gives this for free; a clickable `<div>` does not.
+
+- [ ] **Every icon-only control has an `aria-label`**, and toggles carry
+      `aria-expanded`.
+      ```bash
+      grep -rnE '<button[^>]*>\s*<[A-Z][A-Za-z]+ :size' src/ | grep -v aria-label
+      ```
+      Anything this prints is an icon button without a name.
+
+- [ ] **If you used `role="tab"`, implement the whole pattern.** A half-built
+      one is worse than none: the screen reader announces "tab 1 of 2" and then
+      the arrow keys do nothing. Required: `role="tablist"` with `aria-label`,
+      each `role="tab"` with `aria-controls` pointing at a real
+      `role="tabpanel"`, `aria-selected`, roving `tabindex` (0 on the active
+      tab, -1 on the rest), and Arrow/Home/End moving both focus and selection.
+      The panel tabs in `PageTreeModal.vue` are the reference implementation.
+
+- [ ] **Heading levels do not skip** (h1 → h3). The page structure panel's
+      "On this page" tab makes this visible: an indentation jump is a skipped
+      level.
+
+- [ ] **Focus stays visible.** Never remove an outline without replacing it;
+      `:focus-visible` is the global rule in `main.css`.
+
+- [ ] **Colour is not the only signal.** An active item needs a second cue —
+      a bar, an icon, weight — because a 5% colour difference reads as
+      "nothing changed" to many users. (2.2.0 shipped exactly that bug: hover
+      `#f5f5f5` against active `#e5eff5`.)
+
+- [ ] **Verify in the browser**, not only in the source. Paste into the
+      console with a panel open:
+      ```js
+      // tabs: does every role="tab" control a real tabpanel?
+      [...document.querySelectorAll('[role="tab"]')].map(t => ({
+        naam: t.textContent.trim(),
+        controls: t.getAttribute('aria-controls'),
+        doelIsPanel: document.getElementById(t.getAttribute('aria-controls'))
+          ?.getAttribute('role') === 'tabpanel',
+        tabindex: t.getAttribute('tabindex'),
+      }))
+      // icon buttons without an accessible name
+      [...document.querySelectorAll('button')].filter(b =>
+        !b.textContent.trim() && !b.getAttribute('aria-label')).length
+      ```
+
+- [ ] **Update `docs/user/accessibility.md` (and `.nl.md`) when the answer
+      changes.** The tables name concrete mechanisms per criterion; if a
+      release adds a component that satisfies — or breaks — one, the row has
+      to follow. Both language versions, in the same commit.
+
+---
+
 ## 3. Version Management
 
 - [ ] Determine new version number (semantic versioning: MAJOR.MINOR.PATCH)
