@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# Run the Integration suite against the real Nextcloud on nc-dev.
+#
+# Unlike the Unit suite (which stubs OCP away and runs anywhere), these tests
+# need a live server with the groupfolders app: they create a throwaway
+# groupfolder, mount it, check ACL-driven permissions, and remove it again.
+# They never touch the real IntraVox content.
+#
+# Usage:
+#   scripts/run-integration-tests.sh              # deploy current tree, then run
+#   scripts/run-integration-tests.sh --no-deploy  # run what is already deployed
+#   scripts/run-integration-tests.sh --filter Foo # pass through to phpunit
+set -euo pipefail
+
+SSH_HOST="${INTRAVOX_DEV_SSH:-rik@178.63.205.103}"
+CONTAINER="${INTRAVOX_DEV_CONTAINER:-nc-dev}"
+APP_DIR="/var/www/html/custom_apps/intravox"
+
+DEPLOY=1
+PHPUNIT_ARGS=()
+for arg in "$@"; do
+    case "$arg" in
+        --no-deploy) DEPLOY=0 ;;
+        *) PHPUNIT_ARGS+=("$arg") ;;
+    esac
+done
+
+if [ "$DEPLOY" -eq 1 ]; then
+    echo "==> Deploying current tree to ${CONTAINER}"
+    NO_AUTO_BUMP=1 ./deploy.sh hetzner >/dev/null 2>&1
+    echo "    done"
+fi
+
+# deploy.sh ships production files only — tests/ and the phpunit configs are
+# deliberately not part of the app tarball. Copy them in separately so the
+# suite under test is always the one in the working tree.
+echo "==> Copying test files"
+TMP_TESTS="$(mktemp -d)"
+trap 'rm -rf "$TMP_TESTS"' EXIT
+tar -czf "$TMP_TESTS/ivtests.tar.gz" tests phpunit-integration.xml
+scp -q "$TMP_TESTS/ivtests.tar.gz" "${SSH_HOST}:/tmp/ivtests.tar.gz"
+ssh "$SSH_HOST" "docker cp /tmp/ivtests.tar.gz ${CONTAINER}:/tmp/ivtests.tar.gz \
+    && docker exec ${CONTAINER} sh -c 'cd ${APP_DIR} && tar -xzf /tmp/ivtests.tar.gz && chown -R www-data:www-data tests phpunit-integration.xml && rm -f /tmp/ivtests.tar.gz' \
+    && rm -f /tmp/ivtests.tar.gz"
+echo "    done"
+
+echo "==> Running Integration suite in ${CONTAINER}"
+# www-data, because the tests touch the filesystem as a real user would.
+ssh "$SSH_HOST" "docker exec -u www-data ${CONTAINER} sh -c 'cd ${APP_DIR} && php vendor/bin/phpunit -c phpunit-integration.xml ${PHPUNIT_ARGS[*]:-}'"

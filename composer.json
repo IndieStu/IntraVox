@@ -25,7 +25,7 @@
   "scripts": {
     "test": "phpunit",
     "test:unit": "phpunit --testsuite Unit",
-    "test:integration": "phpunit --testsuite Integration",
+    "test:integration": "echo 'Integration tests run inside the nc-dev container: scripts/run-integration-tests.sh'",
     "test:coverage": "phpunit --coverage-html coverage"
   },
   "config": {

@@ -253,9 +253,14 @@ class SetupService {
      * HomepageService). This is storage-backend agnostic, so it works with primary
      * object storage, where the internal `/__groupfolders/{id}/files` path is not a
      * resolvable node on the root view (issue #71). The returned node's getPath()
-     * is still the `/__groupfolders/{id}/files/...` internal path (GroupFolders maps
-     * mounted nodes to their storage path), so all existing path-parsing callers
-     * keep working unchanged.
+     * NOTE: the returned node's getPath() is the MOUNT path
+     * (`/<uid>/files/<mountPoint>/...`), NOT the internal
+     * `/__groupfolders/{id}/files/...` path. An earlier version of this comment
+     * claimed the opposite; verified false against the live groupfolder on dev,
+     * where getSharedFolder()->getPath() returns `/Femke/files/IntraVox`. Only
+     * the raw fallback below yields the internal path. Path-parsing callers
+     * must therefore not assume `__groupfolders` appears in the path — see
+     * tests/Integration/GroupFolderResolutionTest.
      *
      * Fallback: the legacy raw storage walk. It works on LOCAL primary storage and
      * is kept so no currently-working install can regress.

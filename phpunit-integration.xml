@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Integration suite: real Nextcloud, real groupfolders, no stubs.
+
+  Kept separate from phpunit.xml because a PHPUnit config has exactly one
+  bootstrap, and these tests need the opposite of the unit bootstrap: the real
+  server instead of OCP stubs. Run via scripts/run-integration-tests.sh, which
+  executes it inside the nc-dev container.
+-->
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.0/phpunit.xsd"
+         bootstrap="tests/bootstrap-integration.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         beStrictAboutOutputDuringTests="false"
+         failOnRisky="true"
+         failOnWarning="true">
+    <testsuites>
+        <testsuite name="Integration">
+            <directory>./tests/Integration</directory>
+        </testsuite>
+    </testsuites>
+</phpunit>
