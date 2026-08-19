@@ -91,7 +91,7 @@
         >
           <template #item="{ element: link, index }">
             <div class="link-editor-item">
-              <div class="drag-handle" :title="t('intravox', 'Drag to reorder')">
+              <div class="drag-handle" role="img" :title="t('intravox', 'Drag to reorder')" :aria-label="t('intravox', 'Drag to reorder')">
                 <DragVertical :size="20" />
               </div>
 

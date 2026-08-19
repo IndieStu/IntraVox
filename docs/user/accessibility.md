@@ -19,6 +19,8 @@ Government organizations are additionally required to:
 
 **IntraVox meets ~47 of the 50 WCAG 2.1 AA success criteria.**
 
+Verified with axe-core 4.10.2 against WCAG 2.1 A+AA: zero violations in the reading view, and zero in the editor apart from contrast on Nextcloud's own `button-vue` component (reported upstream, not fixable from this app).
+
 The 3 criteria with partial compliance (1.2.1, 1.2.2, 1.2.5) concern captions and audio descriptions for video content. This depends on user-submitted content — external platforms like YouTube and Vimeo provide this natively. The application itself does not create barriers for these criteria.
 
 ## Implemented measures

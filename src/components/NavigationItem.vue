@@ -2,7 +2,7 @@
   <div class="navigation-item" :class="`level-${level}`">
     <div class="item-content">
       <!-- Drag Handle -->
-      <div class="drag-handle">
+      <div class="drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder')">
         <DragVertical :size="20" />
       </div>
 

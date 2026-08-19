@@ -1,6 +1,6 @@
 {
-    "count": 1367,
-    "sha256": "7e118e6565c0df320a44f6600081db5c769d41dce8ef6fb526c7c1c43169996f",
+    "count": 1369,
+    "sha256": "184de03ea750f806b716ad204f0d50abd12ad8ed9d966d2c285eca2518979835",
     "strings": [
         "— Not configured —",
         "… and {n} more",
@@ -510,6 +510,7 @@
         "Folders",
         "Footer content",
         "Footer saved",
+        "Footer text",
         "For demo languages, you can reinstall the example content any time from the table below.",
         "Form",
         "Format",
@@ -1182,6 +1183,7 @@
         "Testing …",
         "Text",
         "Text alignment",
+        "Text block",
         "Text documents",
         "Text:",
         "Thank you for helping improve IntraVox.",

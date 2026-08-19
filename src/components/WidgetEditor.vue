@@ -11,6 +11,7 @@
           <!-- Use InlineTextEditor for consistent editing experience -->
           <div class="text-editor-wrapper">
             <InlineTextEditor
+            :aria-label="t('intravox', 'Text block')"
               v-model="localWidget.content"
               :editable="true"
               :compact="false"

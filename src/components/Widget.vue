@@ -3,6 +3,7 @@
     <!-- Text Widget with Inline Editing -->
     <div v-if="widget.type === 'text'" class="widget-text">
       <InlineTextEditor
+            :aria-label="t('intravox', 'Text block')"
         v-if="editable"
         v-model="localContent"
         :editable="true"

@@ -5,6 +5,7 @@
         <!-- Footer Editor or Content -->
         <div class="footer-content-wrapper">
           <InlineTextEditor
+            :aria-label="t('intravox', 'Footer text')"
             v-if="isEditingFooter"
             v-model="editableContent"
             :editable="true"

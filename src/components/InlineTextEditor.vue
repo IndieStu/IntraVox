@@ -581,6 +581,11 @@ export default {
     compact: {
       type: Boolean,
       default: false
+    },
+    // Toegankelijke naam voor het bewerkveld; valt terug op de placeholder
+    ariaLabel: {
+      type: String,
+      default: ''
     }
   },
   emits: ['update:modelValue', 'focus', 'blur'],
@@ -618,6 +623,14 @@ export default {
     this.editor = new modules.Editor({
       content: htmlContent,
       editable: this.editable,
+      // TipTap rendert een <div role="textbox">. Zonder naam kondigt een
+      // schermlezer alleen "tekstvak" aan — op een pagina met acht editors
+      // weet je dan niet waar je bent (WCAG 4.1.2).
+      editorProps: {
+        attributes: {
+          'aria-label': this.ariaLabel || this.placeholder || this.t('intravox', 'Text'),
+        },
+      },
       extensions: [
         modules.StarterKit.configure({
           // Disable built-in extensions we configure separately

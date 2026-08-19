@@ -40,7 +40,7 @@
           <template #item="{ element: widget }">
             <div class="widget-wrapper" :class="{ 'editing': focusedWidgetId === widget.id }">
               <div class="floating-toolbar">
-                <div class="drag-handle" :aria-label="t('intravox', 'Drag to reorder')">
+                <div class="drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder')">
                   <DragVertical :size="16" />
                 </div>
                 <NcButton v-if="needsEditButton(widget.type)"
@@ -130,7 +130,7 @@
           <template #item="{ element: widget }">
             <div class="widget-wrapper" :class="{ 'editing': focusedWidgetId === widget.id }">
               <div class="floating-toolbar">
-                <div class="drag-handle" :aria-label="t('intravox', 'Drag to reorder')">
+                <div class="drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder')">
                   <DragVertical :size="16" />
                 </div>
                 <NcButton v-if="needsEditButton(widget.type)"
@@ -224,7 +224,7 @@
       :style="getRowStyle(row)"
     >
       <div class="row-controls">
-        <div class="row-drag-handle" :aria-label="t('intravox', 'Drag to reorder row')">
+        <div class="row-drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder row')">
           <DragVertical :size="20" />
         </div>
 
@@ -340,7 +340,7 @@
                 <div class="widget-wrapper" :class="{ 'editing': focusedWidgetId === widget.id }">
                   <!-- Floating toolbar - appears on hover -->
                   <div class="floating-toolbar">
-                    <div class="drag-handle" :aria-label="t('intravox', 'Drag to reorder')">
+                    <div class="drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder')">
                       <DragVertical :size="16" />
                     </div>
                     <NcButton v-if="needsEditButton(widget.type)"
@@ -478,7 +478,7 @@
           <template #item="{ element: widget }">
             <div class="widget-wrapper" :class="{ 'editing': focusedWidgetId === widget.id }">
               <div class="floating-toolbar">
-                <div class="drag-handle" :aria-label="t('intravox', 'Drag to reorder')">
+                <div class="drag-handle" role="img" :aria-label="t('intravox', 'Drag to reorder')">
                   <DragVertical :size="16" />
                 </div>
                 <NcButton v-if="needsEditButton(widget.type)"
@@ -1904,7 +1904,10 @@ export default {
   align-items: center;
   margin-bottom: 10px;
   padding: 8px 12px;
-  background: rgba(255, 255, 255, 0.15);
+  /* 0.15 lichtte de band net genoeg op om witte labels op 4.49:1 te zetten —
+     één honderdste onder de 4.5:1 van WCAG 1.4.3. Met 0.08 blijft de band
+     zichtbaar en halen de labels de drempel ruim. */
+  background: rgba(255, 255, 255, 0.08);
   border-radius: var(--border-radius-large);
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: inherit;
@@ -2294,7 +2297,9 @@ export default {
 
 /* Dark background adaptations for editor UI */
 .dark-bg .column-label {
-  color: rgba(255, 255, 255, 0.6);
+  /* 0.6 alpha gaf 3.22:1 op de donkerblauwe rijband — onder de 4.5:1 die
+     WCAG 1.4.3 voor tekst vraagt. Vol wit haalt de drempel ruim. */
+  color: #ffffff;
 }
 
 .dark-bg .page-column {
