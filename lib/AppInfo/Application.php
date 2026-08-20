@@ -149,27 +149,26 @@ class Application extends App implements IBootstrap {
     public function boot(IBootContext $context): void {
         $container = $context->getServerContainer();
 
-        // Late-bind PageService into LanguageService. Both services need each
-        // other (LanguageService → PageService for cache flush on toggle;
-        // PageService → LanguageService for the enabled-language check on
-        // every URL lookup). Constructor-injecting either way creates a DI
-        // cycle, so we resolve LanguageService first and wire PageService in
-        // after boot.
+        // There used to be a late-binding dance here: LanguageService needed
+        // PageService to flush caches on a language toggle, while PageService
+        // needs LanguageService on every URL lookup, so neither could be
+        // constructor-injected. That cycle is gone — LanguageService now
+        // injects PageCacheService directly, because the caches have an owner.
+        //
+        // What remains is one-way: PagePathHelper is a pure helper with no DI,
+        // so we sync its language-code set once per request. PageService is no
+        // longer resolved here at all.
         try {
             $languageService = $container->get(\OCA\IntraVox\Service\LanguageService::class);
-            $pageService = $container->get(\OCA\IntraVox\Service\PageService::class);
-            $languageService->setPageService($pageService);
 
-            // PagePathHelper is a pure helper (no DI), so we sync its
-            // language-code set from LanguageService once per request.
             \OCA\IntraVox\Service\Path\PagePathHelper::setKnownLanguages(
                 $languageService->getDiscoveredLanguages()
             );
         } catch (\Throwable $e) {
-            // Boot-time errors must not break the whole app. The cache flush
-            // path will just no-op until next request.
+            // Boot-time errors must not break the whole app; path parsing
+            // falls back to its built-in language list until next request.
             $container->get(\Psr\Log\LoggerInterface::class)->warning(
-                '[IntraVox] LanguageService late-binding failed: ' . $e->getMessage()
+                '[IntraVox] LanguageService boot wiring failed: ' . $e->getMessage()
             );
         }
 

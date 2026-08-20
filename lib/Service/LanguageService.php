@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Service\Cache\PageCacheService;
+
 use OCA\IntraVox\AppInfo\Application;
 use OCP\IConfig;
 use OCP\L10N\IFactory as IL10NFactory;
@@ -38,8 +40,7 @@ class LanguageService {
     private IL10NFactory $l10nFactory;
     private LoggerInterface $logger;
 
-    /** @var ?PageService Set via setter — injected lazily to avoid a constructor cycle (PageService → LanguageService → PageService). */
-    private ?PageService $pageService = null;
+    private PageCacheService $pageCache;
 
     /** Request-scoped cache. Recomputing the l10n scan on every call inside one request is wasteful. */
     private ?array $discoveredCache = null;
@@ -49,19 +50,13 @@ class LanguageService {
     public function __construct(
         IConfig $config,
         IL10NFactory $l10nFactory,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        PageCacheService $pageCache
     ) {
         $this->config = $config;
         $this->l10nFactory = $l10nFactory;
         $this->logger = $logger;
-    }
-
-    /**
-     * Late-bind PageService so setEnabledLanguages() can flush caches.
-     * Called by Application::register().
-     */
-    public function setPageService(PageService $pageService): void {
-        $this->pageService = $pageService;
+        $this->pageCache = $pageCache;
     }
 
     /**
@@ -251,12 +246,16 @@ class LanguageService {
 
         // Cache key pattern is `page_tree_{groupHash}_{lang}` — without an
         // invalidation, disabled languages keep serving from cache until TTL.
-        if ($this->pageService !== null) {
-            try {
-                $this->pageService->invalidateAllCaches();
-            } catch (\Throwable $e) {
-                $this->logger->warning('[LanguageService] Cache invalidation after enabled_languages change failed: ' . $e->getMessage());
-            }
+        //
+        // This used to late-bind the whole of PageService through a setter,
+        // purely to reach invalidateAllCaches(); the cycle existed because the
+        // caches had no owner. Now that PageCacheService owns them it is an
+        // ordinary constructor dependency, and nothing here needs PageService.
+        try {
+            $this->pageCache->clearRequest();
+            $this->pageCache->clearExpensive();
+        } catch (\Throwable $e) {
+            $this->logger->warning('[LanguageService] Cache invalidation after enabled_languages change failed: ' . $e->getMessage());
         }
     }
 

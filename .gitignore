@@ -84,3 +84,14 @@ scripts/.cache/
 # Generated l10n build artefacts (must be absent on server)
 l10n/en.js
 l10n/.source-count.js
+
+# Local scratch material: planning notes, forum drafts, screenshots and
+# one-off POCs. These live in the working tree but are not part of the app,
+# and must not reach the public repo.
+/tasks/
+/examples/
+/forum-post-*.md
+
+# Dated screenshot dumps from local sessions. The rest of screenshots/ is
+# tracked on purpose — it is the App Store listing material.
+/screenshots/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*.png

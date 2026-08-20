@@ -17,6 +17,7 @@ use OCA\IntraVox\Service\Path\PagePathHelper;
 use OCA\IntraVox\Service\Sanitize\ColorSanitizer;
 use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
 use OCA\IntraVox\Service\Sanitize\MediaSanitizer;
+use OCA\IntraVox\Service\Cache\PageCacheService;
 use OCA\IntraVox\Service\Sanitize\PageShapeSanitizer;
 use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCA\IntraVox\Service\Search\PageSearchHelper;
@@ -33,8 +34,6 @@ use OCP\IUserSession;
 use OCP\IConfig;
 use OCP\IDBConnection;
 use OCP\App\IAppManager;
-use OCP\ICacheFactory;
-use OCP\ICache;
 use Psr\Log\LoggerInterface;
 use OCP\Files\Cache\ICacheEntry;
 
@@ -71,31 +70,8 @@ class PageService {
     private IEventDispatcher $eventDispatcher;
     private PublicationSettingsService $publicationSettings;
     private PageIndexService $pageIndexService;
-    private ?ICache $distributedCache = null;
-    private array $pageFolderCache = [];
+    private PageCacheService $cache;
 
-    /** @var array Request-level cache for page data */
-    private array $pageDataCache = [];
-
-    /** @var array Request-level cache for pages by folder path */
-    private array $folderPathCache = [];
-
-    /** @var array Static cache for page tree (shared across requests within same PHP process) */
-    private static array $pageTreeCache = [];
-
-    /** @var int Cache TTL for page tree in seconds */
-    private const PAGE_TREE_CACHE_TTL = 300; // 5 minutes
-
-    /**
-     * @var int While > 0, only the expensive part of clearCache() (static tree
-     * cache + distributed cache clear()) is deferred to the end of a batch.
-     * Request-level caches are still invalidated per item. A 100-item bulk op
-     * would otherwise clear the distributed cache 100 times.
-     */
-    private int $suppressClearDepth = 0;
-
-    /** @var bool Set when the deferred (distributed) clear was requested in a batch. */
-    private bool $clearRequestedWhileSuppressed = false;
 
     /**
      * Get the effective upload limit in bytes (minimum of upload_max_filesize and post_max_size)
@@ -137,7 +113,7 @@ class PageService {
      * finally block. Reentrant — nested begins are counted.
      */
     public function beginDeferredClear(): void {
-        $this->suppressClearDepth++;
+        $this->cache()->beginDeferred();
     }
 
     /**
@@ -145,12 +121,11 @@ class PageService {
      * for a clear while suppressed, perform exactly one real clearCache() now.
      */
     public function endDeferredClear(): void {
-        if (--$this->suppressClearDepth <= 0) {
-            $this->suppressClearDepth = 0;
-            if ($this->clearRequestedWhileSuppressed) {
-                $this->clearRequestedWhileSuppressed = false;
-                $this->clearCache();
-            }
+        // endDeferred() performs the deferred tree/distributed clear itself and
+        // reports whether it did. The collaborator caches below belong to the
+        // same flush, so they follow on exactly that condition.
+        if ($this->cache()->endDeferred()) {
+            $this->clearCollaboratorCaches();
         }
     }
 
@@ -161,43 +136,40 @@ class PageService {
         // Request-level caches are always invalidated immediately: these are cheap
         // array resets, and doing them per item keeps every mutation seeing a
         // truthful filesystem view mid-batch (identical to the non-batch path).
-        if ($pageId !== null) {
-            unset($this->pageDataCache[$pageId]);
-            unset($this->pageFolderCache[$pageId]);
-        } else {
-            $this->pageDataCache = [];
-            $this->pageFolderCache = [];
-            $this->folderPathCache = [];
+        $this->cache()->clearRequest($pageId);
+        if ($pageId === null) {
             $this->locator()->clearRequestCaches();
             $this->permissionService->clearNodePermissionsCache();
         }
 
-        // The expensive part — the static tree cache and the two distributed
-        // caches (IPC/Redis clear()) — is what makes a 100-item bulk op wipe the
-        // distributed cache 100×. Defer only these to the end of the batch.
-        if ($this->suppressClearDepth > 0) {
-            $this->clearRequestedWhileSuppressed = true;
-            return;
+        // The expensive part — the tree cache and the distributed cache
+        // (IPC/Redis clear()) — is what makes a 100-item bulk op wipe the
+        // distributed cache 100×. clearExpensive() defers it during a batch and
+        // returns false; the collaborator caches are part of that same flush and
+        // are skipped on the same condition.
+        //
+        // The clear is blanket rather than targeted: a single page mutation can
+        // be visible to any group with read access via GroupFolder ACL, and we
+        // cannot enumerate those from here. The bucket count is small (≤ groups
+        // × languages, typically ~40), so a blanket clear is cheaper than
+        // tracking dependencies. This also drops the news-version counters and
+        // content caches; subsequent reads re-initialize at 0 and rebuild.
+        if ($this->cache()->clearExpensive()) {
+            $this->clearCollaboratorCaches();
         }
+    }
 
-        // Clear *all* group-keyed tree caches: a single page mutation can be
-        // visible to any group that has read access via GroupFolder ACL, and
-        // we have no efficient way to enumerate those from here. The bucket
-        // count is small (≤ groups × languages, typically ~40), so a blanket
-        // clear is cheaper than tracking dependencies. This also clears the
-        // news-version counters (PR-13) and content caches (PR-12) for the
-        // same reason; subsequent reads re-initialize the counter at 0 and
-        // rebuild from source.
-        self::$pageTreeCache = [];
-        // The public share view builds its tree in SystemFileService, which
-        // keeps its own in-process copy. The distributed half shares this
-        // namespace and is covered by the clear() below.
+    /**
+     * Caches owned by OTHER services that must drop whenever ours do.
+     *
+     * Separate because two paths reach it: an ordinary clearCache(), and the
+     * flush that closes a deferred batch. These are not ours to own —
+     * SystemFileService builds the public-share tree, PermissionService keeps
+     * the per-language path map — so we invalidate through their APIs rather
+     * than reaching into their state.
+     */
+    private function clearCollaboratorCaches(): void {
         SystemFileService::clearStaticTreeCache();
-        if ($this->distributedCache !== null) {
-            $this->distributedCache->clear();
-        }
-        // The per-language page-path map cached in PermissionService is also
-        // invalidated by any page create/update/delete.
         $this->permissionService->clearDistributedCache();
     }
 
@@ -378,7 +350,7 @@ class PageService {
         LoggerInterface $logger,
         IEventDispatcher $eventDispatcher,
         PublicationSettingsService $publicationSettings,
-        ICacheFactory $cacheFactory,
+        PageCacheService $cache,
         PageIndexService $pageIndexService,
         HtmlSanitizer $htmlSanitizer,
         UrlSanitizer $urlSanitizer,
@@ -434,10 +406,8 @@ class PageService {
         $this->newsPageService = $newsPageService;
         $this->appManager = $appManager;
         $this->userId = $userId ?? '';
+        $this->cache = $cache;
 
-        if ($cacheFactory->isAvailable()) {
-            $this->distributedCache = $cacheFactory->createDistributed('intravox-pages');
-        }
     }
 
     /**
@@ -459,6 +429,19 @@ class PageService {
      */
     private function shape(): PageShapeSanitizer {
         return $this->shapeSanitizer;
+    }
+
+    /**
+     * Lazy seam, like locator()/news(). Unlike the sanitizer this one CAN be
+     * synthesised: an empty cache is always a valid cache — it just misses and
+     * the caller rebuilds. A test that never wires it therefore behaves as if
+     * caching is cold, which is exactly the behaviour those tests want.
+     */
+    private function cache(): PageCacheService {
+        if (!isset($this->cache)) {
+            $this->cache = new PageCacheService();
+        }
+        return $this->cache;
     }
 
     private function locator(): PageLocator {
@@ -1959,8 +1942,9 @@ class PageService {
      */
     public function getPage(string $id): array {
         // Check request-level cache first
-        if (isset($this->pageDataCache[$id])) {
-            return $this->pageDataCache[$id];
+        $cachedPage = $this->cache()->getPageData($id);
+        if ($cachedPage !== null) {
+            return $cachedPage;
         }
 
         $folder = $this->getReadLanguageFolder();
@@ -2016,10 +2000,10 @@ class PageService {
         // Cache folder location using both uniqueId and pageId for fast image access
         $pageFolder = $result['folder'];
         $uniqueId = $data['uniqueId'];
-        $this->pageFolderCache[$uniqueId] = $pageFolder;
-        $this->pageFolderCache[$originalId] = $pageFolder;
+        $this->cache()->setPageFolder($uniqueId, $pageFolder);
+        $this->cache()->setPageFolder($originalId, $pageFolder);
         if (isset($id)) {
-            $this->pageFolderCache[$id] = $pageFolder;
+            $this->cache()->setPageFolder($id, $pageFolder);
         }
 
         // Distributed content cache. Key is content-addressable via mtime, so
@@ -2029,8 +2013,8 @@ class PageService {
         // the post-sanitize result keyed by `{uniqueId}_{mtime}`.
         $mtime = $result['file']->getMTime();
         $contentCacheKey = 'content_' . $uniqueId . '_' . $mtime;
-        if ($this->distributedCache !== null) {
-            $cached = $this->distributedCache->get($contentCacheKey);
+        if ($this->cache()->isDistributedAvailable()) {
+            $cached = $this->cache()->getDistributed($contentCacheKey);
             if (is_string($cached)) {
                 $decoded = json_decode($cached, true);
                 if (is_array($decoded)) {
@@ -2068,8 +2052,8 @@ class PageService {
                         $decoded['translationGroup'] ?? null,
                         $decoded['uniqueId'] ?? null
                     );
-                    $this->pageDataCache[$originalId] = $decoded;
-                    $this->pageDataCache[$uniqueId] = $decoded;
+                    $this->cache()->setPageData($originalId, $decoded);
+                    $this->cache()->setPageData($uniqueId, $decoded);
                     return $decoded;
                 }
             }
@@ -2082,9 +2066,9 @@ class PageService {
         $sanitizedData = $this->sanitizePage($data);
 
         // Cache the result for this request
-        $this->pageDataCache[$originalId] = $sanitizedData;
+        $this->cache()->setPageData($originalId, $sanitizedData);
         if (isset($data['uniqueId'])) {
-            $this->pageDataCache[$data['uniqueId']] = $sanitizedData;
+            $this->cache()->setPageData($data['uniqueId'], $sanitizedData);
         }
 
         // Cache for cross-request reuse (1 hour TTL; older entries are
@@ -2093,7 +2077,7 @@ class PageService {
         // per-user permissions/canEdit are stripped before storing and are
         // recomputed on every read (issue #70). The user-independent enriched
         // fields (path/depth/parent/language/department) stay cached.
-        if ($this->distributedCache !== null) {
+        if ($this->cache()->isDistributedAvailable()) {
             $cacheable = $sanitizedData;
             // metaVoxAvailable is stripped for the same reason as permissions:
             // enabling or disabling the app must take effect immediately rather
@@ -2103,7 +2087,7 @@ class PageService {
             // the caller's mount, so caching it would leak one user's view to
             // another. Recomputed on every cache hit above.
             unset($cacheable['permissions'], $cacheable['canEdit'], $cacheable['metaVoxAvailable'], $cacheable['translations']);
-            $this->distributedCache->set($contentCacheKey, json_encode($cacheable), 3600);
+            $this->cache()->setDistributed($contentCacheKey, json_encode($cacheable), PageCacheService::PAGE_CONTENT_TTL);
         }
 
         return $sanitizedData;
@@ -2412,8 +2396,8 @@ class PageService {
      */
     private function findPageByFolderPath(string $folderPath): ?array {
         // Check request-level cache first
-        if (isset($this->folderPathCache[$folderPath])) {
-            return $this->folderPathCache[$folderPath];
+        if ($this->cache()->hasFolderPath($folderPath)) {
+            return $this->cache()->getFolderPath($folderPath);
         }
 
         try {
@@ -2421,7 +2405,7 @@ class PageService {
             $folder = $intraVoxFolder->get($folderPath);
 
             if (!($folder instanceof \OCP\Files\Folder)) {
-                $this->folderPathCache[$folderPath] = null;
+                $this->cache()->setFolderPath($folderPath, null);
                 return null;
             }
 
@@ -2439,7 +2423,7 @@ class PageService {
                         // Enrich with path data (file gates canWrite/canEdit, #70)
                         $data = $this->enrichWithPathData($data, $folder, $file);
                         $result = $this->sanitizePage($data);
-                        $this->folderPathCache[$folderPath] = $result;
+                        $this->cache()->setFolderPath($folderPath, $result);
                         return $result;
                     }
                 }
@@ -2449,7 +2433,7 @@ class PageService {
             $this->logger->debug("Could not find page at path {$folderPath}: " . $e->getMessage());
         }
 
-        $this->folderPathCache[$folderPath] = null;
+        $this->cache()->setFolderPath($folderPath, null);
         return null;
     }
 
@@ -2660,7 +2644,7 @@ class PageService {
 
             // Cache the folder reference for immediate reuse (e.g., when copying media from template)
             if (isset($data['uniqueId'])) {
-                $this->pageFolderCache[$data['uniqueId']] = $pageFolder;
+                $this->cache()->setPageFolder($data['uniqueId'], $pageFolder);
                 $indexFolder = $pageFolder;
         }
             $indexFolder = $pageFolder;
@@ -3396,17 +3380,17 @@ class PageService {
             $mediaFolder = null;
             $pageId = $this->sanitizeId($originalPageId);
 
-            if (isset($this->pageFolderCache[$originalPageId])) {
+            if ($this->cache()->hasPageFolder($originalPageId)) {
                 // Cache hit with original ID (page-abc-123...)
-                $pageFolder = $this->pageFolderCache[$originalPageId];
+                $pageFolder = $this->cache()->getPageFolder($originalPageId);
                 try {
                     $mediaFolder = $pageFolder->get('_media');
                 } catch (NotFoundException $e) {
                     // No media folder
                 }
-            } else if (isset($this->pageFolderCache[$pageId])) {
+            } else if ($this->cache()->hasPageFolder($pageId)) {
                 // Cache hit with sanitized ID (abc-123...)
-                $pageFolder = $this->pageFolderCache[$pageId];
+                $pageFolder = $this->cache()->getPageFolder($pageId);
                 try {
                     $mediaFolder = $pageFolder->get('_media');
                 } catch (NotFoundException $e) {
@@ -4795,25 +4779,25 @@ class PageService {
         $distributedCacheKey = 'tree_' . $cacheKey;
         $now = time();
 
-        // Check in-process static cache first (fastest)
-        if (isset(self::$pageTreeCache[$cacheKey])) {
-            $cached = self::$pageTreeCache[$cacheKey];
-            if (($now - $cached['time']) < self::PAGE_TREE_CACHE_TTL) {
+        // Check in-process cache first (fastest)
+        $cached = $this->cache()->getTree($cacheKey);
+        if ($cached !== null) {
+            if (($now - $cached['time']) < PageCacheService::PAGE_TREE_TTL) {
                 return $this->shapeTreeResponse($cached['tree'], $currentPageId, $rootPageId);
             }
         }
 
         // Check distributed cache (shared across PHP processes/requests)
-        if ($this->distributedCache !== null) {
-            $distributedCached = $this->distributedCache->get($distributedCacheKey);
+        if ($this->cache()->isDistributedAvailable()) {
+            $distributedCached = $this->cache()->getDistributed($distributedCacheKey);
             if ($distributedCached !== null) {
                 $decoded = json_decode($distributedCached, true);
                 if ($decoded !== null) {
-                    // Populate static cache too for subsequent calls in same request
-                    self::$pageTreeCache[$cacheKey] = [
+                    // Populate the in-process cache too for later calls in this request
+                    $this->cache()->setTree($cacheKey, [
                         'tree' => $decoded,
                         'time' => $now
-                    ];
+                    ]);
                     return $this->shapeTreeResponse($decoded, $currentPageId, $rootPageId);
                 }
             }
@@ -4865,16 +4849,14 @@ class PageService {
             }
         }
 
-        // Store in static cache
-        self::$pageTreeCache[$cacheKey] = [
+        // Store in the in-process cache
+        $this->cache()->setTree($cacheKey, [
             'tree' => $tree,
             'time' => $now
-        ];
+        ]);
 
         // Store in distributed cache (shared across requests)
-        if ($this->distributedCache !== null) {
-            $this->distributedCache->set($distributedCacheKey, json_encode($tree), self::PAGE_TREE_CACHE_TTL);
-        }
+        $this->cache()->setDistributed($distributedCacheKey, json_encode($tree), PageCacheService::PAGE_TREE_TTL);
 
         return $this->shapeTreeResponse($tree, $currentPageId, $rootPageId);
     }
@@ -5506,15 +5488,15 @@ class PageService {
         $newsVersionKey = 'news_version_' . $language;
         $newsVersion = 0;
         $newsCacheKey = null;
-        if ($this->distributedCache !== null) {
-            $newsVersion = (int) ($this->distributedCache->get($newsVersionKey) ?? 0);
+        if ($this->cache()->isDistributedAvailable()) {
+            $newsVersion = (int) ($this->cache()->getDistributed($newsVersionKey) ?? 0);
             $paramHash = md5(json_encode([
                 $sourcePath, $filters, $filterOperator, $limit, $sortBy,
                 $sortOrder, $sourcePageId, $filterPublished,
             ]));
             $newsCacheKey = 'news_' . $language . '_' . $this->groupContext->getGroupHash()
                 . '_v' . $newsVersion . '_' . $paramHash;
-            $cached = $this->distributedCache->get($newsCacheKey);
+            $cached = $this->cache()->getDistributed($newsCacheKey);
             if (is_string($cached)) {
                 $decoded = json_decode($cached, true);
                 if (is_array($decoded)) {
@@ -5594,8 +5576,8 @@ class PageService {
         // Cache for 5 minutes — the version-counter scheme makes correctness
         // independent of TTL (a counter bump renders this entry unreachable),
         // so the TTL only bounds memory growth from orphaned entries.
-        if ($this->distributedCache !== null && $newsCacheKey !== null) {
-            $this->distributedCache->set($newsCacheKey, json_encode($result), 300);
+        if ($this->cache()->isDistributedAvailable() && $newsCacheKey !== null) {
+            $this->cache()->setDistributed($newsCacheKey, json_encode($result), PageCacheService::NEWS_TTL);
         }
 
         return $result;
@@ -6142,8 +6124,8 @@ class PageService {
      */
     private function findPageFolder(string $uniqueId): ?\OCP\Files\Folder {
         // Check cache first
-        if (isset($this->pageFolderCache[$uniqueId])) {
-            return $this->pageFolderCache[$uniqueId];
+        if ($this->cache()->hasPageFolder($uniqueId)) {
+            return $this->cache()->getPageFolder($uniqueId);
         }
 
         try {
@@ -6155,7 +6137,7 @@ class PageService {
             $result = $this->locatePageAnyLanguage($this->getReadLanguageFolder(), $uniqueId);
             if ($result !== null && isset($result['folder'])) {
                 $folder = $result['folder'];
-                $this->pageFolderCache[$uniqueId] = $folder;
+                $this->cache()->setPageFolder($uniqueId, $folder);
                 return $folder;
             }
         } catch (\Exception $e) {
