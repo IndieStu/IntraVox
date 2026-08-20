@@ -190,6 +190,7 @@ OC.L10N.register(
     "Admin" : "Администратор",
     "Organization" : "Организация",
     "News" : "Новости",
+    "Announcement" : "Оповещение",
     "Forum" : "Форум",
     "Code" : "Код",
     "Folder" : "Каталог",

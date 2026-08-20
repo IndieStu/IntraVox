@@ -27,7 +27,6 @@ OC.L10N.register(
     "Video" : "Video",
     "People" : "Personer",
     "IntraVox" : "IntraVox",
-    "SharePoint-style intranet pages for Nextcloud — no code required" : "Intranätsidor i SharePoint-stil för Nextcloud – ingen kodning krävs",
     "Draft" : "Utkast",
     "Scheduled" : "Schemalagd",
     "Expired" : "Utgången",

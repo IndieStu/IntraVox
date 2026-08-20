@@ -67,6 +67,7 @@ OC.L10N.register(
     "Version" : "Weergawe",
     "Restore" : "Herstel",
     "Current" : "Huidige",
+    "Close" : "Close",
     "Contact" : "Kontak",
     "Description" : "Beskrywing",
     "Public link" : "Openbare skakel",

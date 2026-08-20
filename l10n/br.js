@@ -86,6 +86,7 @@ OC.L10N.register(
     "Disabled" : "Disaotreañ",
     "Current" : "A red",
     "Rename" : "Adenvel",
+    "Close" : "Serriñ",
     "Done" : "Graet",
     "Days" : "Deiz",
     "Avatar" : "Avatar",

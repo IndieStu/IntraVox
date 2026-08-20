@@ -231,6 +231,7 @@ OC.L10N.register(
     "Move up" : "نقلٌ للأعلي",
     "Move down" : "نقلٌ للأسفل",
     "Rename" : "إعادة التسمية",
+    "Close" : "إغلاق",
     "Done" : "تمّ",
     "Move page" : "أنقل الصفحة",
     "Search pages" : "البحث في الصفحات",

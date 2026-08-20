@@ -182,6 +182,7 @@ OC.L10N.register(
     "Move up" : "Xubir",
     "Move down" : "Baxar",
     "Rename" : "Renomar",
+    "Close" : "Zarrar",
     "Done" : "Fecho",
     "Show more" : "Amosar más",
     "Group" : "Grupu",

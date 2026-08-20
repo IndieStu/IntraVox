@@ -339,6 +339,7 @@ OC.L10N.register(
     "Move up" : "Přesunout výše",
     "Move down" : "Přesunout dolů",
     "Rename" : "Přejmenovat",
+    "Close" : "Zavřít",
     "Done" : "Dokončeno",
     "Move page" : "Přesunout stránku",
     "Search pages" : "Hledat stránky",

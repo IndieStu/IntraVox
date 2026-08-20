@@ -14,7 +14,6 @@ OC.L10N.register(
     "File" : "Failas",
     "Video" : "Vaizdo įrašas",
     "People" : "Žmonės",
-    "SharePoint-style intranet pages for Nextcloud — no code required" : "„SharePoint“ stiliaus intraneto puslapiai „Nextcloud“ platformai – nereikia programuoti",
     "Draft" : "Juodraštis",
     "Scheduled" : "Suplanuota",
     "Expired" : "Nebegalioja",

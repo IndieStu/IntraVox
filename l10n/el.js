@@ -27,7 +27,6 @@ OC.L10N.register(
     "Video" : "Βίντεο",
     "People" : "Άτομα",
     "IntraVox" : "IntraVox",
-    "SharePoint-style intranet pages for Nextcloud — no code required" : "Σελίδες ενδοδικτύου (intranet) τύπου SharePoint για το Nextcloud — χωρίς ανάγκη κώδικα",
     "Draft" : "Πρόχειρο",
     "Scheduled" : "Προγραμματισμένο",
     "Expired" : "Έληξε",

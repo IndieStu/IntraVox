@@ -64,6 +64,7 @@ OC.L10N.register(
     "Disabled" : "Dayandırılıb",
     "Current" : "Mövcud",
     "Rename" : "Adı dəyiş",
+    "Close" : "Bağla",
     "Done" : "Edildi",
     "Group" : "Qrup",
     "Start slideshow" : "Slayd şouya başlayın",

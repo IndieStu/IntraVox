@@ -120,6 +120,7 @@ OC.L10N.register(
     "Connected" : "Bağlandı",
     "Disconnect" : "Bağlantıyı kes",
     "Checking …" : "Denetleniyor…",
+    "Connecting …" : "Bağlanıyor…",
     "Overdue" : "Zamanı geçmiş",
     "Project" : "Proje",
     "Documents" : "Belgeler",
