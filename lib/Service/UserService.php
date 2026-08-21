@@ -895,20 +895,50 @@ class UserService {
             // Filter out empty values
             $groupValues = array_filter($groupValues, fn($v) => !empty($v));
             $seen = [];
+            // The same hard cap the all-users branch below applies. A group
+            // filter is cheaper PER USER but not bounded in total: nothing stops
+            // a group holding every account on the instance, and several such
+            // groups can be requested at once. Without this, one People-widget
+            // request built a full profile for every member of every named group
+            // — reachable from the anonymous share endpoint too.
+            $scanned = 0;
+            $capped = false;
+
             foreach ($groupValues as $groupId) {
+                if ($capped) {
+                    break;
+                }
+
                 $group = $this->groupManager->get($groupId);
-                if ($group !== null) {
-                    foreach ($group->getUsers() as $user) {
-                        if (!isset($seen[$user->getUID()])) {
-                            $seen[$user->getUID()] = true;
-                            $profile = $this->buildUserProfile($user);
-                            // Apply other filters
-                            if (empty($otherFilters) || $this->matchesFilters($profile, $otherFilters, $operator)) {
-                                $users[] = $profile;
-                            }
-                        }
+                if ($group === null) {
+                    continue;
+                }
+
+                foreach ($group->getUsers() as $user) {
+                    if ($scanned >= self::MAX_FILTER_SCAN) {
+                        $capped = true;
+                        break;
+                    }
+                    $scanned++;
+
+                    if (isset($seen[$user->getUID()])) {
+                        continue;
+                    }
+                    $seen[$user->getUID()] = true;
+
+                    $profile = $this->buildUserProfile($user);
+                    // Apply other filters
+                    if (empty($otherFilters) || $this->matchesFilters($profile, $otherFilters, $operator)) {
+                        $users[] = $profile;
                     }
                 }
+            }
+
+            if ($capped) {
+                $this->logger->warning(
+                    'IntraVox: People widget group-filter scan hit hard cap of '
+                    . self::MAX_FILTER_SCAN . ' users. Narrow the group selection.'
+                );
             }
         } else {
             // No group filter - need to iterate all users (less efficient).
