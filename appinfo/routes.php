@@ -215,10 +215,10 @@ return [
         ['name' => 'publicShare#getNavigationByShare', 'url' => '/api/share/{token}/navigation', 'verb' => 'GET'],
         ['name' => 'publicShare#getPageTreeByShare', 'url' => '/api/share/{token}/tree', 'verb' => 'GET'],
         ['name' => 'publicShare#getNewsByShare', 'url' => '/api/share/{token}/news', 'verb' => 'GET'],
-        ['name' => 'people#getPeopleByShare', 'url' => '/api/share/{token}/people', 'verb' => 'GET'],
-        ['name' => 'calendar#getEventsByShare', 'url' => '/api/share/{token}/calendar/events', 'verb' => 'GET'],
-        ['name' => 'feedReader#getFeedByShare', 'url' => '/api/share/{token}/feed/external', 'verb' => 'GET'],
-        ['name' => 'feedReader#proxyImageByShare', 'url' => '/api/share/{token}/feed/image', 'verb' => 'GET'],
+        ['name' => 'publicShare#getPeopleByShare', 'url' => '/api/share/{token}/people', 'verb' => 'GET'],
+        ['name' => 'publicShare#getEventsByShare', 'url' => '/api/share/{token}/calendar/events', 'verb' => 'GET'],
+        ['name' => 'publicShare#getFeedByShare', 'url' => '/api/share/{token}/feed/external', 'verb' => 'GET'],
+        ['name' => 'publicShare#proxyImageByShare', 'url' => '/api/share/{token}/feed/image', 'verb' => 'GET'],
 
         // Health check (for monitoring/orchestration)
         ['name' => 'api#health', 'url' => '/api/health', 'verb' => 'GET'],

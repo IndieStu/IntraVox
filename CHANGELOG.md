@@ -86,6 +86,14 @@ present in every earlier one.
   The group filter had no upper bound, so one request could build a profile for
   every account on the instance.
 
+- **The instance-wide "allow public link sharing" setting now applies to every
+  share endpoint.** Turning link sharing off in Nextcloud's sharing settings
+  disables IntraVox's public endpoints along with it. Instances that leave link
+  sharing enabled — the default — see no change.
+
+  A malformed share token is also refused before anything is looked up, on all
+  endpoints rather than most of them.
+
 ### Changed
 
 - **Team Folder lookup happens once per request instead of five times.** Four

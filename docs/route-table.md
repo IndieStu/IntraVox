@@ -168,10 +168,10 @@ diff rather than staying buried in 14 controllers.
 | GET | `/api/share/{token}/navigation` | `publicShare#getNavigationByShare` | anonymous | exempt |
 | GET | `/api/share/{token}/tree` | `publicShare#getPageTreeByShare` | anonymous | exempt |
 | GET | `/api/share/{token}/news` | `publicShare#getNewsByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/people` | `people#getPeopleByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/calendar/events` | `calendar#getEventsByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/feed/external` | `feedReader#getFeedByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/feed/image` | `feedReader#proxyImageByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/people` | `publicShare#getPeopleByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/calendar/events` | `publicShare#getEventsByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/feed/external` | `publicShare#getFeedByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/feed/image` | `publicShare#proxyImageByShare` | anonymous | exempt |
 | GET | `/api/health` | `api#health` | anonymous | exempt |
 | GET | `/api/photo-story/photos` | `photoStory#photos` | any logged-in user | exempt |
 | GET | `/api/photo-story/clusters` | `photoStory#clusters` | any logged-in user | exempt |

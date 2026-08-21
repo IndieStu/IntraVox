@@ -5,19 +5,15 @@ namespace OCA\IntraVox\Controller;
 
 use OCA\IntraVox\Service\Filter\FacetCalculator;
 use OCA\IntraVox\Service\Filter\FilterSpec;
-use OCA\IntraVox\Service\PublicShareService;
 use OCA\IntraVox\Service\UserService;
 use OCP\Activity\IManager as IActivityManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\IConfig;
 use OCP\IRequest;
-use OCP\ISession;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
@@ -53,12 +49,10 @@ class PeopleController extends Controller {
         string $appName,
         IRequest $request,
         private UserService $userService,
-        private PublicShareService $publicShareService,
         private LoggerInterface $logger,
         private ?IActivityManager $activityManager = null,
         private ?IURLGenerator $urlGenerator = null,
         private ?IConfig $config = null,
-        private ?ISession $session = null
     ) {
         parent::__construct($appName, $request);
     }
@@ -322,100 +316,6 @@ class PeopleController extends Controller {
     }
 
     /**
-     * Get people for widget display via public share link
-     *
-     *
-     * @param string $token Share token
-     * @param string|null $userIds Comma-separated user IDs for manual mode
-     * @param string|null $filters JSON-encoded filters for filter mode
-     * @param string $filterOperator 'AND' or 'OR'
-     * @param string $sortBy Field to sort by
-     * @param string $sortOrder 'asc' or 'desc'
-     * @param int $limit Maximum results
-     * @param int $offset Offset for pagination
-     * @return DataResponse
-     */
-    #[AnonRateLimit(limit: 30, period: 60)]
-    #[NoCSRFRequired]
-    #[PublicPage]
-    public function getPeopleByShare(
-        string $token,
-        ?string $userIds = null,
-        ?string $filters = null,
-        string $filterOperator = 'AND',
-        string $sortBy = 'displayName',
-        string $sortOrder = 'asc',
-        int $limit = 50,
-        int $offset = 0
-    ): DataResponse {
-        try {
-            // Validate share token
-            // NOTE: this previously called validateShareToken(), which does
-            // not exist on PublicShareService — every request to this
-            // endpoint died with a 500. getShareByToken() is the real method
-            // and matches the null check below.
-            $shareInfo = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($shareInfo === null) {
-                return new DataResponse(
-                    ['error' => 'Invalid or expired share token'],
-                    Http::STATUS_FORBIDDEN
-                );
-            }
-            // A password-protected share must stay locked here too (SHARE-PW). The
-            // check used to live only in ApiController, so this endpoint served a
-            // protected share to anyone holding the token.
-            if (!$this->publicShareService->isShareUnlocked(
-                $token,
-                $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
-            )) {
-                return new DataResponse(
-                    ['error' => 'Password required', 'passwordRequired' => true],
-                    Http::STATUS_UNAUTHORIZED
-                );
-            }
-
-            // Removing the widget from the shared page is the primary
-            // guard, but this endpoint is reachable on its own, so refuse
-            // here too rather than trusting the page to be the only route.
-            if (!$this->peopleAllowedOnPublicShares()) {
-                return new DataResponse(['users' => [], 'total' => 0, 'hasMore' => false]);
-            }
-
-            // Use the same logic as getPeople, with the viewer-facing
-            // parameters explicitly nulled.
-            //
-            // This is deliberate rather than incidental: a facet panel on a
-            // public share is a browsable directory of the organisation —
-            // roles, buildings, departments and their headcounts — handed to
-            // anyone holding the link. Relying on the delegate to "just not
-            // pass them on" would make that a one-refactor-away accident.
-            return $this->getPeople(
-                $userIds,
-                $filters,
-                $filterOperator,
-                $sortBy,
-                $sortOrder,
-                $limit,
-                $offset,
-                null,   // refine
-                null,   // facets
-                '',     // q
-                null,   // searchFields
-                FacetCalculator::DEFAULT_FACET_LIMIT
-            );
-        } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error getting people by share', [
-                'token' => substr($token, 0, 8) . '...',
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => 'Failed to get people'],
-                Http::STATUS_INTERNAL_SERVER_ERROR
-            );
-        }
-    }
-
-    /**
      * Tell the editor whether facet counts will be exact on this instance.
      *
      * Worth answering while a widget is being configured rather than letting
@@ -432,16 +332,6 @@ class PeopleController extends Controller {
             $this->logger->warning('IntraVox: facet preflight failed', ['error' => $e->getMessage()]);
             return new DataResponse(['userCount' => 0, 'cap' => 0, 'approximate' => false]);
         }
-    }
-
-    /**
-     * Whether an admin has allowed People data on public share links.
-     *
-     * Same default as ApiController: withheld unless deliberately enabled.
-     */
-    private function peopleAllowedOnPublicShares(): bool {
-        return $this->config !== null
-            && $this->config->getAppValue('intravox', 'public_share_allow_people', 'no') === 'yes';
     }
 
     /**

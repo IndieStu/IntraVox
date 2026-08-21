@@ -4,32 +4,29 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Controller;
 
+use OCA\IntraVox\Controller\Shared\FeedRequestTrait;
 use OCA\IntraVox\Service\FeedReaderService;
-use OCA\IntraVox\Service\PublicShareService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
-use OCP\ISession;
 use Psr\Log\LoggerInterface;
 
 class FeedReaderController extends Controller {
+    use FeedRequestTrait;
+
     public function __construct(
         string $appName,
         IRequest $request,
         private FeedReaderService $feedReaderService,
-        private PublicShareService $publicShareService,
         private IGroupManager $groupManager,
         private LoggerInterface $logger,
         private ?string $userId = null,
-        private ?ISession $session = null,
     ) {
         parent::__construct($appName, $request);
     }
@@ -105,90 +102,6 @@ class FeedReaderController extends Controller {
     }
 
     /**
-     * Fetch feed via public share link.
-     *
-     *
-     * @param string $token Share token
-     * @return DataResponse
-     */
-    #[AnonRateLimit(limit: 30, period: 60)]
-    #[NoCSRFRequired]
-    #[PublicPage]
-    public function getFeedByShare(string $token): DataResponse {
-        try {
-            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($share === null) {
-                return new DataResponse(
-                    ['error' => 'Invalid or expired share token'],
-                    Http::STATUS_FORBIDDEN
-                );
-            }
-            // A password-protected share must stay locked here too (SHARE-PW). The
-            // check used to live only in ApiController, so this endpoint served a
-            // protected share to anyone holding the token.
-            if (!$this->publicShareService->isShareUnlocked(
-                $token,
-                $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
-            )) {
-                return new DataResponse(
-                    ['error' => 'Password required', 'passwordRequired' => true],
-                    Http::STATUS_UNAUTHORIZED
-                );
-            }
-
-            $sourceType = $this->request->getParam('sourceType', 'rss');
-            $limit = (int)$this->request->getParam('limit', 5);
-
-            $config = $this->buildConfigFromRequest($sourceType);
-            // SHARE-CFG: connectionId selects a STORED connection, credentials and
-            // all, and the fetch runs server-side with them. Taking it from the
-            // query string let anyone holding any share token drive any configured
-            // connection. It may only name what this share actually publishes.
-            if (($config['connectionId'] ?? '') !== '') {
-                $allowed = $this->publicShareService->allowedWidgetValues($share, 'feed', 'connectionId');
-                if (!in_array($config['connectionId'], $allowed, true)) {
-                    $this->logger->warning('IntraVox: share requested a connection it does not publish', [
-                        'token' => substr($token, 0, 8) . '...',
-                    ]);
-
-                    return new DataResponse(
-                        ['error' => 'Unknown connection for this share', 'items' => []],
-                        Http::STATUS_FORBIDDEN
-                    );
-                }
-            }
-
-            // Likewise the RSS url: the widget decides which feed is shown. NOTE
-            // the key mismatch — the request calls it 'url', the stored widget
-            // calls it 'feedUrl'; comparing against 'url' would match an
-            // always-empty list and block every RSS feed on a share.
-            if (($config['url'] ?? '') !== '') {
-                $allowedUrls = $this->publicShareService->allowedWidgetValues($share, 'feed', 'feedUrl');
-                if (!in_array($config['url'], $allowedUrls, true)) {
-                    return new DataResponse(
-                        ['error' => 'Unknown feed for this share', 'items' => []],
-                        Http::STATUS_FORBIDDEN
-                    );
-                }
-            }
-
-            [$sortBy, $sortOrder, $filterKeyword] = $this->parseSortAndFilter();
-            $result = $this->feedReaderService->fetchFeed($sourceType, $config, $limit, null, $sortBy, $sortOrder, $filterKeyword);
-
-            return new DataResponse($result);
-        } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error fetching feed by share', [
-                'token' => substr($token, 0, 8) . '...',
-                'error' => $e->getMessage(),
-            ]);
-            return new DataResponse(
-                ['error' => 'Failed to fetch feed', 'items' => []],
-                Http::STATUS_INTERNAL_SERVER_ERROR
-            );
-        }
-    }
-
-    /**
      * Proxy an external image to bypass CSP restrictions.
      * Only serves images whose URL was signed by the backend (HMAC).
      *
@@ -199,82 +112,6 @@ class FeedReaderController extends Controller {
     #[NoCSRFRequired]
     public function proxyImage(): DataDownloadResponse|DataResponse {
         return $this->handleProxyImage();
-    }
-
-    /**
-     * Proxy an external image via public share link.
-     *
-     *
-     * @param string $token Share token
-     * @return DataDownloadResponse|DataResponse
-     */
-    #[NoCSRFRequired]
-    #[PublicPage]
-    public function proxyImageByShare(string $token): DataDownloadResponse|DataResponse {
-        $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-        if ($share === null) {
-            return new DataResponse(
-                ['error' => 'Invalid or expired share token'],
-                Http::STATUS_FORBIDDEN
-            );
-        }
-        // A password-protected share must stay locked here too (SHARE-PW). The
-        // check used to live only in ApiController, so this endpoint served a
-        // protected share to anyone holding the token.
-        if (!$this->publicShareService->isShareUnlocked(
-            $token,
-            $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
-        )) {
-            return new DataResponse(
-                ['error' => 'Password required', 'passwordRequired' => true],
-                Http::STATUS_UNAUTHORIZED
-            );
-        }
-        return $this->handleProxyImage();
-    }
-
-    private function handleProxyImage(): DataDownloadResponse|DataResponse {
-        $url = $this->request->getParam('url', '');
-        $sig = $this->request->getParam('sig', '');
-
-        if (empty($url) || empty($sig)) {
-            return new DataResponse(
-                ['error' => 'Missing parameters'],
-                Http::STATUS_BAD_REQUEST
-            );
-        }
-
-        if (!$this->feedReaderService->verifyImageSignature($url, $sig)) {
-            return new DataResponse(
-                ['error' => 'Invalid signature'],
-                Http::STATUS_FORBIDDEN
-            );
-        }
-
-        try {
-            $result = $this->feedReaderService->proxyImage($url);
-
-            $response = new DataDownloadResponse(
-                $result['body'],
-                '', // no filename — inline display, not download
-                $result['contentType']
-            );
-            $response->addHeader('Cache-Control', 'public, max-age=86400, immutable');
-            $response->addHeader('X-Content-Type-Options', 'nosniff');
-            $response->addHeader('Referrer-Policy', 'no-referrer');
-            $response->addHeader('Content-Security-Policy', "default-src 'none'");
-            // Override Content-Disposition to inline (DataDownloadResponse sets attachment)
-            $response->addHeader('Content-Disposition', 'inline');
-            return $response;
-        } catch (\Exception $e) {
-            $this->logger->warning('IntraVox: Image proxy failed', [
-                'error' => $e->getMessage(),
-            ]);
-            return new DataResponse(
-                ['error' => 'Failed to fetch image'],
-                Http::STATUS_BAD_GATEWAY
-            );
-        }
     }
 
     /**
@@ -472,67 +309,5 @@ class FeedReaderController extends Controller {
                 Http::STATUS_INTERNAL_SERVER_ERROR
             );
         }
-    }
-
-    /**
-     * Parse sort and filter parameters from request.
-     * @return array{string, string, string} [sortBy, sortOrder, filterKeyword]
-     */
-    private function parseSortAndFilter(): array {
-        $sortBy = $this->request->getParam('sortBy', 'date');
-        $sortBy = in_array($sortBy, ['date', 'title'], true) ? $sortBy : 'date';
-
-        $sortOrder = $this->request->getParam('sortOrder', 'desc');
-        $sortOrder = in_array($sortOrder, ['asc', 'desc'], true) ? $sortOrder : 'desc';
-
-        $filterKeyword = trim((string) $this->request->getParam('filterKeyword', ''));
-        // Limit keyword length to prevent abuse
-        $filterKeyword = mb_substr($filterKeyword, 0, 100);
-
-        return [$sortBy, $sortOrder, $filterKeyword];
-    }
-
-    private function buildConfigFromRequest(string $sourceType): array {
-        $config = [];
-
-        if ($sourceType === 'rss') {
-            $config['url'] = $this->request->getParam('url', '');
-        } else {
-            $config['connectionId'] = $this->request->getParam('connectionId', '');
-            $courseId = $this->request->getParam('courseId', '');
-            // Only allow alphanumeric course IDs (prevents parameter injection)
-            if (!empty($courseId) && !preg_match('/^[a-zA-Z0-9_-]{1,64}$/', $courseId)) {
-                $courseId = '';
-            }
-            $config['courseId'] = $courseId;
-
-            $contentType = $this->request->getParam('contentType', '');
-            // Whitelist allowed content types to prevent injection
-            if (!in_array($contentType, ['', 'news', 'my-courses', 'courses', 'assignments', 'deadlines', 'pages', 'documents', 'list', 'open', 'overdue', 'milestones', 'recently-updated', 'bugs', 'recent', 'created-recent'], true)) {
-                $contentType = '';
-            }
-            $config['contentType'] = $contentType;
-
-            $jiraProject = $this->request->getParam('jiraProject', '');
-            if (!empty($jiraProject) && !preg_match('/^[A-Z][A-Z0-9_]{1,20}$/', $jiraProject)) {
-                $jiraProject = '';
-            }
-            $config['jiraProject'] = $jiraProject;
-
-            $moodleForumId = $this->request->getParam('moodleForumId', '');
-            if (!empty($moodleForumId) && !preg_match('/^[0-9]{1,10}$/', $moodleForumId)) {
-                $moodleForumId = '';
-            }
-            $config['moodleForumId'] = $moodleForumId;
-
-            $listId = $this->request->getParam('listId', '');
-            // Only allow GUID-format list IDs
-            if (!empty($listId) && !preg_match('/^[a-zA-Z0-9-]{1,64}$/', $listId)) {
-                $listId = '';
-            }
-            $config['listId'] = $listId;
-        }
-
-        return $config;
     }
 }

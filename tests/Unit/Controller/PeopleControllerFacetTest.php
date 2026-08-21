@@ -4,7 +4,6 @@ declare(strict_types=1);
 namespace OCA\IntraVox\Tests\Unit\Controller;
 
 use OCA\IntraVox\Controller\PeopleController;
-use OCA\IntraVox\Service\PublicShareService;
 use OCA\IntraVox\Service\UserService;
 use OCP\AppFramework\Http;
 use OCP\IRequest;
@@ -14,27 +13,24 @@ use Psr\Log\LoggerInterface;
 /**
  * Controller-level guarantees for viewer-side faceting.
  *
- * The public-share assertions are the important ones: a facet panel on a
- * share link is a browsable directory of the organisation, so the endpoint
- * must refuse the parameters outright rather than depending on the frontend
- * not to send them.
+ * The matching public-share assertions moved to PublicSharePeopleTest with
+ * the endpoint itself (F6d). What stays here is the authenticated path: that
+ * a logged-in viewer's facet parameters do reach the service, and that the
+ * refine payload is validated before they do.
  */
 class PeopleControllerFacetTest extends TestCase {
 	private UserService $userService;
-	private PublicShareService $publicShareService;
 	private PeopleController $controller;
 
 	protected function setUp(): void {
 		parent::setUp();
 
 		$this->userService = $this->createMock(UserService::class);
-		$this->publicShareService = $this->createMock(PublicShareService::class);
 
 		$this->controller = new PeopleController(
 			'intravox',
 			$this->createMock(IRequest::class),
 			$this->userService,
-			$this->publicShareService,
 			$this->createMock(LoggerInterface::class)
 		);
 	}
@@ -79,124 +75,6 @@ class PeopleControllerFacetTest extends TestCase {
 		);
 
 		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-	}
-
-	/**
-	 * Decision: no viewer filtering on public shares. Enforced by test rather
-	 * than by hope — getPeopleByShare() delegates to getPeople(), so without
-	 * an explicit null-out this would leak the moment someone appends the
-	 * query parameters by hand.
-	 */
-	public function testPublicShareIgnoresRefineFacetsAndQuery(): void {
-		// A request that DOES carry viewer parameters. Without this the mocked
-		// IRequest returns null for everything, and the test would pass even
-		// if getPeopleByShare() forwarded whatever it was given — verified by
-		// mutation.
-		$request = $this->createMock(IRequest::class);
-		$request->method('getParam')->willReturnCallback(
-			static fn(string $key, $default = null) => match ($key) {
-				'refine' => '[{"field":"role","op":"in","value":["Manager"]}]',
-				'facets' => 'role,gebouw',
-				'q' => 'jansen',
-				'searchFields' => 'displayName',
-				default => $default,
-			}
-		);
-
-		$controller = new PeopleController(
-			'intravox',
-			$request,
-			$this->userService,
-			$this->publicShareService,
-			$this->createMock(LoggerInterface::class)
-		);
-
-		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
-		// These cases are about the people projection, not the password gate.
-		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
-
-		// The faceted path must never be entered.
-		$this->userService->expects($this->never())->method('queryFaceted');
-		$this->userService->method('getUsersByFilters')->willReturn(['users' => [], 'total' => 0]);
-
-		$response = $controller->getPeopleByShare(
-			'sometoken',
-			null,
-			'[{"fieldName":"gebouw","operator":"equals","value":"Noord"}]',
-			'AND',
-			'displayName',
-			'asc',
-			50,
-			0
-		);
-
-		$this->assertSame(Http::STATUS_OK, $response->getStatus());
-
-		$data = $response->getData();
-		$this->assertArrayNotHasKey('facets', $data, 'a public share must not return facets');
-	}
-
-	/**
-	 * By default a public share returns no people at all.
-	 *
-	 * A share is normally made to hand someone documents; if the page also
-	 * carries a People widget, sharing those documents would publish a staff
-	 * directory to whoever holds the link. The safe answer has to be the one
-	 * that happens when nobody configured anything.
-	 */
-	public function testPublicShareReturnsNoPeopleByDefault(): void {
-		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
-		// These cases are about the people projection, not the password gate.
-		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
-		$this->userService->expects($this->never())->method('getUsersByFilters');
-
-		$response = $this->controller->getPeopleByShare(
-			'sometoken',
-			null,
-			'[{"fieldName":"gebouw","operator":"equals","value":"Noord"}]'
-		);
-
-		$data = $response->getData();
-		$this->assertSame(0, $data['total']);
-		$this->assertSame([], $data['users']);
-	}
-
-	public function testPublicShareServesPeopleOnlyWhenAdminOptedIn(): void {
-		$config = $this->createMock(\OCP\IConfig::class);
-		$config->method('getAppValue')
-			->with('intravox', 'public_share_allow_people', 'no')
-			->willReturn('yes');
-
-		$controller = new PeopleController(
-			'intravox',
-			$this->createMock(IRequest::class),
-			$this->userService,
-			$this->publicShareService,
-			$this->createMock(LoggerInterface::class),
-			null,
-			null,
-			$config
-		);
-
-		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
-		// These cases are about the people projection, not the password gate.
-		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
-		$this->userService->method('getUsersByFilters')->willReturn([
-			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
-			'total' => 1,
-		]);
-
-		$response = $controller->getPeopleByShare(
-			'sometoken',
-			null,
-			'[{"fieldName":"gebouw","operator":"equals","value":"Noord"}]'
-		);
-
-		$data = $response->getData();
-		$this->assertSame(1, $data['total']);
-		$this->assertCount(1, $data['users']);
-		// Even when allowed, viewer filtering stays off on a share.
-		$this->assertArrayNotHasKey('facets', $data);
 	}
 
 	public function testInvalidRefineJsonIsRejected(): void {

@@ -3,8 +3,13 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Controller;
 
+use OCA\IntraVox\Controller\Shared\CalendarRequestTrait;
+use OCA\IntraVox\Controller\Shared\FeedRequestTrait;
 use OCA\IntraVox\Controller\Shared\SharePathTrait;
+use OCA\IntraVox\Service\CalendarService;
+use OCA\IntraVox\Service\FeedReaderService;
 use OCA\IntraVox\Service\NavigationService;
+use OCA\IntraVox\Service\People\PeopleQuery;
 use OCA\IntraVox\Service\People\PublicSharePeopleGuard;
 use OCA\IntraVox\Service\PageService;
 use OCA\IntraVox\Service\PermissionService;
@@ -19,6 +24,7 @@ use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\Response;
@@ -52,6 +58,8 @@ use Psr\Log\LoggerInterface;
  */
 class PublicShareController extends Controller {
     use SharePathTrait;
+    use FeedRequestTrait;
+    use CalendarRequestTrait;
 
     public function __construct(
         string $appName,
@@ -65,6 +73,9 @@ class PublicShareController extends Controller {
         private LoggerInterface $logger,
         private IConfig $config,
         private ISession $session,
+        private CalendarService $calendarService,
+        private FeedReaderService $feedReaderService,
+        private PeopleQuery $peopleQuery,
     ) {
         parent::__construct($appName, $request);
     }
@@ -674,6 +685,272 @@ class PublicShareController extends Controller {
     public function getResourcesMediaWithFolderByShare(string $token, string $folder, string $filename) {
         $path = $folder . '/' . $filename;
         return $this->getResourcesMediaByShare($token, $path);
+    }
+
+    // ---------- widget endpoints (F6d) ----------
+    //
+    // Calendar, feed and people data for a shared page. These lived on their
+    // own controllers, each opening the share by hand with
+    // resolveIntraVoxLinkShare() + isShareUnlocked(). That pair is two of the
+    // four checks openShare() makes: it skipped the token-shape test and the
+    // shareapi_allow_links kill switch, so an admin who turned off link sharing
+    // still had four endpoints answering. Routing them through the same gate
+    // closes that by construction rather than by remembering.
+    //
+    // Their refusal bodies are kept exactly as they were, because the widgets
+    // read them: a 403 with an 'error' key, not the page endpoints' 404.
+
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function getEventsByShare(string $token): DataResponse {
+        try {
+            $share = $this->openShare($token, fn() => $this->widgetShareDenied());
+            if ($share instanceof Response) {
+                return $this->asDataResponse($share);
+            }
+
+            $calendarIdsParam = $this->request->getParam('calendarIds', '');
+            $rangeStart = $this->request->getParam('rangeStart', '');
+            $rangeEnd = $this->request->getParam('rangeEnd', '');
+            $limit = (int) $this->request->getParam('limit', 5);
+
+            // Parse external ICS URLs
+            $externalIcsUrls = $this->parseExternalIcsUrls($this->request->getParam('externalIcsUrls', ''));
+
+            if (empty($calendarIdsParam) && empty($externalIcsUrls)) {
+                return new DataResponse(['events' => []]);
+            }
+
+            // Parse calendar keys (string identifiers)
+            $calendarIds = array_filter(explode(',', (string) $calendarIdsParam), fn($s) => $s !== '');
+            $limit = min(max($limit, 1), 20);
+
+            // Validate date parameters
+            try {
+                $start = new \DateTimeImmutable($rangeStart ?: 'now');
+                $end = new \DateTimeImmutable($rangeEnd ?: '+30 days');
+            } catch (\Exception $e) {
+                return new DataResponse(
+                    ['error' => 'Invalid date format'],
+                    Http::STATUS_BAD_REQUEST
+                );
+            }
+
+            // Cap date range to 1 year max
+            $maxEnd = $start->modify('+1 year');
+            if ($end > $maxEnd) {
+                $end = $maxEnd;
+            }
+
+            // SHARE-CFG: the request may only ask for what this share actually
+            // publishes. The ids below are read with the SHARE OWNER's
+            // permissions, so trusting the query string let an anonymous visitor
+            // name any calendar the owner could see and read it — proven on
+            // nc-dev by reading the owner's birthday calendar through a share.
+            // The token proves the visitor may see a page, not that page owner's
+            // agenda.
+            $allowedCalendarIds = $this->publicShareService->allowedWidgetValues($share, 'calendar', 'calendarIds');
+            $requestedCount = count($calendarIds);
+            $calendarIds = array_values(array_intersect($calendarIds, $allowedCalendarIds));
+
+            if ($requestedCount > 0 && count($calendarIds) < $requestedCount) {
+                $this->logger->warning('IntraVox: share requested calendars it does not publish', [
+                    'token' => substr($token, 0, 8) . '...',
+                    'requested' => $requestedCount,
+                    'allowed' => count($calendarIds),
+                ]);
+            }
+
+            // Same for external ICS feeds: the widget decides which are shown.
+            if ($externalIcsUrls !== []) {
+                $allowedIcsUrls = $this->publicShareService->allowedWidgetValues($share, 'calendar', 'externalIcsUrls');
+                $externalIcsUrls = array_values(array_intersect($externalIcsUrls, $allowedIcsUrls));
+            }
+
+            if ($calendarIds === [] && $externalIcsUrls === []) {
+                return new DataResponse(['events' => []]);
+            }
+
+            // Use the share owner's context to fetch calendar events
+            $ownerId = $share->getShareOwner();
+            if ($ownerId === null) {
+                return new DataResponse(
+                    ['error' => 'Could not determine share owner'],
+                    Http::STATUS_INTERNAL_SERVER_ERROR
+                );
+            }
+
+            $events = $this->calendarService->getEvents($ownerId, $calendarIds, $start, $end, $limit, $externalIcsUrls);
+
+            return new DataResponse([
+                'events' => $events,
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->error('IntraVox: Error getting calendar events by share', [
+                'token' => substr($token, 0, 8) . '...',
+                'error' => $e->getMessage(),
+            ]);
+            return new DataResponse(
+                ['error' => 'Failed to get calendar events'],
+                Http::STATUS_INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function getFeedByShare(string $token): DataResponse {
+        try {
+            $share = $this->openShare($token, fn() => $this->widgetShareDenied());
+            if ($share instanceof Response) {
+                return $this->asDataResponse($share);
+            }
+
+            $sourceType = $this->request->getParam('sourceType', 'rss');
+            $limit = (int)$this->request->getParam('limit', 5);
+
+            $config = $this->buildConfigFromRequest($sourceType);
+            // SHARE-CFG: connectionId selects a STORED connection, credentials and
+            // all, and the fetch runs server-side with them. Taking it from the
+            // query string let anyone holding any share token drive any configured
+            // connection. It may only name what this share actually publishes.
+            if (($config['connectionId'] ?? '') !== '') {
+                $allowed = $this->publicShareService->allowedWidgetValues($share, 'feed', 'connectionId');
+                if (!in_array($config['connectionId'], $allowed, true)) {
+                    $this->logger->warning('IntraVox: share requested a connection it does not publish', [
+                        'token' => substr($token, 0, 8) . '...',
+                    ]);
+
+                    return new DataResponse(
+                        ['error' => 'Unknown connection for this share', 'items' => []],
+                        Http::STATUS_FORBIDDEN
+                    );
+                }
+            }
+
+            // Likewise the RSS url: the widget decides which feed is shown. NOTE
+            // the key mismatch — the request calls it 'url', the stored widget
+            // calls it 'feedUrl'; comparing against 'url' would match an
+            // always-empty list and block every RSS feed on a share.
+            if (($config['url'] ?? '') !== '') {
+                $allowedUrls = $this->publicShareService->allowedWidgetValues($share, 'feed', 'feedUrl');
+                if (!in_array($config['url'], $allowedUrls, true)) {
+                    return new DataResponse(
+                        ['error' => 'Unknown feed for this share', 'items' => []],
+                        Http::STATUS_FORBIDDEN
+                    );
+                }
+            }
+
+            [$sortBy, $sortOrder, $filterKeyword] = $this->parseSortAndFilter();
+            $result = $this->feedReaderService->fetchFeed($sourceType, $config, $limit, null, $sortBy, $sortOrder, $filterKeyword);
+
+            return new DataResponse($result);
+        } catch (\Exception $e) {
+            $this->logger->error('IntraVox: Error fetching feed by share', [
+                'token' => substr($token, 0, 8) . '...',
+                'error' => $e->getMessage(),
+            ]);
+            return new DataResponse(
+                ['error' => 'Failed to fetch feed', 'items' => []],
+                Http::STATUS_INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function proxyImageByShare(string $token): DataDownloadResponse|DataResponse {
+        $share = $this->openShare($token, fn() => $this->widgetShareDenied());
+        if ($share instanceof Response) {
+            return $this->asDataResponse($share);
+        }
+
+        return $this->handleProxyImage();
+    }
+
+    #[PublicPage]
+    #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 30, period: 60)]
+    public function getPeopleByShare(
+        string $token,
+        ?string $userIds = null,
+        ?string $filters = null,
+        string $filterOperator = 'AND',
+        string $sortBy = 'displayName',
+        string $sortOrder = 'asc',
+        int $limit = 50,
+        int $offset = 0
+    ): DataResponse {
+        try {
+            $share = $this->openShare($token, fn() => $this->widgetShareDenied());
+            if ($share instanceof Response) {
+                return $this->asDataResponse($share);
+            }
+
+            // Removing the widget from the shared page is the primary
+            // guard, but this endpoint is reachable on its own, so refuse
+            // here too rather than trusting the page to be the only route.
+            if (!$this->peopleAllowedOnPublicShares()) {
+                return new DataResponse(['users' => [], 'total' => 0, 'hasMore' => false]);
+            }
+
+            // The viewer-facing facet parameters are not forwarded, and cannot
+            // be: this calls the query directly rather than delegating to
+            // PeopleController::getPeople(), so there is no argument list a
+            // later refactor could quietly widen.
+            //
+            // That matters because a facet panel on a public share is a
+            // browsable directory of the organisation — roles, buildings,
+            // departments and their headcounts — handed to anyone with the link.
+            return $this->peopleQuery->forPublicShare(
+                $userIds,
+                $filters,
+                $filterOperator,
+                $sortBy,
+                $sortOrder,
+                $limit,
+                $offset
+            );
+        } catch (\Exception $e) {
+            $this->logger->error('IntraVox: Error getting people by share', [
+                'token' => substr($token, 0, 8) . '...',
+                'error' => $e->getMessage()
+            ]);
+            return new DataResponse(
+                ['error' => 'Failed to get people'],
+                Http::STATUS_INTERNAL_SERVER_ERROR
+            );
+        }
+    }
+
+    /**
+     * The widgets' refusal: a 403 with an error key, kept byte-identical to
+     * what they answered before F6d because the frontend reads this shape.
+     */
+    private function widgetShareDenied(): DataResponse {
+        return new DataResponse(
+            ['error' => 'Invalid or expired share token'],
+            Http::STATUS_FORBIDDEN
+        );
+    }
+
+    /**
+     * openShare() hands back a JSONResponse for the password case, which the
+     * widget endpoints must return as a DataResponse to keep their declared
+     * return type honest. Same status, same body.
+     */
+    private function asDataResponse(Response $response): DataResponse {
+        if ($response instanceof DataResponse) {
+            return $response;
+        }
+
+        $body = $response instanceof JSONResponse ? $response->getData() : [];
+
+        return new DataResponse($body, $response->getStatus());
     }
 
     // ---------- helpers, moved with their endpoints ----------

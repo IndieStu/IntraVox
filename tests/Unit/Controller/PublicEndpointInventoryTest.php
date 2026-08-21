@@ -29,25 +29,27 @@ class PublicEndpointInventoryTest extends TestCase {
 	 *   ApiController::health         monitoring probe, returns app + version
 	 *   PageController::*             the HTML pages themselves, not the API
 	 *   FeedController::*             the RSS feed, which is token-authenticated
-	 *   Calendar/FeedReader/People    widget endpoints for a shared page; F6d
-	 *                                 moves these next to the others
+	 *
+	 * As of F6d that is the whole list: no controller outside this one serves
+	 * an anonymous share endpoint any more.
 	 */
 	private const EXPECTED = [
 		'PublicShareController' => [
+			'getEventsByShare',
+			'getFeedByShare',
 			'getMediaByShare',
 			'getNavigationByShare',
 			'getNewsByShare',
 			'getPageByShare',
 			'getPageTreeByShare',
+			'getPeopleByShare',
 			'getResourcesMediaByShare',
 			'getResourcesMediaWithFolderByShare',
+			'proxyImageByShare',
 		],
 		'ApiController' => ['health'],
 		'PageController' => ['index', 'shareAccess', 'shareAuthenticate'],
 		'FeedController' => ['getFeed', 'getFeedMedia'],
-		'CalendarController' => ['getEventsByShare'],
-		'FeedReaderController' => ['getFeedByShare', 'proxyImageByShare'],
-		'PeopleController' => ['getPeopleByShare'],
 	];
 
 	/** @return array<string,list<string>> */
@@ -135,13 +137,8 @@ class PublicEndpointInventoryTest extends TestCase {
 			}
 
 			foreach ($methods as $method) {
-				// The widget endpoints F6d still has to move are listed by name,
-				// so this narrows as that work lands rather than silently passing.
-				$pending = ['getEventsByShare', 'getFeedByShare', 'proxyImageByShare', 'getPeopleByShare'];
-				if (in_array($method, $pending, true)) {
-					continue;
-				}
-
+				// No exemptions left: F6d moved the last four. A share endpoint
+				// anywhere else is now a failure, not a known gap.
 				$this->assertStringNotContainsString(
 					'ByShare',
 					$method,
