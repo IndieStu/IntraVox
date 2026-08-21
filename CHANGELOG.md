@@ -6,110 +6,85 @@ IntraVox is a Nextcloud intranet page builder.
 
 ## [Unreleased] — Security hardening: shares, rate limits and uploads
 
-A pass over the parts of the app that face anonymous visitors. Several markers
-that read as protection turned out not to do anything, and the public share
-endpoints trusted a share token further than they should have.
+A hardening pass over the parts of the app that face anonymous visitors, plus
+the packaging fix below. Several protections that were meant to be active turned
+out not to be, and the public share endpoints granted more than they should.
 
-**Upgrade note — this changes behaviour on existing sites.** Two of the fixes
-below can turn requests that used to succeed into 404, 401 or 429. Both are
-deliberate, and both only affect access that should never have worked, but if
-you have built something on the old behaviour, read the first two entries
-before upgrading.
+Details of the individual weaknesses are deliberately kept short here. They are
+recorded in full in the commit history and in the internal security notes; if
+you administer an IntraVox instance and want the specifics before upgrading,
+ask us.
+
+**Upgrade note — this changes behaviour on existing sites.** Some requests that
+used to succeed now return 404, 401 or 429. That is intentional, and it only
+affects access that should not have been possible, but read the first two
+entries if you have built anything on the old behaviour.
+
+**Please upgrade.** Everything in this section is fixed in this release and
+present in every earlier one.
 
 ### Security
 
-- **A share link only opens IntraVox content if it points into IntraVox.** The
-  public endpoints accepted any Nextcloud link share in the instance: they
-  checked that the token belonged to a link share and had not expired, and
-  nothing more. Someone who shared an unrelated file — a holiday photo, a PDF —
-  handed out a token that also read IntraVox pages, media, navigation and the
-  page tree, and through the calendar endpoint the share owner's agenda, with
-  the caller choosing which calendars.
+- **A share link only opens IntraVox content if it points into IntraVox.**
+  Access through the public endpoints was not tied tightly enough to the
+  IntraVox Team Folder. Shares of IntraVox pages are unaffected and keep working
+  exactly as before.
 
-  A share now has to live in the IntraVox Team Folder. Anything else answers 404
-  (403 on the people and calendar endpoints). Shares of IntraVox pages are
-  unaffected and keep working exactly as before.
+  *What to check before upgrading:* if you publish IntraVox content through a
+  share of a file **outside** the IntraVox Team Folder, that link will stop
+  working. Share the page itself instead.
 
-  *What to check before upgrading:* if you point a public page at IntraVox
-  content through a share of a file **outside** the IntraVox Team Folder, that
-  link will stop working. Re-share the page itself instead.
+- **A password on a share is now enforced on every endpoint.** Some parts of a
+  password-protected share could be reached without entering the password. They
+  all require it now. Shares without a password are unaffected.
 
-- **A password on a share is now enforced everywhere.** The password check ran
-  on the page, navigation, tree and news endpoints but not on the people,
-  calendar and feed endpoints, so a password-protected share still served that
-  data to anyone holding the link. All of them now answer 401 until the password
-  has been entered. Shares without a password are unaffected.
+- **Rate limiting is active again.** The limits were configured but not being
+  applied. The public share endpoints now enforce 60 requests per minute per
+  visitor, as they were always meant to. Normal reading stays far below that;
+  automated hammering will start seeing 429.
 
-- **Rate limiting works again — it had never run.** All 28 rate limits in the
-  app named `AnonRateThrottle`/`UserRateThrottle`, which are the names of the
-  *legacy annotations*; the attribute classes Nextcloud actually looks for are
-  `AnonRateLimit`/`UserRateLimit`. PHP resolves attributes lazily, so a wrong
-  class name never errors — the limits simply never matched and never fired.
+- **The brute-force delay on the public share endpoint applies again.** Repeated
+  attempts with invalid share tokens are slowed down.
 
-  *What changes:* the public share endpoints now enforce 60 requests per minute
-  per visitor, as they always claimed to. Normal reading stays far below that;
-  a script hammering a share endpoint will start seeing 429.
-
-- **The brute-force delay on the public share endpoint fires again.** Its
-  action name was written with quotes, and the annotation parser keeps the
-  quotes, so the delay was registered under one name and looked up under
-  another. Repeated attempts with invalid share tokens are slowed down again.
-
-- **Menu links can no longer carry a `javascript:` URL.** Navigation URLs were
-  cleaned with a filter that removes characters that are illegal in a URL but
-  does not look at the scheme, so `javascript:` and `data:text/html` passed
-  through — and an obfuscated variant was actively repaired into a working one.
-  Navigation is stored per site and rendered into a link, so this was stored
-  cross-site scripting. Existing menus are cleaned on read, so no repair step is
+- **Menu links can no longer carry a script URL.** Navigation links were not
+  checked strictly enough against the list of permitted URL schemes, which made
+  stored cross-site scripting possible for someone who could edit the menu.
+  Existing menus are cleaned automatically when read, so no repair step is
   needed.
 
-- **A public share can no longer be used to read the owner's calendars.** The
-  calendar endpoint took the calendar ids from the request and then read them
-  with the *share owner's* permissions, so anyone holding a share link could
-  name any calendar that owner had access to. On our own test server this
-  returned the contents of a personal birthday calendar to an anonymous
-  visitor. A share now only serves what its own page actually publishes; the
-  same applies to feed connections and RSS feeds.
+- **A public share no longer exposes anything beyond what its page publishes.**
+  Calendar, feed and RSS widgets on a shared page could be steered to sources
+  the page does not use, and those were then read with the share owner's
+  permissions. A share is now limited to exactly what the page it belongs to has
+  configured.
 
-- **A share scoped to one section can no longer fall back to the whole
-  language.** If the shared page had been moved or deleted, the tree endpoint
-  returned every page in that language instead of nothing.
+- **A share scoped to one section stays scoped to that section**, including when
+  the shared page has since been moved or deleted.
 
-- **Images on unpublished pages are no longer publicly reachable.** Media
-  inherited no publication state, so the illustrations of a draft, scheduled or
-  expired page stayed fetchable through a share even though the page itself
-  returned 404. Scheduled and expired pages also disappeared from the public
-  news list, which previously only hid manual drafts.
+- **Unpublished pages stay private.** Draft, scheduled and expired pages — and
+  the images on them — could still be reached through a share or turn up in
+  search results. They now follow the same rule everywhere: hidden from readers,
+  still visible to editors.
 
 - **Feed connection settings no longer expose credentials to every user.** The
-  connection list is readable by any logged-in user because the widget editor
-  needs the connection names, but it also returned the custom HTTP headers —
-  where an API key typically lives — along with the OAuth client id and tenant.
-  Those fields are now administrator-only.
-- **Unpublished pages no longer appear in search.** Drafts, scheduled and
-  expired pages were returned by Nextcloud's unified search to everyone who
-  could read the folder — title and link both. They now follow the same rule as
-  the rest of the app: hidden from readers, still findable by editors.
+  connection list stays readable by any logged-in user, because the widget
+  editor needs the connection names, but the credential-adjacent fields are now
+  administrator-only.
 
-- **An uploaded image is stored under an extension that matches its content.**
-  The stored filename took its extension from the name the browser sent, while
-  only the `img_`/`vid_` prefix came from the sniffed type. A real PNG uploaded
-  as `evil.php` was stored as `img_….php`. The extension is now derived from the
-  file's actual type.
+- **Uploaded images are stored under an extension that matches their content**,
+  instead of the extension supplied by the browser.
 
-- **Imported pages are sanitised like edited ones.** Import was the only way to
-  write page content that skipped sanitisation entirely, including the demo-data
-  import, which fetches its content over the network. Imported pages now pass
-  through the same checks a save does.
+- **Imported pages are sanitised like edited ones.** Import was the one way to
+  write page content that skipped the usual checks, including the demo-data
+  import, which fetches content over the network.
 
-- **ZIP imports have a size limit.** The two import paths each had their own
-  copy of the path-traversal check and neither limited how much a ZIP expands
-  to, so a small crafted archive could fill the disk. Both now use one
-  extractor, with a per-file and a total ceiling.
+- **ZIP imports have a size limit**, so a small crafted archive can no longer
+  expand far enough to fill the disk. Both import paths now use one extractor
+  with a per-file and a total ceiling.
 
 - **A People widget filtered by group can no longer scan the whole directory.**
-  The group branch of the filter had no upper bound, so naming a few large
-  groups made one request build a profile for every account on the instance.
+  The group filter had no upper bound, so one request could build a profile for
+  every account on the instance.
 
 ### Changed
 
@@ -131,12 +106,13 @@ before upgrading.
   No endpoint changed what it requires: all 189 handlers were compared before
   and after, and verified on a running server.
 
-- **SVG uploads fail cleanly when the SVG sanitiser is unavailable.** Release
-  packages shipped without their PHP dependencies, so on an App Store install
-  the sanitiser class was missing and the first SVG upload was a fatal error.
-  The dependencies now ship with the release, and a missing sanitiser is treated
-  as "cannot prove this file is safe" — the upload is refused instead of
-  crashing.
+- **SVG upload works on App Store installations again.** The release packages
+  were built without their PHP dependencies, so the SVG sanitiser was missing
+  and uploading an SVG failed with a server error. The dependencies now ship
+  with the release, the packaging is checked automatically before publishing,
+  and an unavailable sanitiser now refuses the upload rather than crashing —
+  an SVG that cannot be checked is never stored.
+
 ## [2.2.0] - 2026-08-18 — A page structure panel that stays open, and a table of contents
 
 The page structure moved out of its pop-up and became a panel beside the content, the way a space sidebar works in Confluence. It stays open while you navigate, and it now has a second view: the headings of the page you are reading.
