@@ -2805,31 +2805,6 @@ class PageService {
     }
 
     /**
-     * Propagate cache size changes up the folder tree
-     * This is critical for groupfolders to make new content visible
-     */
-    private function propagateCacheSizes($cache, $internalPath): void {
-        try {
-            // Start from the given path and work up to the root
-            $currentPath = $internalPath;
-
-            while ($currentPath !== '' && $currentPath !== '.') {
-                // Update the size for this folder
-                $cache->correctFolderSize($currentPath);
-
-                // Move to parent folder
-                $parentPath = dirname($currentPath);
-                if ($parentPath === $currentPath || $parentPath === '.') {
-                    break;
-                }
-                $currentPath = $parentPath;
-            }
-        } catch (\Exception $e) {
-            // Silently fail - cache propagation is not critical
-        }
-    }
-
-    /**
      * Update an existing page
      */
     public function updatePage(string $id, array $data): array {
@@ -3481,13 +3456,6 @@ class PageService {
     }
 
     /**
-     * @deprecated Use HtmlSanitizer::sanitize directly. See note above.
-     */
-    private function sanitizeHtml(string $html): string {
-        return $this->htmlSanitizer->sanitize($html);
-    }
-
-    /**
      * @see PageShapeSanitizer::sanitizeFolderPath()
      */
     private function sanitizeFolderPath(string $path): string {
@@ -3499,14 +3467,6 @@ class PageService {
      */
     private function sanitizePath(string $path): string {
         return $this->shape()->sanitizePath($path);
-    }
-
-    /**
-     * @deprecated Use UrlSanitizer::sanitize directly. Thin wrapper for
-     * existing call-sites; remove when migrated.
-     */
-    private function sanitizeUrl(string $url): string {
-        return $this->urlSanitizer->sanitize($url);
     }
 
     /**
@@ -3544,14 +3504,6 @@ class PageService {
      */
     private function sanitizeVideoEmbedUrl(string $url): string {
         return $this->shape()->sanitizeVideoEmbedUrl($url);
-    }
-
-    /**
-     * @deprecated Use ColorSanitizer::sanitize directly. Thin wrapper for
-     * existing call-sites; remove when migrated.
-     */
-    private function sanitizeBackgroundColor(string $color): string {
-        return $this->colorSanitizer->sanitize($color);
     }
 
     /**
@@ -3710,62 +3662,6 @@ class PageService {
             // response over; the MetaVox tab simply stays empty.
         }
         return null;
-    }
-
-    private function getFileIdFromDatabase($file, $folder): int {
-        try {
-            $filePath = $file->getPath();
-
-            // Extract groupfolder ID and relative path from the full path
-            // Path format: /__groupfolders/4/files/en/home.json
-            // We need: groupfolderId=4, relPath="files/en/home.json"
-            if (preg_match('#/__groupfolders/(\d+)/(.+)$#', $filePath, $matches)) {
-                $groupfolderId = (int)$matches[1];
-                $relPath = $matches[2];
-
-                // Find the storage ID for this groupfolder
-                $qb = $this->db->getQueryBuilder();
-                $qb->select('storage_id')
-                    ->from('group_folders')
-                    ->where($qb->expr()->eq('folder_id', $qb->createNamedParameter($groupfolderId)));
-
-                $result = $qb->executeQuery();
-                $gfRow = $result->fetch();
-                $result->closeCursor();
-
-                if (!$gfRow || !isset($gfRow['storage_id'])) {
-                    return $file->getId();
-                }
-
-                $storageId = (int)$gfRow['storage_id'];
-
-                // Query filecache for the file in the groupfolder storage
-                $qb2 = $this->db->getQueryBuilder();
-                $qb2->select('fileid')
-                    ->from('filecache')
-                    ->where($qb2->expr()->eq('storage', $qb2->createNamedParameter($storageId)))
-                    ->andWhere($qb2->expr()->eq('path', $qb2->createNamedParameter($relPath)))
-                    ->andWhere($qb2->expr()->eq('name', $qb2->createNamedParameter($file->getName())));
-
-                $result2 = $qb2->executeQuery();
-                $row = $result2->fetch();
-                $result2->closeCursor();
-
-                if ($row && isset($row['fileid'])) {
-                    return (int)$row['fileid'];
-                }
-            }
-
-            // Fallback to file object ID
-            return $file->getId();
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get file ID from database', [
-                'error' => $e->getMessage(),
-                'fileName' => $file->getName()
-            ]);
-            return $file->getId();
-        }
     }
 
     /**
@@ -4485,102 +4381,6 @@ class PageService {
 
         // Critical: without this the new order stays invisible for up to 5 min.
         $this->clearCache();
-    }
-
-    /**
-     * Extract groupfolder ID from path
-     */
-    private function extractGroupfolderId(string $path): ?int {
-        if (preg_match('/\/__groupfolders\/(\d+)/', $path, $matches)) {
-            return (int)$matches[1];
-        }
-        return null;
-    }
-
-    /**
-     * Get groupfolder name from groupfolder ID
-     */
-    private function getGroupfolderName(?int $groupfolderId): string {
-        if ($groupfolderId === null) {
-            return 'IntraVox';
-        }
-
-        try {
-            // Query the group_folders table for the mount_point
-            $qb = $this->db->getQueryBuilder();
-            $qb->select('mount_point')
-                ->from('group_folders')
-                ->where($qb->expr()->eq('folder_id', $qb->createNamedParameter($groupfolderId)));
-
-            $result = $qb->executeQuery();
-            $row = $result->fetch();
-            $result->closeCursor();
-
-            if ($row && isset($row['mount_point'])) {
-                return $row['mount_point'];
-            }
-        } catch (\Exception $e) {
-            // Fallback on error
-        }
-
-        return 'IntraVox';
-    }
-
-    /**
-     * Get folder ID from database for Files app link
-     */
-    private function getFolderIdFromDatabase(string $folderPath, ?int $groupfolderId): ?int {
-        if ($groupfolderId === null) {
-            return null;
-        }
-
-        try {
-            // Extract relative path from full path
-            // Path format: /__groupfolders/4/files/en/mission
-            if (preg_match('#/__groupfolders/\d+/(.+)$#', $folderPath, $matches)) {
-                $relPath = $matches[1];
-
-                // Find the storage ID for this groupfolder
-                $qb = $this->db->getQueryBuilder();
-                $qb->select('storage_id')
-                    ->from('group_folders')
-                    ->where($qb->expr()->eq('folder_id', $qb->createNamedParameter($groupfolderId)));
-
-                $result = $qb->executeQuery();
-                $gfRow = $result->fetch();
-                $result->closeCursor();
-
-                if (!$gfRow || !isset($gfRow['storage_id'])) {
-                    return null;
-                }
-
-                $storageId = (int)$gfRow['storage_id'];
-
-                // Query filecache for the folder in the groupfolder storage
-                $qb2 = $this->db->getQueryBuilder();
-                $qb2->select('fileid')
-                    ->from('filecache')
-                    ->where($qb2->expr()->eq('storage', $qb2->createNamedParameter($storageId)))
-                    ->andWhere($qb2->expr()->eq('path', $qb2->createNamedParameter($relPath)));
-
-                $result2 = $qb2->executeQuery();
-                $row = $result2->fetch();
-                $result2->closeCursor();
-
-                if ($row && isset($row['fileid'])) {
-                    return (int)$row['fileid'];
-                }
-            }
-
-            return null;
-
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get folder ID from database', [
-                'error' => $e->getMessage(),
-                'folderPath' => $folderPath
-            ]);
-            return null;
-        }
     }
 
     /**
@@ -6095,14 +5895,6 @@ class PageService {
      */
     private function formatDateLocalized(int $timestamp, string $language): string {
         return $this->news()->formatDateLocalized($timestamp, $language);
-    }
-
-    /**
-     * Get list of available source folders for the News widget
-     * Returns top-level folders in the language folder that contain pages
-     */
-    public function getNewsSourcFolders(): array {
-        return $this->news()->getSourceFolders($this->getLanguageFolder());
     }
 
     /**
