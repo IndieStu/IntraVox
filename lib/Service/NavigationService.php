@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Service\Sanitize\UrlSanitizer;
 use OCP\Files\IRootFolder;
 use OCP\IUserSession;
 use OCP\Files\NotFoundException;
@@ -20,6 +21,7 @@ class NavigationService {
     private IL10N $l10n;
     private LanguageService $languageService;
     private string $userId;
+    private UrlSanitizer $urlSanitizer;
 
     private ?ICache $pagesCache = null;
     private ?ICache $permissionsCache = null;
@@ -41,6 +43,9 @@ class NavigationService {
         $this->l10n = $l10n;
         $this->languageService = $languageService;
         $this->userId = $userId ?? '';
+        // Stateless allowlist; instantiated directly to avoid widening the
+        // constructor signature of a service with 11 test subclasses.
+        $this->urlSanitizer = new UrlSanitizer();
 
         if ($cacheFactory->isAvailable()) {
             // We don't own these caches but we mutate state they index
@@ -123,6 +128,17 @@ class NavigationService {
                 unset($item['pageId']);
             }
 
+            // Sanitize on READ as well as on write. Files written before the
+            // scheme allowlist landed still hold whatever FILTER_SANITIZE_URL
+            // let through — including javascript: — and Navigation.vue binds
+            // item.url straight into :href. Gating only saveNavigation() would
+            // leave every existing navigation.json live, so this doubles as the
+            // one-off sanitation of stored data: no migration needed, and a file
+            // that is never re-saved is still safe to render.
+            if (array_key_exists('url', $item)) {
+                $item['url'] = $this->sanitizeNavigationUrl($item['url']);
+            }
+
             // Recursively normalize children
             if (isset($item['children']) && is_array($item['children'])) {
                 $item['children'] = $this->normalizeNavigationItems($item['children']);
@@ -191,6 +207,33 @@ class NavigationService {
     }
 
     /**
+     * Sanitize a navigation URL through the scheme allowlist.
+     *
+     * This used to be filter_var($url, FILTER_SANITIZE_URL), which only strips
+     * characters that are illegal in a URL — it does NOT validate the scheme.
+     * "javascript:alert(1)" and "data:text/html,<script>..." passed through
+     * untouched, and "java\tscript:alert(1)" was actively NORMALISED into a
+     * working payload by having its tab removed.
+     *
+     * navigation.json is admin-editable and its urls are rendered straight into
+     * :href in Navigation.vue (getItemUrl returns item.url verbatim), so a
+     * javascript: URL there is stored XSS that fires on click for every visitor.
+     *
+     * UrlSanitizer allows http(s), mailto, tel, sms, root-relative paths and
+     * anchors, and returns "" for anything else. An empty url is stored as null
+     * so the item keeps rendering as plain text instead of a dead link.
+     */
+    private function sanitizeNavigationUrl(mixed $url): ?string {
+        if (!is_string($url)) {
+            return null;
+        }
+
+        $safe = $this->urlSanitizer->sanitize($url);
+
+        return $safe === '' ? null : $safe;
+    }
+
+    /**
      * Validate navigation items recursively (max 3 levels)
      */
     private function validateNavigationItems(array $items, int $level): array {
@@ -211,7 +254,7 @@ class NavigationService {
                 'id' => $item['id'] ?? uniqid('nav_'),
                 'title' => $item['title'] ?? '',
                 'uniqueId' => $uniqueId,
-                'url' => isset($item['url']) ? filter_var($item['url'], FILTER_SANITIZE_URL) : null,
+                'url' => isset($item['url']) ? $this->sanitizeNavigationUrl($item['url']) : null,
                 'target' => in_array($item['target'] ?? '', ['_blank', '_self']) ? $item['target'] : null,
                 'children' => []
             ];

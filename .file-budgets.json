@@ -68,7 +68,7 @@
     "lib/Service/Locator/PageLocator.php": 512,
     "lib/Service/Media/PageMediaService.php": 612,
     "lib/Service/MetaVoxImportService.php": 405,
-    "lib/Service/NavigationService.php": 303,
+    "lib/Service/NavigationService.php": 346,
     "lib/Service/News/NewsContentExtractor.php": 139,
     "lib/Service/News/NewsPageService.php": 540,
     "lib/Service/OidcTokenBridge.php": 89,
