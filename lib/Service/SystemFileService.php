@@ -656,6 +656,13 @@ class SystemFileService {
                         'imagePath' => $imagePath,
                         'modified' => $modified,
                         'modifiedFormatted' => date('d M Y', $modified),
+                        // Carried so the caller can apply the publication gate:
+                        // status is the manual flag, fileId is what the
+                        // publish/expiration dates in MetaVox hang off. Without
+                        // these two, the gate in ApiController silently passes
+                        // everything (READER-GATE).
+                        'status' => $data['status'] ?? 'published',
+                        'fileId' => $jsonFile->getId(),
                     ];
                 }
             } catch (\Exception $e) {

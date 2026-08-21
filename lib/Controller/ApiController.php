@@ -2907,6 +2907,17 @@ class ApiController extends Controller {
             $scopePath = $relPath;
             $filteredTree = $this->extractSubtreeByScope($tree, $scopePath);
 
+            // An empty result for a non-root scope means the shared node was
+            // not found in the tree — a moved or deleted page. Worth knowing
+            // about, because before SCOPE-FAILOPEN this case published the
+            // entire language instead.
+            if ($filteredTree === [] && str_contains($scopePath, '/')) {
+                $this->logger->warning('[ApiController] share scope matched no node; serving an empty tree', [
+                    'scopePath' => $scopePath,
+                    'language' => $language,
+                ]);
+            }
+
             // Remove draft pages from public tree
             $filteredTree = $this->filterDraftsFromTree($filteredTree);
 
@@ -3007,6 +3018,15 @@ class ApiController extends Controller {
                 $sortOrder
             );
 
+            // READER-GATE: SystemFileService drops manual drafts, but it has no
+            // PageService and so cannot evaluate the publish/expiration dates
+            // that live in MetaVox. Its own comment claims "the share endpoints in
+            // ApiController" enforce those — they did not, and a scheduled or
+            // expired page appeared in the public news list. Enforce it here,
+            // which is the layer that can.
+            $result['items'] = $this->filterUnpublishedNewsItems($result['items'] ?? []);
+            $result['total'] = count($result['items']);
+
             $this->logger->info('[PublicShare] News accessed', [
                 'language' => $language,
                 'itemCount' => count($result['items'] ?? []),
@@ -3028,7 +3048,14 @@ class ApiController extends Controller {
      * Extract a subtree matching the share scope path.
      *
      * Finds the node whose path matches the scope and returns it as the root.
-     * If the scope is the language root (e.g., "nl"), returns the full tree.
+     * If the scope is the language root (e.g., "nl"), the whole language really
+     * is shared and the full tree is correct.
+     *
+     * Anything else fails CLOSED (SCOPE-FAILOPEN). This used to end in
+     * "return $tree" — so a share scoped to nl/afdeling whose node could not be
+     * located in the tree fell back to publishing every page in the language to
+     * an anonymous visitor. That is the opposite of what a narrower scope means:
+     * not finding the subtree is a reason to show nothing, never everything.
      */
     private function extractSubtreeByScope(array $tree, string $scopePath): array {
         // If scopePath is just a language code (e.g., "en"), the entire language is shared.
@@ -3048,8 +3075,10 @@ class ApiController extends Controller {
                 }
             }
         }
-        // Fallback: no exact match found, return full tree
-        return $tree;
+        // No node matches the scope. Fail closed: an empty tree, not the
+        // whole language. The caller logs this; a share pointing at a page
+        // that no longer exists must go quiet rather than open up.
+        return [];
     }
 
     /**
@@ -3063,6 +3092,23 @@ class ApiController extends Controller {
             }
             return $node;
         }, $tree);
+    }
+
+    /**
+     * Drop news items that are not publicly published. (READER-GATE)
+     *
+     * The manual draft flag is already handled one layer down; what this adds is
+     * the publish/expiration dates, which only PageService can interpret. A page
+     * scheduled for next month, or one that expired last week, must not appear in
+     * a public news list.
+     *
+     * @param list<array<string,mixed>> $items
+     * @return list<array<string,mixed>>
+     */
+    private function filterUnpublishedNewsItems(array $items): array {
+        return array_values(array_filter($items, function (array $item): bool {
+            return !$this->pageService->isHiddenFromReaders($item);
+        }));
     }
 
     /**
@@ -3491,6 +3537,16 @@ class ApiController extends Controller {
             $validation = $this->publicShareService->validateShareAccess($token, $uniqueId, 'en', $sessionPw);
 
             if (!$validation['valid']) {
+                return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+            }
+
+            // READER-GATE: media inherits the visibility of the page it belongs
+            // to. Without this, the images on a draft, scheduled or expired page
+            // stayed publicly fetchable through the share as soon as the page
+            // itself was in scope — the page 404s while its illustrations, org
+            // charts and screenshots do not.
+            $pageData = $validation['pageData'] ?? null;
+            if (is_array($pageData) && $this->pageService->isHiddenFromReaders($pageData)) {
                 return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
             }
 

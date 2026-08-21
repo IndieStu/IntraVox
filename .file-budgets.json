@@ -7,7 +7,7 @@
   },
   "files": {
     "lib/Controller/AnalyticsController.php": 267,
-    "lib/Controller/ApiController.php": 3873,
+    "lib/Controller/ApiController.php": 3929,
     "lib/Controller/ApiErrorTrait.php": 112,
     "lib/Controller/BulkController.php": 294,
     "lib/Controller/CalendarController.php": 273,
@@ -97,7 +97,7 @@
     "lib/Service/Sanitize/UrlSanitizer.php": 33,
     "lib/Service/Search/PageSearchHelper.php": 118,
     "lib/Service/SetupService.php": 1047,
-    "lib/Service/SystemFileService.php": 763,
+    "lib/Service/SystemFileService.php": 770,
     "lib/Service/TelemetryService.php": 352,
     "lib/Service/Template/PageTemplateService.php": 222,
     "lib/Service/Template/TemplateMetadataExtractor.php": 95,
