@@ -186,10 +186,14 @@ worth noticing before a user does.
 > `ga` (Irish, 1348) and `pt_BR` (1348) are ahead of `nl` — those are community
 > translators, not us. Do not "tidy" them.
 
-> Repo counts are lower than Transifex counts by design. `nl`/`fr` read 1291/1307
-> here while Transifex reports 1362/1363: the bot has not synced everything back,
-> notably plurals (see `Nextcloud/transifix/STATUS-intravox.md`). Judge repo
-> coverage from the repo, and Transifex coverage from Transifex — never mix them.
+> **This measures the repo, not Transifex, and the two differ a lot.** At 2.3.0
+> the repo suggested `nl` was missing ~97 strings; on Transifex only **5** were
+> actually empty. Two reasons: the bot has not synced everything back (notably
+> plurals), and many `msgstr == msgid` entries are correct — `Dashboard`,
+> `Avatar`, `Apps`, `Code` are identical in Dutch. Use the numbers above to spot
+> a language falling under the bot threshold; to decide what still needs
+> translating, download the PO and count there
+> (`Nextcloud/transifix/tools/po_download.py <lang>`).
 
 ### Transifex account & team access (needed to *upload* translations)
 
