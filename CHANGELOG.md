@@ -63,6 +63,29 @@ before upgrading.
   cross-site scripting. Existing menus are cleaned on read, so no repair step is
   needed.
 
+- **A public share can no longer be used to read the owner's calendars.** The
+  calendar endpoint took the calendar ids from the request and then read them
+  with the *share owner's* permissions, so anyone holding a share link could
+  name any calendar that owner had access to. On our own test server this
+  returned the contents of a personal birthday calendar to an anonymous
+  visitor. A share now only serves what its own page actually publishes; the
+  same applies to feed connections and RSS feeds.
+
+- **A share scoped to one section can no longer fall back to the whole
+  language.** If the shared page had been moved or deleted, the tree endpoint
+  returned every page in that language instead of nothing.
+
+- **Images on unpublished pages are no longer publicly reachable.** Media
+  inherited no publication state, so the illustrations of a draft, scheduled or
+  expired page stayed fetchable through a share even though the page itself
+  returned 404. Scheduled and expired pages also disappeared from the public
+  news list, which previously only hid manual drafts.
+
+- **Feed connection settings no longer expose credentials to every user.** The
+  connection list is readable by any logged-in user because the widget editor
+  needs the connection names, but it also returned the custom HTTP headers —
+  where an API key typically lives — along with the OAuth client id and tenant.
+  Those fields are now administrator-only.
 - **Unpublished pages no longer appear in search.** Drafts, scheduled and
   expired pages were returned by Nextcloud's unified search to everyone who
   could read the folder — title and link both. They now follow the same rule as
