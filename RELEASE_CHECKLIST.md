@@ -140,6 +140,57 @@ for s in "Set as homepage" "Copy page" "Manage structure"; do grep -c "\"$s\"" l
 ```
 If nl is missing recent strings here, the push step was skipped earlier — `lint:l10n` will also be red. Fix by pushing (above) and waiting for the next bot sync; **do not patch nl.js by hand.**
 
+### Coverage baseline — what "82 languages" actually means
+
+`ls l10n/*.json` counts 82, but the bot writes a file as soon as a single string
+is translated, so that number says almost nothing. What matters is how many sit
+above the **25% pull threshold**, because below it the bot stops syncing a
+language back into the repo at all.
+
+Measure it, rather than trusting the file count:
+
+```bash
+python3 - <<'EOF'
+import json, glob, os
+rows = []
+for f in sorted(glob.glob('l10n/*.json')):
+    b = os.path.basename(f)
+    if b.startswith('.source-') or b == 'en.json':
+        continue
+    d = json.load(open(f)); t = d.get('translations', d)
+    c = sum(1 for k, v in t.items()
+            if v and v != k and not (isinstance(v, list) and not any(v)))
+    rows.append((b[:-5], c))
+total = json.load(open('l10n/.source-strings.json'))['count']   # authoritative
+for name, lo, hi in [('>=90%',90,101), ('50-90%',50,90), ('25-50%',25,50), ('<25%',0,25)]:
+    n = len([r for r in rows if lo <= 100.0*r[1]/total < hi])
+    print('%-8s %3d' % (name, n))
+print('above 25%% threshold: %d of %d'
+      % (len([r for r in rows if 100.0*r[1]/total >= 25]), len(rows)))
+EOF
+```
+
+**Baseline at 2.3.0 (2026-08-21), 1371 source strings:**
+
+| coverage | languages |
+|---|---|
+| ≥90% | 8 — `pt_BR` `ga` `zh_HK` `de_DE` `de` `fr` `es` `nl` |
+| 50–90% | 3 — `sv` `el` `et_EE` |
+| 25–50% | 5 |
+| <25% | 66 |
+
+16 of 82 sit above the threshold. Compare against this at the next release: a
+language **dropping** below 25% means the bot will stop shipping it, which is
+worth noticing before a user does.
+
+> `ga` (Irish, 1348) and `pt_BR` (1348) are ahead of `nl` — those are community
+> translators, not us. Do not "tidy" them.
+
+> Repo counts are lower than Transifex counts by design. `nl`/`fr` read 1291/1307
+> here while Transifex reports 1362/1363: the bot has not synced everything back,
+> notably plurals (see `Nextcloud/transifix/STATUS-intravox.md`). Judge repo
+> coverage from the repo, and Transifex coverage from Transifex — never mix them.
+
 ### Transifex account & team access (needed to *upload* translations)
 
 > Applies to **every VoxCloud app** on the Nextcloud Transifex org (`o:nextcloud:p:nextcloud`) — IntraVox, IntroVox, MetaVox, SearchVox, FormVox, … Whoever does l10n needs the right Transifex access, and it is **not** the same as the read token used elsewhere.
@@ -707,4 +758,4 @@ don't run git state operations while the other is mid-edit.)*
 
 ---
 
-*Last updated: 2026-08-13 — added "Deferred work — pick up right after 2.0.0": the folder-skip rule is hand-copied across ten tree walkers with differing lists, so `_templates` gets served as a real page in search and (with an empty index) the page list. Four `PageService.php` walkers are fixed in `stash@{0}`; six sites remain, listed with file:line. Held back from 2.0 because it is half-done, touches the release's most heavily changed file, and has no test. Finish it with a shared `isSkippableFolder()` helper plus a fixture test. Earlier — 2026-07-07 (later same day) — §2: added "Transifex account & team access" — uploading translations (not just reading) needs language-team membership (Translator role) in the Nextcloud org + a write-capable token; a read-only token 403s on upload. Applies to every VoxCloud app on the shared `o:nextcloud:p:nextcloud` org. Documented the safe fill-only PO upload (proven on IntraVox de/fr in #63: de 45→94%, fr 323→94%, `translations_updated: 0` = no community work overwritten) and the intravox-vs-introvox resource-slug trap. Earlier same day — §2 REWRITTEN around a durable source-string guard. Root cause of the recurring release breakage: new feature strings were added in code but `npm run pot` + committing the POT was skipped, so the Nextcloud bot never saw them → translators couldn't translate them → every bot sync deleted them from `l10n/<lang>.{js,json}`. The old `-X ours` merge + hand re-adding strings was a workaround that also desynced `.js` from `.json`. Fix: a committed manifest `l10n/.source-strings.json` (sha256 + sorted msgid list, written by `extract-en-json.js`) and a prebuild guard `scripts/check-l10n-sync.js` (wired into `prebuild`, standalone as `npm run lint:l10n`) that FAILS the build whenever code's string set diverges from the manifest — making "push strings to Transifex" (`npm run l10n:push`, decoupled from release) unmissable. Releases are now a plain `git merge github/main` (no `-X ours`, no re-add) with a green-guard assertion. The bare `npm run l10n` footgun (lossy json→js regen) is renamed to `l10n:generate-js`. A check-only `.github/workflows/l10n.yml` runs the guard on push as a backstop (never auto-commits). de_DE/fr/nl policy unchanged (follow the bot). §5/§7/§9 cross-refs updated; `.source-strings.json` added to the tarball scrub. Earlier history condensed: v1.7.0 dropped the stale per-lang targets after the #63 resource re-provision; 2026-06-18 reverted POT generation to the en.json+lib/xgettext extractor (bare xgettext drops ~700 Vue strings); `l10n/en.json`/`en.js` are gitignored artefacts; `npm run release` is Gitea-only, not the App Store flow.*
+*Last updated: 2026-08-21 (2.3.0) — §4b added: the quality gate now has six prebuild guards plus 752 unit and 23 integration tests, and none of it was mentioned here; run all of it, not the guards you happen to know. §9.1 gained two ordering warnings that both cost a rebuild during 2.3.0: (a) fetch GitHub and merge the l10n bot BEFORE building — building first ships stale `l10n/` and nothing catches it, the guards, tests, packaging smoketest and install check all pass, it surfaced only when `git push github main` was rejected after the package was already signed; (b) `./deploy.sh` runs `auto-bump-dev.js`, so deploying to nc-dev to test the release and then packaging yields a tarball whose `info.xml` disagrees with the tag. §9.1 also now ships `vendor/` (it did not, which fails silently — the first SVG upload is a fatal) and §9.2 runs `scripts/check-package-contents.sh`, the same check CI runs. §4.1 pointed at `PageService.php` for the `sanitizeWidget` allowlist; the implementation moved to `Sanitize/PageShapeSanitizer.php`. §2 gained a coverage baseline: 82 language files but only 16 above the 25% bot threshold — measure it, do not read the file count. Earlier — 2026-08-13 — added "Deferred work — pick up right after 2.0.0": the folder-skip rule is hand-copied across ten tree walkers with differing lists, so `_templates` gets served as a real page in search and (with an empty index) the page list. Four `PageService.php` walkers are fixed in `stash@{0}`; six sites remain, listed with file:line. Held back from 2.0 because it is half-done, touches the release's most heavily changed file, and has no test. Finish it with a shared `isSkippableFolder()` helper plus a fixture test. Earlier — 2026-07-07 (later same day) — §2: added "Transifex account & team access" — uploading translations (not just reading) needs language-team membership (Translator role) in the Nextcloud org + a write-capable token; a read-only token 403s on upload. Applies to every VoxCloud app on the shared `o:nextcloud:p:nextcloud` org. Documented the safe fill-only PO upload (proven on IntraVox de/fr in #63: de 45→94%, fr 323→94%, `translations_updated: 0` = no community work overwritten) and the intravox-vs-introvox resource-slug trap. Earlier same day — §2 REWRITTEN around a durable source-string guard. Root cause of the recurring release breakage: new feature strings were added in code but `npm run pot` + committing the POT was skipped, so the Nextcloud bot never saw them → translators couldn't translate them → every bot sync deleted them from `l10n/<lang>.{js,json}`. The old `-X ours` merge + hand re-adding strings was a workaround that also desynced `.js` from `.json`. Fix: a committed manifest `l10n/.source-strings.json` (sha256 + sorted msgid list, written by `extract-en-json.js`) and a prebuild guard `scripts/check-l10n-sync.js` (wired into `prebuild`, standalone as `npm run lint:l10n`) that FAILS the build whenever code's string set diverges from the manifest — making "push strings to Transifex" (`npm run l10n:push`, decoupled from release) unmissable. Releases are now a plain `git merge github/main` (no `-X ours`, no re-add) with a green-guard assertion. The bare `npm run l10n` footgun (lossy json→js regen) is renamed to `l10n:generate-js`. A check-only `.github/workflows/l10n.yml` runs the guard on push as a backstop (never auto-commits). de_DE/fr/nl policy unchanged (follow the bot). §5/§7/§9 cross-refs updated; `.source-strings.json` added to the tarball scrub. Earlier history condensed: v1.7.0 dropped the stale per-lang targets after the #63 resource re-provision; 2026-06-18 reverted POT generation to the en.json+lib/xgettext extractor (bare xgettext drops ~700 Vue strings); `l10n/en.json`/`en.js` are gitignored artefacts; `npm run release` is Gitea-only, not the App Store flow.*
