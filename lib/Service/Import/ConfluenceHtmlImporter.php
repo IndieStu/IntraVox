@@ -15,7 +15,8 @@ class ConfluenceHtmlImporter {
     private ConfluenceImporter $confluenceImporter;
 
     public function __construct(
-        private LoggerInterface $logger
+        private LoggerInterface $logger,
+        private SafeZipExtractor $zipExtractor
     ) {
         $this->confluenceImporter = new ConfluenceImporter($logger);
     }
@@ -81,12 +82,14 @@ class ConfluenceHtmlImporter {
     }
 
     /**
-     * Extract ZIP file to temporary directory
-     * Uses cryptographically secure random directory names and validates paths
-     * to prevent ZIP Slip attacks (CWE-22)
+     * Unpack the Confluence export into a fresh private temp directory.
      *
-     * @param string $zipPath Path to ZIP file
-     * @return string Path to extracted directory
+     * The ZIP-Slip validation used to be written out here a second time,
+     * alongside a near-identical copy in ImportService. The two had already
+     * drifted, so both now delegate to SafeZipExtractor — which also brings the
+     * zip-bomb and entry-count limits neither of them had.
+     *
+     * @return string path to the extracted directory
      */
     private function extractZip(string $zipPath): string {
         $zip = new ZipArchive();
@@ -95,88 +98,24 @@ class ConfluenceHtmlImporter {
             throw new \RuntimeException('Failed to open ZIP file: ' . $zipPath);
         }
 
-        // Create temporary directory with cryptographically secure random name
-        // Use random_bytes() instead of uniqid() for unpredictable names
+        // Cryptographically random name: a predictable temp path is a symlink
+        // race waiting to happen. 0700 so only this user can read the export.
         $extractPath = sys_get_temp_dir() . '/confluence_import_' . bin2hex(random_bytes(16));
-        // Use restrictive permissions (0700 = owner only)
-        if (!mkdir($extractPath, 0700, true)) {
+        if (!mkdir($extractPath, 0700, true) && !is_dir($extractPath)) {
+            $zip->close();
             throw new \RuntimeException('Failed to create temp directory: ' . $extractPath);
         }
 
-        // Get real path for ZIP Slip prevention
-        $realExtractPath = realpath($extractPath);
-        if ($realExtractPath === false) {
-            throw new \RuntimeException('Failed to resolve extract path');
-        }
-        $realExtractPath = rtrim($realExtractPath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-
-        // Extract files individually with path traversal validation
-        $extractedCount = 0;
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $stat = $zip->statIndex($i);
-            $filename = $stat['name'];
-
-            // Skip root directory entries and __MACOSX
-            if ($filename === '/' || $filename === '' || strpos($filename, '__MACOSX') !== false) {
-                continue;
-            }
-
-            // Skip hidden files that start with ._
-            if (strpos(basename($filename), '._') === 0) {
-                continue;
-            }
-
-            // Build target path
-            $targetPath = $realExtractPath . $filename;
-
-            // Check if this is a directory entry
-            $isDirectory = substr($filename, -1) === '/';
-
-            if ($isDirectory) {
-                // Create directory with restrictive permissions
-                if (!is_dir($targetPath)) {
-                    if (!mkdir($targetPath, 0700, true)) {
-                        throw new \RuntimeException('Failed to create directory: ' . $filename);
-                    }
-                }
-            } else {
-                // For files, verify the path is within destination (ZIP Slip prevention)
-                $dirname = dirname($targetPath);
-                if (!is_dir($dirname)) {
-                    if (!mkdir($dirname, 0700, true)) {
-                        throw new \RuntimeException('Failed to create parent directory for: ' . $filename);
-                    }
-                }
-
-                // Validate path is within extract directory
-                $realDirname = realpath($dirname);
-                if ($realDirname === false || strpos($realDirname . DIRECTORY_SEPARATOR, $realExtractPath) !== 0) {
-                    $this->logger->error('ZIP Slip attack detected in Confluence import', [
-                        'filename' => $filename,
-                        'targetPath' => $targetPath,
-                        'realDirname' => $realDirname,
-                        'extractPath' => $realExtractPath
-                    ]);
-                    // Clean up and throw
-                    $zip->close();
-                    $this->cleanupDirectory($extractPath);
-                    throw new \RuntimeException('Zip Slip detected: Invalid path in ZIP file');
-                }
-
-                $content = $zip->getFromIndex($i);
-                if ($content !== false) {
-                    file_put_contents($targetPath, $content);
-                    $extractedCount++;
-                }
-            }
+        try {
+            $this->zipExtractor->extract($zip, $extractPath);
+        } catch (\Throwable $e) {
+            // Never leave a half-unpacked hostile archive behind.
+            $zip->close();
+            $this->cleanupDirectory($extractPath);
+            throw $e;
         }
 
         $zip->close();
-
-        // Check if directory exists
-        if (!is_dir($extractPath)) {
-            throw new \RuntimeException('Extract path does not exist: ' . $extractPath);
-        }
 
         return $extractPath;
     }

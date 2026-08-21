@@ -10,6 +10,7 @@ use OCP\ITempManager;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
 use OCA\IntraVox\Service\Path\PagePathHelper;
+use OCA\IntraVox\Service\Import\SafeZipExtractor;
 use OCA\IntraVox\Service\Sanitize\PageShapeSanitizer;
 
 /**
@@ -29,7 +30,8 @@ class ImportService {
         private MetaVoxImportService $metaVoxImportService,
         private IDBConnection $connection,
         private PageIndexService $pageIndexService,
-        private PageShapeSanitizer $shapeSanitizer
+        private PageShapeSanitizer $shapeSanitizer,
+        private SafeZipExtractor $zipExtractor
     ) {}
 
     /**
@@ -1620,83 +1622,17 @@ class ImportService {
     }
 
     /**
-     * Safely extract ZIP file to destination directory
-     * Prevents ZIP Slip vulnerability (CWE-22) by validating all paths
+     * Safely extract a ZIP into $destDir.
      *
-     * @param \ZipArchive $zip Opened ZIP archive
-     * @param string $destDir Destination directory (must exist)
-     * @throws \Exception If path traversal is detected
+     * The ZIP-Slip logic used to live here, duplicated almost verbatim in
+     * ConfluenceHtmlImporter::extractZip(). Both now delegate to
+     * SafeZipExtractor, so a fix reaches every extraction path and the size
+     * limits neither of them had apply here too.
+     *
+     * @throws \RuntimeException on traversal, an oversized archive or a write failure
      */
     private function safeExtractZip(\ZipArchive $zip, string $destDir): void {
-        // Get the real path of destination directory
-        $destDir = realpath($destDir);
-        if ($destDir === false) {
-            throw new \Exception('Destination directory does not exist');
-        }
-        $destDir = rtrim($destDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
-
-        for ($i = 0; $i < $zip->numFiles; $i++) {
-            $filename = $zip->getNameIndex($i);
-
-            // Skip empty filenames
-            if (empty($filename)) {
-                continue;
-            }
-
-            // Skip __MACOSX and other hidden files
-            if (strpos($filename, '__MACOSX') !== false || strpos($filename, '._') === 0) {
-                continue;
-            }
-
-            // Build target path
-            $targetPath = $destDir . $filename;
-
-            // Check if this is a directory entry
-            $isDirectory = substr($filename, -1) === '/';
-
-            if ($isDirectory) {
-                // Create directory if it doesn't exist
-                if (!is_dir($targetPath)) {
-                    if (!mkdir($targetPath, 0750, true)) {
-                        throw new \Exception('Failed to create directory: ' . $filename);
-                    }
-                }
-            } else {
-                // For files, verify the path is within destination
-                // First, ensure parent directory exists
-                $parentDir = dirname($targetPath);
-                if (!is_dir($parentDir)) {
-                    if (!mkdir($parentDir, 0750, true)) {
-                        throw new \Exception('Failed to create parent directory for: ' . $filename);
-                    }
-                }
-
-                // Get real path of parent directory and verify it's within destDir
-                $realParentDir = realpath($parentDir);
-                if ($realParentDir === false || strpos($realParentDir . DIRECTORY_SEPARATOR, $destDir) !== 0) {
-                    $this->logger->error(self::LOG_PREFIX . ' ZIP Slip attack detected', [
-                        'filename' => $filename,
-                        'targetPath' => $targetPath,
-                        'realParentDir' => $realParentDir,
-                        'destDir' => $destDir
-                    ]);
-                    throw new \Exception('Zip Slip detected: Invalid path in ZIP file');
-                }
-
-                // Extract file content and write it
-                $content = $zip->getFromIndex($i);
-                if ($content === false) {
-                    $this->logger->warning(self::LOG_PREFIX . ' Failed to read file from ZIP', [
-                        'filename' => $filename
-                    ]);
-                    continue;
-                }
-
-                if (file_put_contents($targetPath, $content) === false) {
-                    throw new \Exception('Failed to write file: ' . $filename);
-                }
-            }
-        }
+        $this->zipExtractor->extract($zip, $destDir);
     }
 
     /**
