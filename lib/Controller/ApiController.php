@@ -21,6 +21,7 @@ use OCA\IntraVox\Service\Import\ConfluenceImporter;
 use OCA\IntraVox\Service\NavigationService;
 use OCA\IntraVox\Service\PageLockService;
 use OCA\IntraVox\Service\PageService;
+use OCA\IntraVox\Share\ShareScope;
 use OCA\IntraVox\Service\PermissionService;
 use OCA\IntraVox\Service\SetupService;
 use OCA\IntraVox\Service\SystemFileService;
@@ -2766,22 +2767,15 @@ class ApiController extends Controller {
                 return new JSONResponse(['navigation' => ['type' => 'dropdown', 'items' => []]]);
             }
 
-            // shareScopePath is like "files/nl/afdeling" — extract language from it
-            // Strip "files/" prefix to get "nl/afdeling"
-            $relPath = $shareScopePath;
-            if (str_starts_with($relPath, 'files/')) {
-                $relPath = substr($relPath, 6);
-            }
-
-            $segments = explode('/', $relPath);
-            $language = $segments[0] ?? null;
-
-            if ($language === null || strlen($language) < 2 || strlen($language) > 3) {
-                $this->logger->debug('[ApiController] getNavigationByShare: could not detect language from scope path', [
-                    'shareScopePath' => $shareScopePath
-                ]);
+            // The share scope decides how much of the tree is public, so the
+            // parse lives in one place (ShareScope) instead of four copies.
+            $scope = ShareScope::fromScopePath($shareScopePath);
+            if ($scope === null) {
                 return new JSONResponse(['navigation' => ['type' => 'dropdown', 'items' => []]]);
             }
+
+            $language = $scope->language;
+            $relPath = $scope->scopePath;
 
             // Read navigation.json via system context (no user session needed)
             $navigation = $this->systemFileService->getNavigation($language);
@@ -2800,7 +2794,7 @@ class ApiController extends Controller {
 
             // Filter navigation items by share scope
             // shareScopeRelative is the path after "files/{language}/" — e.g. "afdeling"
-            $shareScopeRelative = count($segments) > 1 ? implode('/', array_slice($segments, 1)) : '';
+            $shareScopeRelative = $scope->relativePath;
 
             if (isset($navigation['items']) && is_array($navigation['items'])) {
                 $navigation['items'] = $this->publicShareService->filterNavigationByShareScope(
@@ -2878,18 +2872,15 @@ class ApiController extends Controller {
                 return new JSONResponse(['tree' => []]);
             }
 
-            // shareScopePath is like "files/nl/afdeling" — extract language
-            $relPath = $shareScopePath;
-            if (str_starts_with($relPath, 'files/')) {
-                $relPath = substr($relPath, 6);
-            }
-
-            $segments = explode('/', $relPath);
-            $language = $segments[0] ?? null;
-
-            if ($language === null || strlen($language) < 2 || strlen($language) > 3) {
+            // The share scope decides how much of the tree is public, so the
+            // parse lives in one place (ShareScope) instead of four copies.
+            $scope = ShareScope::fromScopePath($shareScopePath);
+            if ($scope === null) {
                 return new JSONResponse(['tree' => []]);
             }
+
+            $language = $scope->language;
+            $relPath = $scope->scopePath;
 
             // Build full tree via system context (no user session needed)
             $tree = $this->systemFileService->getPageTree($language);
@@ -2974,18 +2965,15 @@ class ApiController extends Controller {
                 return new JSONResponse(['items' => [], 'total' => 0]);
             }
 
-            // shareScopePath is like "files/nl/afdeling" — extract language
-            $relPath = $shareScopePath;
-            if (str_starts_with($relPath, 'files/')) {
-                $relPath = substr($relPath, 6);
-            }
-
-            $segments = explode('/', $relPath);
-            $language = $segments[0] ?? null;
-
-            if ($language === null || strlen($language) < 2 || strlen($language) > 3) {
+            // The share scope decides how much of the tree is public, so the
+            // parse lives in one place (ShareScope) instead of four copies.
+            $scope = ShareScope::fromScopePath($shareScopePath);
+            if ($scope === null) {
                 return new JSONResponse(['items' => [], 'total' => 0]);
             }
+
+            $language = $scope->language;
+            $relPath = $scope->scopePath;
 
             // Parse request parameters
             $sourcePageId = $this->request->getParam('sourcePageId', '');
