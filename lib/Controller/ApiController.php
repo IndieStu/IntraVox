@@ -27,6 +27,8 @@ use OCA\IntraVox\Service\SetupService;
 use OCA\IntraVox\Service\SystemFileService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Response;
+use OCP\Share\IShare;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -2736,27 +2738,13 @@ class ApiController extends Controller {
     #[AnonRateLimit(limit: 60, period: 60)]
     public function getNavigationByShare(string $token): JSONResponse {
         // Validate token format
-        if (!$this->isValidShareTokenFormat($token)) {
-            return $this->shareNotFoundResponse();
-        }
-
-        // NC sharing must be enabled
-        $ncAllowsLinks = $this->config->getAppValue('core', 'shareapi_allow_links', 'yes') === 'yes';
-        if (!$ncAllowsLinks) {
-            return $this->shareNotFoundResponse();
-        }
-
-        // Check share password
-        $pwDenied = $this->checkSharePasswordOrDeny($token);
-        if ($pwDenied !== null) {
-            return $pwDenied;
-        }
 
         try {
-            // Get the share to determine scope
-            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($share === null) {
-                return $this->shareNotFoundResponse();
+            // Token shape, link sharing, share password and IntraVox membership,
+            // in that order (F6).
+            $share = $this->openShare($token, fn () => $this->shareNotFoundResponse());
+            if ($share instanceof Response) {
+                return $share;
             }
 
             // Resolve the share's actual path via file_source on the GF storage.
@@ -2846,25 +2834,13 @@ class ApiController extends Controller {
     #[NoCSRFRequired]
     #[AnonRateLimit(limit: 60, period: 60)]
     public function getPageTreeByShare(string $token): JSONResponse {
-        if (!$this->isValidShareTokenFormat($token)) {
-            return $this->shareNotFoundResponse();
-        }
-
-        $ncAllowsLinks = $this->config->getAppValue('core', 'shareapi_allow_links', 'yes') === 'yes';
-        if (!$ncAllowsLinks) {
-            return $this->shareNotFoundResponse();
-        }
-
-        // Check share password
-        $pwDenied = $this->checkSharePasswordOrDeny($token);
-        if ($pwDenied !== null) {
-            return $pwDenied;
-        }
 
         try {
-            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($share === null) {
-                return $this->shareNotFoundResponse();
+            // Token shape, link sharing, share password and IntraVox membership,
+            // in that order (F6).
+            $share = $this->openShare($token, fn () => $this->shareNotFoundResponse());
+            if ($share instanceof Response) {
+                return $share;
             }
 
             $shareScopePath = $this->publicShareService->resolveShareScopePath($share);
@@ -2939,25 +2915,13 @@ class ApiController extends Controller {
     #[NoCSRFRequired]
     #[AnonRateLimit(limit: 60, period: 60)]
     public function getNewsByShare(string $token): JSONResponse {
-        if (!$this->isValidShareTokenFormat($token)) {
-            return $this->shareNotFoundResponse();
-        }
-
-        $ncAllowsLinks = $this->config->getAppValue('core', 'shareapi_allow_links', 'yes') === 'yes';
-        if (!$ncAllowsLinks) {
-            return $this->shareNotFoundResponse();
-        }
-
-        // Check share password
-        $pwDenied = $this->checkSharePasswordOrDeny($token);
-        if ($pwDenied !== null) {
-            return $pwDenied;
-        }
 
         try {
-            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($share === null) {
-                return $this->shareNotFoundResponse();
+            // Token shape, link sharing, share password and IntraVox membership,
+            // in that order (F6).
+            $share = $this->openShare($token, fn () => $this->shareNotFoundResponse());
+            if ($share instanceof Response) {
+                return $share;
             }
 
             $shareScopePath = $this->publicShareService->resolveShareScopePath($share);
@@ -3357,6 +3321,51 @@ class ApiController extends Controller {
     }
 
     /**
+     * Open a public share, or hand back the response that refuses it. (F6)
+     *
+     * Six endpoints opened with the same four checks in the same order: token
+     * shape, is link sharing enabled at all, is the share password satisfied,
+     * and does the token actually point into IntraVox. Six copies of an access
+     * gate is six places for one of the four to be forgotten — which is exactly
+     * what happened before F2, where three endpoints skipped the password.
+     *
+     * The order matters and is preserved: the cheap format check first so a
+     * malformed token never reaches the share manager, then the instance
+     * setting, then the password, then the share itself.
+     *
+     * Returns the opened share, or a Response the caller must return as-is.
+     * Callers differ in what "no" looks like — the page endpoints answer with
+     * shareNotFoundResponse(), the media ones with a bare 404 — so the refusal
+     * shape is passed in rather than assumed.
+     *
+     * @param callable():Response $deny builds this endpoint's refusal
+     * @return IShare|Response the share, or the response to return
+     */
+    private function openShare(string $token, callable $deny): IShare|Response {
+        if (!$this->isValidShareTokenFormat($token)) {
+            return $deny();
+        }
+
+        $ncAllowsLinks = $this->config->getAppValue('core', 'shareapi_allow_links', 'yes') === 'yes';
+        if (!$ncAllowsLinks) {
+            return $deny();
+        }
+
+        // 401 with passwordRequired, which is not the same as "no such share".
+        $passwordDenied = $this->checkSharePasswordOrDeny($token);
+        if ($passwordDenied !== null) {
+            return $passwordDenied;
+        }
+
+        $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
+        if ($share === null) {
+            return $deny();
+        }
+
+        return $share;
+    }
+
+    /**
      * Validate share token format.
      */
     private function isValidShareTokenFormat(?string $token): bool {
@@ -3630,21 +3639,6 @@ class ApiController extends Controller {
     #[AnonRateLimit(limit: 60, period: 60)]
     public function getResourcesMediaByShare(string $token, string $filename) {
         // Validate token format first (cheap check)
-        if (!$this->isValidShareTokenFormat($token)) {
-            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-        }
-
-        // NC sharing must be enabled
-        $ncAllowsLinks = $this->config->getAppValue('core', 'shareapi_allow_links', 'yes') === 'yes';
-        if (!$ncAllowsLinks) {
-            return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
-        }
-
-        // Check share password
-        $pwDenied = $this->checkSharePasswordOrDeny($token);
-        if ($pwDenied !== null) {
-            return $pwDenied;
-        }
 
         // Sanitize path to prevent directory traversal
         try {
@@ -3654,10 +3648,11 @@ class ApiController extends Controller {
         }
 
         try {
-            // Validate that the share token is valid (belongs to something in IntraVox)
-            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
-            if ($share === null) {
-                return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
+            // Token shape, link sharing, share password and IntraVox membership,
+            // in that order (F6).
+            $share = $this->openShare($token, fn () => new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND));
+            if ($share instanceof Response) {
+                return $share;
             }
 
             // Get the share target to determine the language
