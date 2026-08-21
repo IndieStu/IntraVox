@@ -67,11 +67,11 @@ class PageController extends Controller {
     /**
      * Initial state every render of the app template needs.
      *
-     * This controller renders the template from seven entry points (index,
-     * show, showByUniqueId, languagePage, shareAccess, shareAuthenticate),
-     * and state set in only one of them is state the app does not have when
-     * reached by any other route — which is exactly how the MetaVox tab went
-     * missing on a direct page URL. Call this before every TemplateResponse.
+     * This controller renders the template from five entry points (index,
+     * show, showByUniqueId, shareAccess, shareAuthenticate), and state set in
+     * only one of them is state the app does not have when reached by any
+     * other route — which is exactly how the MetaVox tab went missing on a
+     * direct page URL. Call this before every TemplateResponse.
      */
     private function provideAppInitialState(): void {
         // isEnabledForUser() needs a user; for an anonymous share visitor there
@@ -444,26 +444,6 @@ class PageController extends Controller {
         return $response;
     }
 
-    #[NoAdminRequired]
-    #[NoCSRFRequired]
-    public function languagePage(string $language, string $pageId): TemplateResponse {
-        // This route handles URLs like /en/home
-        // Return the same template as index - Vue.js will handle routing client-side
-        // Webpack splits into: vendors (node_modules) → shared (code used by
-        // both main+admin, e.g. PageTreeSelect) → main. All three must load or
-        // the main entry's runtime never fires its mount (blank page, no error).
-        Util::addScript('intravox', 'intravox-vendors');
-        Util::addScript('intravox', 'intravox-shared');
-        Util::addScript('intravox', 'intravox-main');
-        Util::addStyle('intravox', 'main');
-
-        $this->provideAppInitialState();
-
-        $response = new TemplateResponse('intravox', 'main');
-        $response->setContentSecurityPolicy($this->buildContentSecurityPolicy());
-
-        return $response;
-    }
 
     /**
      * Show page by unique ID
