@@ -66,7 +66,7 @@
     "lib/Service/LmsOAuthService.php": 308,
     "lib/Service/LmsTokenService.php": 181,
     "lib/Service/Locator/PageLocator.php": 512,
-    "lib/Service/Media/PageMediaService.php": 612,
+    "lib/Service/Media/PageMediaService.php": 647,
     "lib/Service/MetaVoxImportService.php": 405,
     "lib/Service/NavigationService.php": 346,
     "lib/Service/News/NewsContentExtractor.php": 139,

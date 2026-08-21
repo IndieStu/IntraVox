@@ -309,14 +309,49 @@ class PageMediaService {
     }
 
     /**
+     * The extension each accepted mime type is stored with. (UP-1)
+     *
+     * Derived from the SNIFFED type, never from the uploaded filename, so the
+     * name on disk cannot disagree with the bytes.
+     */
+    private const EXTENSION_BY_MIME = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'image/svg+xml' => 'svg',
+        'video/mp4' => 'mp4',
+        'video/webm' => 'webm',
+        'video/ogg' => 'ogv',
+    ];
+
+    /**
      * The generated storage name for a validated upload: `img_`/`vid_` plus a
-     * uniqid and the original extension. Videos and images are told apart by
-     * the SNIFFED mime type, never by the claimed extension.
+     * uniqid and an extension derived from the sniffed mime type.
+     *
+     * The extension used to come from pathinfo() on the CLIENT-SUPPLIED name,
+     * while only the prefix honoured the sniffed type. A genuine PNG uploaded as
+     * "evil.php" therefore landed on disk as "img_<uniqid>.php" — real image
+     * bytes under a name a misconfigured web server may hand to an interpreter,
+     * and one that defeats any extension-based rule downstream. "noext" produced
+     * a filename ending in a bare dot.
+     *
+     * validateUpload() has already sniffed and allowlisted the type by the time
+     * we get here, so the mime is authoritative and the client name contributes
+     * nothing: the stored name is entirely generated.
+     *
+     * @param string $originalName Deliberately unused; kept so the signature
+     *                             still documents what callers pass, and so
+     *                             nothing reintroduces it as the extension.
      */
     public function generatedMediaFilename(string $originalName, string $mimeType): string {
-        $extension = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
-        $isVideo = in_array($mimeType, self::ALLOWED_VIDEO_TYPES);
+        $isVideo = in_array($mimeType, self::ALLOWED_VIDEO_TYPES, true);
         $prefix = $isVideo ? 'vid_' : 'img_';
+
+        // Unknown types cannot reach here (validateUpload allowlists first), but
+        // fail closed rather than emitting a trailing-dot name if one ever does.
+        $extension = self::EXTENSION_BY_MIME[$mimeType] ?? 'bin';
+
         return uniqid($prefix, true) . '.' . $extension;
     }
 
