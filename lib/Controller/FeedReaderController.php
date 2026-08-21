@@ -53,6 +53,7 @@ class FeedReaderController extends Controller {
             $limit = (int)$this->request->getParam('limit', 5);
 
             $config = $this->buildConfigFromRequest($sourceType);
+
             [$sortBy, $sortOrder, $filterKeyword] = $this->parseSortAndFilter();
             $result = $this->feedReaderService->fetchFeed($sourceType, $config, $limit, $this->userId, $sortBy, $sortOrder, $filterKeyword);
 
@@ -136,6 +137,38 @@ class FeedReaderController extends Controller {
             $limit = (int)$this->request->getParam('limit', 5);
 
             $config = $this->buildConfigFromRequest($sourceType);
+            // SHARE-CFG: connectionId selects a STORED connection, credentials and
+            // all, and the fetch runs server-side with them. Taking it from the
+            // query string let anyone holding any share token drive any configured
+            // connection. It may only name what this share actually publishes.
+            if (($config['connectionId'] ?? '') !== '') {
+                $allowed = $this->publicShareService->allowedWidgetValues($share, 'feed', 'connectionId');
+                if (!in_array($config['connectionId'], $allowed, true)) {
+                    $this->logger->warning('IntraVox: share requested a connection it does not publish', [
+                        'token' => substr($token, 0, 8) . '...',
+                    ]);
+
+                    return new DataResponse(
+                        ['error' => 'Unknown connection for this share', 'items' => []],
+                        Http::STATUS_FORBIDDEN
+                    );
+                }
+            }
+
+            // Likewise the RSS url: the widget decides which feed is shown. NOTE
+            // the key mismatch — the request calls it 'url', the stored widget
+            // calls it 'feedUrl'; comparing against 'url' would match an
+            // always-empty list and block every RSS feed on a share.
+            if (($config['url'] ?? '') !== '') {
+                $allowedUrls = $this->publicShareService->allowedWidgetValues($share, 'feed', 'feedUrl');
+                if (!in_array($config['url'], $allowedUrls, true)) {
+                    return new DataResponse(
+                        ['error' => 'Unknown feed for this share', 'items' => []],
+                        Http::STATUS_FORBIDDEN
+                    );
+                }
+            }
+
             [$sortBy, $sortOrder, $filterKeyword] = $this->parseSortAndFilter();
             $result = $this->feedReaderService->fetchFeed($sourceType, $config, $limit, null, $sortBy, $sortOrder, $filterKeyword);
 

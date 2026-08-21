@@ -392,6 +392,106 @@ class PublicShareService {
     }
 
     /**
+     * The widget configuration a share actually publishes. (SHARE-CFG)
+     *
+     * The public calendar and feed endpoints took calendarIds / connectionId
+     * straight from the query string and then read them AS THE SHARE OWNER. So
+     * an anonymous visitor holding any share token could name any calendar the
+     * owner had access to and read it — the token proved they could see one
+     * page, not that page's calendar.
+     *
+     * The share already knows what it publishes: the widgets stored on the pages
+     * inside its scope. This walks those pages and returns the values configured
+     * there, so a request can be checked against them instead of trusted.
+     *
+     * Fails closed: an unreadable scope yields an empty allowlist, which denies
+     * everything rather than falling back to "allow".
+     *
+     * @param string $key the widget key to collect, e.g. 'calendarIds'
+     * @return list<string> every value configured under $key inside this share
+     */
+    public function allowedWidgetValues(IShare $share, string $widgetType, string $key): array {
+        $values = [];
+
+        try {
+            $node = $share->getNode();
+
+            $files = $node instanceof \OCP\Files\Folder
+                ? $this->collectPageFiles($node)
+                : [$node];
+
+            foreach ($files as $file) {
+                if (!$file instanceof \OCP\Files\File) {
+                    continue;
+                }
+
+                $page = json_decode((string)$file->getContent(), true);
+                if (!is_array($page)) {
+                    continue;
+                }
+
+                foreach (($page['layout']['rows'] ?? []) as $row) {
+                    foreach (($row['widgets'] ?? []) as $widget) {
+                        if (($widget['type'] ?? null) !== $widgetType) {
+                            continue;
+                        }
+
+                        $configured = $widget[$key] ?? null;
+                        foreach (is_array($configured) ? $configured : [$configured] as $value) {
+                            if (is_string($value) && $value !== '') {
+                                $values[$value] = true;
+                            } elseif (is_int($value)) {
+                                $values[(string)$value] = true;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            $this->logger->warning('[PublicShareService] could not read the share\'s widget config; denying', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        return array_keys($values);
+    }
+
+    /**
+     * The page JSON files inside a shared folder, bounded so a deep tree cannot
+     * turn one anonymous request into a full-tree walk.
+     *
+     * @return list<\OCP\Files\Node>
+     */
+    private function collectPageFiles(\OCP\Files\Folder $folder, int $depth = 0): array {
+        if ($depth > 4) {
+            return [];
+        }
+
+        $files = [];
+        foreach ($folder->getDirectoryListing() as $child) {
+            if (count($files) >= 200) {
+                break;
+            }
+
+            if ($child instanceof \OCP\Files\Folder) {
+                if (str_starts_with($child->getName(), '_')) {
+                    continue; // _media and friends hold no page JSON
+                }
+                $files = array_merge($files, $this->collectPageFiles($child, $depth + 1));
+                continue;
+            }
+
+            if (str_ends_with($child->getName(), '.json')) {
+                $files[] = $child;
+            }
+        }
+
+        return $files;
+    }
+
+    /**
      * Resolve the actual GF storage path for a share.
      *
      * file_target in oc_share is unreliable for GroupFolders (e.g. "/afdeling" instead of "files/nl/afdeling").

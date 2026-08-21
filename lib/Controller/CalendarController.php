@@ -90,6 +90,7 @@ class CalendarController extends Controller {
 
             // Parse calendar keys (string identifiers)
             $calendarIds = array_filter(explode(',', (string) $calendarIdsParam), fn($s) => $s !== '');
+
             $limit = min(max($limit, 1), 20);
 
             // Validate date parameters
@@ -188,6 +189,35 @@ class CalendarController extends Controller {
             $maxEnd = $start->modify('+1 year');
             if ($end > $maxEnd) {
                 $end = $maxEnd;
+            }
+
+            // SHARE-CFG: the request may only ask for what this share actually
+            // publishes. The ids below are read with the SHARE OWNER's
+            // permissions, so trusting the query string let an anonymous visitor
+            // name any calendar the owner could see and read it — proven on
+            // nc-dev by reading the owner's birthday calendar through a share.
+            // The token proves the visitor may see a page, not that page owner's
+            // agenda.
+            $allowedCalendarIds = $this->publicShareService->allowedWidgetValues($share, 'calendar', 'calendarIds');
+            $requestedCount = count($calendarIds);
+            $calendarIds = array_values(array_intersect($calendarIds, $allowedCalendarIds));
+
+            if ($requestedCount > 0 && count($calendarIds) < $requestedCount) {
+                $this->logger->warning('IntraVox: share requested calendars it does not publish', [
+                    'token' => substr($token, 0, 8) . '...',
+                    'requested' => $requestedCount,
+                    'allowed' => count($calendarIds),
+                ]);
+            }
+
+            // Same for external ICS feeds: the widget decides which are shown.
+            if ($externalIcsUrls !== []) {
+                $allowedIcsUrls = $this->publicShareService->allowedWidgetValues($share, 'calendar', 'externalIcsUrls');
+                $externalIcsUrls = array_values(array_intersect($externalIcsUrls, $allowedIcsUrls));
+            }
+
+            if ($calendarIds === [] && $externalIcsUrls === []) {
+                return new DataResponse(['events' => []]);
             }
 
             // Use the share owner's context to fetch calendar events
