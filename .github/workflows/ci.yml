@@ -132,3 +132,6 @@ jobs:
 
       - name: Line endings
         run: node scripts/check-eol-consistency.js
+
+      - name: File budgets (ratchet)
+        run: node scripts/check-file-budgets.js

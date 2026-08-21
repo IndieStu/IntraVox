@@ -15,11 +15,12 @@
     "ws": "^7.5.11"
   },
   "scripts": {
-    "prebuild": "node scripts/sync-version.js --check && node scripts/check-import-consistency.js && node scripts/check-l10n-sync.js && node scripts/check-facet-serialization.js && node scripts/check-eol-consistency.js",
+    "prebuild": "node scripts/sync-version.js --check && node scripts/check-import-consistency.js && node scripts/check-l10n-sync.js && node scripts/check-facet-serialization.js && node scripts/check-eol-consistency.js && node scripts/check-file-budgets.js",
     "lint:imports": "node scripts/check-import-consistency.js",
     "lint:facets": "node scripts/check-facet-serialization.js",
     "lint:l10n": "node scripts/check-l10n-sync.js",
     "lint:eol": "node scripts/check-eol-consistency.js",
+    "lint:budgets": "node scripts/check-file-budgets.js",
     "build": "webpack",
     "build:dev": "NODE_ENV=development webpack",
     "watch": "webpack --watch",
