@@ -475,7 +475,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcModal, NcButton } from '@nextcloud/vue';
 import { markdownToHtml, htmlToMarkdown, cleanMarkdown } from '../utils/markdownSerializer.js';
 

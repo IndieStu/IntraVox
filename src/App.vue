@@ -371,7 +371,7 @@
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
 import { loadState } from '@nextcloud/initial-state';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { showSuccess, showError } from '@nextcloud/dialogs';
 import { generateSlug } from './utils/slug';
 import PageTreeSelect from './components/PageTreeSelect.vue';

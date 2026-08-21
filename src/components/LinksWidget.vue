@@ -33,7 +33,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { markdownToHtml } from '../utils/markdownSerializer.js';
 import { isDarkBackground, getEffectiveBackgroundColor } from '../utils/colorUtils.js';
 

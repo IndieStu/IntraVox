@@ -46,7 +46,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import { NcDialog, NcNoteCard } from '@nextcloud/vue';
 import LinkVariantOff from 'vue-material-design-icons/LinkVariantOff.vue';

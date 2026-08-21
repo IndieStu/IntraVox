@@ -356,7 +356,7 @@
 <script>
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { getFilePickerBuilder } from '@nextcloud/dialogs';
 import { NcButton, NcCheckboxRadioSwitch, NcSelect } from '@nextcloud/vue';
 import FolderOpen from 'vue-material-design-icons/FolderOpen.vue';

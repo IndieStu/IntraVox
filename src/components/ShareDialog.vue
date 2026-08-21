@@ -72,7 +72,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import { showSuccess, showError } from '@nextcloud/dialogs';
 import { NcDialog, NcButton, NcNoteCard } from '@nextcloud/vue';

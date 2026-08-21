@@ -55,7 +55,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { showSuccess } from '@nextcloud/dialogs';
 import { defineAsyncComponent } from 'vue';
 import { NcButton, NcActions, NcActionButton } from '@nextcloud/vue';

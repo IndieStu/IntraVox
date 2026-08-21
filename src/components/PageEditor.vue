@@ -522,7 +522,7 @@
 
 <script>
 import draggable from 'vuedraggable';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcButton, NcDialog, NcActions, NcActionButton } from '@nextcloud/vue';
 import Plus from 'vue-material-design-icons/Plus.vue';
 import TableRowPlusAfter from 'vue-material-design-icons/TableRowPlusAfter.vue';

@@ -174,7 +174,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcModal, NcLoadingIcon, NcButton, NcNoteCard, NcCheckboxRadioSwitch } from '@nextcloud/vue';
 import CollapsibleHint from './CollapsibleHint.vue';
 import Cog from 'vue-material-design-icons/Cog.vue';

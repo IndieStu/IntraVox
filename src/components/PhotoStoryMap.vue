@@ -39,7 +39,7 @@
 <script>
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcLoadingIcon } from '@nextcloud/vue';
 import Map from 'vue-material-design-icons/Map.vue';
 import MapMarker from 'vue-material-design-icons/MapMarker.vue';

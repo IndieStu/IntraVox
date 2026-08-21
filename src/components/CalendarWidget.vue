@@ -61,7 +61,7 @@
 <script>
 import { NcLoadingIcon } from '@nextcloud/vue';
 import { generateUrl } from '@nextcloud/router';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import axios from '@nextcloud/axios';
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
 import CalendarIcon from 'vue-material-design-icons/Calendar.vue';

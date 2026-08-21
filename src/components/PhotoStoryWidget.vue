@@ -313,7 +313,7 @@
 import { defineAsyncComponent } from 'vue';
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
-import { translate, getCanonicalLocale, translatePlural } from '@nextcloud/l10n';
+import { translate, getCanonicalLocale } from '@nextcloud/l10n';
 import { NcButton } from '@nextcloud/vue';
 import AlertCircle from 'vue-material-design-icons/AlertCircle.vue';
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue';

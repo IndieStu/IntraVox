@@ -222,7 +222,7 @@
 
 <script>
 import { generateUrl } from '@nextcloud/router';
-import { translate, getCanonicalLocale, translatePlural } from '@nextcloud/l10n';
+import { translate, getCanonicalLocale } from '@nextcloud/l10n';
 import ChevronLeft from 'vue-material-design-icons/ChevronLeft.vue';
 import ChevronRight from 'vue-material-design-icons/ChevronRight.vue';
 import Close from 'vue-material-design-icons/Close.vue';

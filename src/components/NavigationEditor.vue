@@ -75,7 +75,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcModal, NcButton, NcSelect } from '@nextcloud/vue';
 import CollapsibleHint from './CollapsibleHint.vue';
 import draggable from 'vuedraggable';

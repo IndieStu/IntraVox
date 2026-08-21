@@ -122,7 +122,7 @@
 </template>
 
 <script>
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcButton, NcSelect } from '@nextcloud/vue';
 import draggable from 'vuedraggable';
 import DragVertical from 'vue-material-design-icons/DragVertical.vue';

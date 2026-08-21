@@ -209,7 +209,7 @@
 
 <script>
 import { defineAsyncComponent } from 'vue';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { generateUrl } from '@nextcloud/router';
 import { showSuccess } from '@nextcloud/dialogs';
 import { markdownToHtml, markdownToInlineHtml } from '../utils/markdownSerializer.js';

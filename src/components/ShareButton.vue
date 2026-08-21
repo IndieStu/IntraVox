@@ -43,7 +43,7 @@
 <script>
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
-import { translate, translatePlural } from '@nextcloud/l10n';
+import { translate } from '@nextcloud/l10n';
 import { NcButton } from '@nextcloud/vue';
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 import LinkVariantOff from 'vue-material-design-icons/LinkVariantOff.vue';
