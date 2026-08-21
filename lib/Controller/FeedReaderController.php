@@ -110,7 +110,7 @@ class FeedReaderController extends Controller {
     #[AnonRateLimit(limit: 30, period: 60)]
     public function getFeedByShare(string $token): DataResponse {
         try {
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],
@@ -161,7 +161,7 @@ class FeedReaderController extends Controller {
      * @return DataDownloadResponse|DataResponse
      */
     public function proxyImageByShare(string $token): DataDownloadResponse|DataResponse {
-        $share = $this->publicShareService->getShareByToken($token);
+        $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
         if ($share === null) {
             return new DataResponse(
                 ['error' => 'Invalid or expired share token'],

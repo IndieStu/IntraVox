@@ -88,7 +88,7 @@
     "lib/Service/PhotoStory/GeocodeCache.php": 462,
     "lib/Service/PhotoStory/NCFilesMetadataReader.php": 163,
     "lib/Service/PhotoStoryService.php": 3280,
-    "lib/Service/PublicShareService.php": 1410,
+    "lib/Service/PublicShareService.php": 1498,
     "lib/Service/PublicationSettingsService.php": 108,
     "lib/Service/Sanitize/ColorSanitizer.php": 41,
     "lib/Service/Sanitize/HtmlSanitizer.php": 83,

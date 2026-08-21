@@ -135,7 +135,7 @@ class CalendarController extends Controller {
     public function getEventsByShare(string $token): DataResponse {
         try {
             // Validate share token
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],

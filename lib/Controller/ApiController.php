@@ -2669,7 +2669,7 @@ class ApiController extends Controller {
 
             // Add share-scoped breadcrumb
             try {
-                $share = $this->publicShareService->getShareByToken($token);
+                $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
                 if ($share !== null) {
                     $shareScopePath = $this->publicShareService->resolveShareScopePath($share);
                     if ($shareScopePath !== null) {
@@ -2759,7 +2759,7 @@ class ApiController extends Controller {
 
         try {
             // Get the share to determine scope
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return $this->shareNotFoundResponse();
             }
@@ -2876,7 +2876,7 @@ class ApiController extends Controller {
         }
 
         try {
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return $this->shareNotFoundResponse();
             }
@@ -2963,7 +2963,7 @@ class ApiController extends Controller {
         }
 
         try {
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return $this->shareNotFoundResponse();
             }
@@ -3625,7 +3625,7 @@ class ApiController extends Controller {
 
         try {
             // Validate that the share token is valid (belongs to something in IntraVox)
-            $share = $this->publicShareService->getShareByToken($token);
+            $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($share === null) {
                 return new DataResponse(['error' => 'Not found'], Http::STATUS_NOT_FOUND);
             }

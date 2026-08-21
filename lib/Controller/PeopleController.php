@@ -349,7 +349,7 @@ class PeopleController extends Controller {
             // not exist on PublicShareService — every request to this
             // endpoint died with a 500. getShareByToken() is the real method
             // and matches the null check below.
-            $shareInfo = $this->publicShareService->getShareByToken($token);
+            $shareInfo = $this->publicShareService->resolveIntraVoxLinkShare($token);
             if ($shareInfo === null) {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],

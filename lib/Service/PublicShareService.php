@@ -237,6 +237,86 @@ class PublicShareService {
     }
 
     /**
+     * Resolve a token to an IntraVox link share, or null. (SHARE-ROOT)
+     *
+     * This is THE gate for every anonymous endpoint. getShareByToken() used to
+     * check only TYPE_LINK and the expiry date, which means any link share
+     * anywhere in the instance opened them — a user sharing a holiday photo
+     * handed out a token that also read IntraVox pages, media, the page tree and
+     * (through CalendarController::getEventsByShare, a #[PublicPage]) the share
+     * owner's calendars.
+     *
+     * The missing condition is membership: the shared node must actually live in
+     * the IntraVox groupfolder. That is decided on the STORAGE ID, never on the
+     * path. A groupfolder resolved through a member's mounted view reports
+     * something like /Femke/files/IntraVox — a mount path with no
+     * __groupfolders segment in it — so a path-prefix test is both per-user and
+     * wrong. The storage id (local::/…/__groupfolders/1/) is the same for every
+     * member. Verified against the live groupfolder on nc-dev.
+     *
+     * Fails closed: anything we cannot positively place inside the groupfolder
+     * is refused.
+     */
+    public function resolveIntraVoxLinkShare(string $token): ?IShare {
+        $share = $this->getShareByToken($token);
+        if ($share === null) {
+            return null;
+        }
+
+        if (!$this->shareLivesInIntraVoxFolder($share)) {
+            $this->logger->warning('[PublicShareService] rejected a link share outside the IntraVox folder', [
+                'shareId' => $share->getId(),
+            ]);
+
+            return null;
+        }
+
+        return $share;
+    }
+
+    /**
+     * Is the shared node stored on the same storage as the IntraVox groupfolder?
+     *
+     * Compares storage ids rather than paths, for the reason spelled out above.
+     * A share whose node cannot be loaded at all counts as "not ours".
+     */
+    private function shareLivesInIntraVoxFolder(IShare $share): bool {
+        try {
+            $intraVoxFolder = $this->setupService->getSharedFolder();
+            if ($intraVoxFolder === null) {
+                return false;
+            }
+
+            $node = $share->getNode();
+
+            $shareStorageId = $node->getStorage()->getId();
+            $intraVoxStorageId = $intraVoxFolder->getStorage()->getId();
+
+            if ($shareStorageId !== $intraVoxStorageId) {
+                return false;
+            }
+
+            // Same storage, but the groupfolder may not be its root: compare the
+            // internal paths so a share elsewhere on the same storage is refused.
+            $folderInternal = trim($intraVoxFolder->getInternalPath(), '/');
+            if ($folderInternal === '') {
+                return true; // the groupfolder IS the storage root
+            }
+
+            $nodeInternal = trim($node->getInternalPath(), '/');
+
+            return $nodeInternal === $folderInternal
+                || str_starts_with($nodeInternal, $folderInternal . '/');
+        } catch (\Throwable $e) {
+            $this->logger->warning('[PublicShareService] could not place share in a folder; refusing', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
+    }
+
+    /**
      * Get a share by its token.
      *
      * Simple wrapper around IShareManager::getShareByToken() for use in controllers.
@@ -367,6 +447,14 @@ class PublicShareService {
             if ($expirationDate !== null && $expirationDate < new \DateTime()) {
                 $this->logger->debug('[PublicShareService] validateShareAccess: share expired');
                 return ['valid' => false, 'reason' => 'expired'];
+            }
+
+            // Membership, on the storage id (SHARE-ROOT). Without this any link
+            // share in the instance validates here just as it did in
+            // getShareByToken().
+            if (!$this->shareLivesInIntraVoxFolder($share)) {
+                $this->logger->warning('[PublicShareService] validateShareAccess: share outside the IntraVox folder');
+                return ['valid' => false, 'reason' => 'not_intravox_share'];
             }
 
             // Check password protection (respects NC share password setting)

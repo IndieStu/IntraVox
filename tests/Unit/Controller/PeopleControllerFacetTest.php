@@ -111,7 +111,7 @@ class PeopleControllerFacetTest extends TestCase {
 			$this->createMock(LoggerInterface::class)
 		);
 
-		$this->publicShareService->method('getShareByToken')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
 
 		// The faceted path must never be entered.
 		$this->userService->expects($this->never())->method('queryFaceted');
@@ -143,7 +143,7 @@ class PeopleControllerFacetTest extends TestCase {
 	 * that happens when nobody configured anything.
 	 */
 	public function testPublicShareReturnsNoPeopleByDefault(): void {
-		$this->publicShareService->method('getShareByToken')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
 		$this->userService->expects($this->never())->method('getUsersByFilters');
 
 		$response = $this->controller->getPeopleByShare(
@@ -174,7 +174,7 @@ class PeopleControllerFacetTest extends TestCase {
 			$config
 		);
 
-		$this->publicShareService->method('getShareByToken')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
 		$this->userService->method('getUsersByFilters')->willReturn([
 			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
 			'total' => 1,
