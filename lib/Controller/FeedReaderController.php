@@ -291,7 +291,13 @@ class FeedReaderController extends Controller {
         }
 
         try {
-            $connections = $this->feedReaderService->getConnections();
+            // Only an administrator sees the credential-adjacent fields
+            // (FEED-CRED). This endpoint is @NoAdminRequired because the
+            // widget editor needs the connection NAMES to build a dropdown;
+            // it has never needed the OAuth client id, the tenant or the
+            // custom headers, which routinely hold an API key.
+            $isAdmin = $this->groupManager->isAdmin($this->userId);
+            $connections = $this->feedReaderService->getConnections($isAdmin);
             return new DataResponse(['connections' => $connections]);
         } catch (\Exception $e) {
             return new DataResponse(

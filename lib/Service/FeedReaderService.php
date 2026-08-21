@@ -2098,13 +2098,17 @@ class FeedReaderService {
     }
 
     /**
-     * Get available LMS connections (without exposing tokens or secrets).
+     * The configured feed connections.
+     *
+     * @param bool $includeAdminFields whether to include the fields only an
+     *        administrator may see. Off by default so a new caller cannot leak
+     *        them by forgetting the argument (FEED-CRED).
      */
-    public function getConnections(): array {
+    public function getConnections(bool $includeAdminFields = false): array {
         $json = $this->config->getAppValue(Application::APP_ID, 'feed_connections', '[]');
         $connections = json_decode($json, true) ?: [];
 
-        return array_map(function ($conn) {
+        return array_map(function ($conn) use ($includeAdminFields) {
             $result = [
                 'id' => $conn['id'] ?? '',
                 'name' => $conn['name'] ?? '',
@@ -2114,19 +2118,32 @@ class FeedReaderService {
                 'hasToken' => !empty($conn['token']),
                 'authMode' => $conn['authMode'] ?? 'token',
                 'oidcAutoConnect' => $conn['oidcAutoConnect'] ?? false,
-                'tenantId' => $conn['tenantId'] ?? '',
                 'siteUrl' => $conn['siteUrl'] ?? '',
-                'clientId' => $conn['clientId'] ?? '',
                 'hasClientCredentials' => !empty($conn['clientId']) && !empty($conn['clientSecret']),
-                'jiraEmail' => $conn['jiraEmail'] ?? '',
             ];
+
+            // Fields only the admin screen needs. Every logged-in user could read
+            // this endpoint (@NoAdminRequired), so shipping them unconditionally
+            // handed the OAuth client id, the tenant, the service-account address
+            // and — through customHeaders below — whatever API key an admin had
+            // typed into a header to everyone with an account.
+            if ($includeAdminFields) {
+                $result['tenantId'] = $conn['tenantId'] ?? '';
+                $result['clientId'] = $conn['clientId'] ?? '';
+                $result['jiraEmail'] = $conn['jiraEmail'] ?? '';
+            }
             // Include REST API-specific fields for all non-LMS types
             if (!in_array($conn['type'] ?? '', ['moodle', 'canvas', 'brightspace'], true)) {
                 $result['customEndpoint'] = $conn['customEndpoint'] ?? '';
                 $result['authMethod'] = $conn['authMethod'] ?? 'bearer';
-                $result['apiKeyHeader'] = $conn['apiKeyHeader'] ?? '';
                 $result['responseMapping'] = $conn['responseMapping'] ?? [];
-                $result['customHeaders'] = $conn['customHeaders'] ?? [];
+
+                if ($includeAdminFields) {
+                    $result['apiKeyHeader'] = $conn['apiKeyHeader'] ?? '';
+                    // customHeaders routinely carries an API key as a header
+                    // value; it is the single most sensitive field here.
+                    $result['customHeaders'] = $conn['customHeaders'] ?? [];
+                }
             }
             return $result;
         }, $connections);
