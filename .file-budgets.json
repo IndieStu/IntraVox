@@ -59,7 +59,7 @@
     "lib/Service/Import/ConfluenceImporter.php": 292,
     "lib/Service/Import/HtmlToWidgetConverter.php": 353,
     "lib/Service/Import/IntermediateFormat.php": 275,
-    "lib/Service/ImportService.php": 1678,
+    "lib/Service/ImportService.php": 1744,
     "lib/Service/LanguageHomepageService.php": 200,
     "lib/Service/LanguageService.php": 395,
     "lib/Service/LicenseService.php": 637,

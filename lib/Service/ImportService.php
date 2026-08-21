@@ -10,6 +10,7 @@ use OCP\ITempManager;
 use OCP\IDBConnection;
 use Psr\Log\LoggerInterface;
 use OCA\IntraVox\Service\Path\PagePathHelper;
+use OCA\IntraVox\Service\Sanitize\PageShapeSanitizer;
 
 /**
  * Service for importing IntraVox pages and media from ZIP exports
@@ -27,7 +28,8 @@ class ImportService {
         private LoggerInterface $logger,
         private MetaVoxImportService $metaVoxImportService,
         private IDBConnection $connection,
-        private PageIndexService $pageIndexService
+        private PageIndexService $pageIndexService,
+        private PageShapeSanitizer $shapeSanitizer
     ) {}
 
     /**
@@ -456,6 +458,14 @@ class ImportService {
         // Remove internal export metadata before saving
         unset($content['_exportPath']);
 
+        // Run imported page bodies through the same allowlist an editor save
+        // uses. Without this, import was the one write path into page JSON that
+        // skipped sanitisation entirely: importPage() json_encode'd whatever the
+        // uploaded (or, via DemoDataService, REMOTELY DOWNLOADED) file contained
+        // and putContent() it straight into the groupfolder, so unsanitised HTML,
+        // javascript: urls and unknown widget keys landed in stored pages.
+        $content = $this->sanitizeImportedContent($content);
+
         try {
             $intraVoxFolder = $this->setupService->getSharedFolder();
 
@@ -697,6 +707,62 @@ class ImportService {
      * @param array $pageReactions Reactions data from export
      * @return int Number of reactions imported
      */
+    /**
+     * Sanitize an imported page body without losing the fields import owns.
+     *
+     * validateAndSanitizePage() is a strict WHITELIST built for the editor save
+     * path, where the surrounding code sets the page metadata itself. Applied
+     * naively to an import it therefore DELETES legitimate content: an A/B over
+     * the 78 demo pages showed it dropping `language` from all of them, and
+     * `isTemplate` + `description` from all seven templates — which is what makes
+     * a template a template. That would have corrupted every imported export.
+     *
+     * So the widget/layout body is sanitised (that is where the untrusted HTML
+     * and urls live) and these few structural fields are carried across verbatim
+     * after being type-checked. They are identifiers and flags, never rendered as
+     * markup.
+     *
+     * @param array<string,mixed> $content
+     * @return array<string,mixed>
+     */
+    private function sanitizeImportedContent(array $content): array {
+        $sanitized = $this->shapeSanitizer->validateAndSanitizePage($content);
+
+        if (isset($content['language']) && is_string($content['language'])
+            && preg_match('/^[a-z]{2}(_[A-Z]{2})?$/', $content['language'])
+        ) {
+            $sanitized['language'] = $content['language'];
+        }
+
+        if (isset($content['isTemplate'])) {
+            $sanitized['isTemplate'] = (bool)$content['isTemplate'];
+        }
+
+        if (isset($content['description']) && is_string($content['description'])) {
+            // Plain text in the template picker, so strip markup rather than
+            // trusting it: this is the one preserved field an attacker controls.
+            $sanitized['description'] = mb_substr(
+                strip_tags($content['description']),
+                0,
+                500,
+            );
+        }
+
+        foreach (['created', 'modified'] as $timestampField) {
+            if (isset($content[$timestampField]) && is_int($content[$timestampField])) {
+                $sanitized[$timestampField] = $content[$timestampField];
+            }
+        }
+
+        foreach (['createdBy', 'sourcePageId'] as $idField) {
+            if (isset($content[$idField]) && is_string($content[$idField])) {
+                $sanitized[$idField] = mb_substr(strip_tags($content[$idField]), 0, 128);
+            }
+        }
+
+        return $sanitized;
+    }
+
     private function importPageReactions(string $uniqueId, array $pageReactions): int {
         $count = 0;
 
