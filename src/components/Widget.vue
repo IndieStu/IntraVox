@@ -214,6 +214,7 @@ import { generateUrl } from '@nextcloud/router';
 import { showSuccess } from '@nextcloud/dialogs';
 import { markdownToHtml, markdownToInlineHtml } from '../utils/markdownSerializer.js';
 import { buildSectionFragment } from '../utils/headingAnchors.js';
+import { encodeMediaPath } from '../utils/mediaUrl.js';
 import LinkVariant from 'vue-material-design-icons/LinkVariant.vue';
 
 export default {
@@ -468,46 +469,29 @@ export default {
       this.$emit('blur');
     },
     getImageUrl(filename) {
-      if (!filename) return '';
-
-      // Check mediaFolder property (new format)
-      if (this.widget.mediaFolder === 'resources') {
-        // If we have a share token, use the public endpoint
-        if (this.shareToken) {
-          return generateUrl(`/apps/intravox/api/share/${this.shareToken}/resources/media/${filename}`);
-        }
-        return generateUrl(`/apps/intravox/api/resources/media/${filename}`);
-      }
-
-      // Remove legacy prefixes if present
-      const cleanFilename = filename.replace(/^(📷 images\/|images\/|_media\/)/, '');
-      // If we have a share token, use the public share endpoint
-      if (this.shareToken) {
-        return generateUrl(`/apps/intravox/api/share/${this.shareToken}/page/${this.pageId}/media/${cleanFilename}`);
-      }
-      // Media served via unified API (default: page media)
-      return generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${cleanFilename}`);
+      return this.buildMediaUrl(filename, /^(📷 images\/|images\/|_media\/)/);
     },
     getVideoUrl(filename) {
+      return this.buildMediaUrl(filename, /^(videos\/|_media\/)/);
+    },
+    /**
+     * One builder for both: images and videos differed only in which legacy
+     * path prefix they strip, and the two copies had to be kept in step by
+     * hand. Every segment is percent-encoded so spaces, accents and "#" in a
+     * filename survive the trip (#101).
+     */
+    buildMediaUrl(filename, legacyPrefix) {
       if (!filename) return '';
 
-      // Check mediaFolder property (new format)
       if (this.widget.mediaFolder === 'resources') {
-        // If we have a share token, use the public endpoint
-        if (this.shareToken) {
-          return generateUrl(`/apps/intravox/api/share/${this.shareToken}/resources/media/${filename}`);
-        }
-        return generateUrl(`/apps/intravox/api/resources/media/${filename}`);
+        const share = this.shareToken ? `/share/${this.shareToken}` : '';
+        return generateUrl(`/apps/intravox/api${share}/resources/media/${encodeMediaPath(filename)}`);
       }
 
-      // Remove legacy prefixes if present
-      const cleanFilename = filename.replace(/^(videos\/|_media\/)/, '');
-      // If we have a share token, use the public share endpoint
-      if (this.shareToken) {
-        return generateUrl(`/apps/intravox/api/share/${this.shareToken}/page/${this.pageId}/media/${cleanFilename}`);
-      }
-      // Media served via unified API (default: page media)
-      return generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${cleanFilename}`);
+      const path = encodeMediaPath(filename.replace(legacyPrefix, ''));
+      return this.shareToken
+        ? generateUrl(`/apps/intravox/api/share/${this.shareToken}/page/${this.pageId}/media/${path}`)
+        : generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${path}`);
     },
     getImageStyle() {
       const style = {};

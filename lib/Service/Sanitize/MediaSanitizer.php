@@ -58,12 +58,28 @@ final class MediaSanitizer {
     }
 
     /**
-     * Produce a filesystem-safe filename. Strips path separators, control
-     * characters and unicode, then re-applies the original extension if it
-     * was on the allow list.
+     * Produce a filesystem-safe filename. Strips path separators and control
+     * characters, keeps letters and digits in any script, then re-applies the
+     * original extension if it was on the allow list.
+     *
+     * Unicode letters used to be stripped along with everything else: the
+     * rule was `[^a-zA-Z0-9_\-]`, so a German intranet uploading
+     * "Übersicht.png" got "bersicht.png" back, "Öl.png" became "l.png", and a
+     * name written in a non-latin script collapsed to nothing and was handed a
+     * "file_<uniqid>" fallback. The file worked, but under a name its owner
+     * did not choose and could not search for. Nextcloud itself stores those
+     * names without complaint, and after issue #101 the serving path does too,
+     * so the ASCII floor here was the last thing enforcing it.
+     *
+     * What still goes: anything that is not a letter, digit, underscore or
+     * hyphen — which is what keeps "/" and "\" (path separators), control
+     * characters and shell metacharacters out. \p{L} and \p{N} are matched
+     * with the /u flag; invalid UTF-8 makes preg_replace return null, and that
+     * is treated as a name we refuse rather than one we repair.
      *
      * @throws \InvalidArgumentException when validateExtension is true and
-     *         the extension is not in self::ALLOWED_EXTENSIONS
+     *         the extension is not in self::ALLOWED_EXTENSIONS, or when the
+     *         filename is not valid UTF-8
      */
     public function sanitizeFilename(string $filename, bool $validateExtension = true): string {
         $extension = '';
@@ -79,17 +95,26 @@ final class MediaSanitizer {
             $filename = substr($filename, 0, $dotPos);
         }
 
-        $filename = preg_replace('/[^a-zA-Z0-9_\-]/', '_', $filename);
+        $filename = preg_replace('/[^\p{L}\p{N}_\-]/u', '_', $filename);
+        if ($filename === null) {
+            // Only reachable on invalid UTF-8, which no browser sends and no
+            // filesystem should be asked to store.
+            throw new \InvalidArgumentException('Filename is not valid UTF-8');
+        }
         $filename = preg_replace('/_+/', '_', $filename);
         $filename = trim($filename, '_');
 
-        if (in_array(strtolower($filename), self::WINDOWS_RESERVED_BASENAMES, true)) {
+        if (in_array(mb_strtolower($filename), self::WINDOWS_RESERVED_BASENAMES, true)) {
             $filename = 'file_' . uniqid();
         }
 
+        // Bytes, not characters: the 255 limit filesystems impose is a byte
+        // limit, and a multi-byte name reaches it in fewer characters. Cutting
+        // with mb_strcut rather than substr keeps the truncation from landing
+        // mid-character and producing invalid UTF-8.
         $maxLength = 255 - strlen($extension);
         if (strlen($filename) > $maxLength) {
-            $filename = substr($filename, 0, $maxLength);
+            $filename = mb_strcut($filename, 0, $maxLength);
         }
 
         if ($filename === '') {

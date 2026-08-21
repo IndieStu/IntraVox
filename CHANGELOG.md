@@ -4,6 +4,18 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.3.1] - 2026-08-21 — Filenames with accents, umlauts and spaces
+
+### Fixed
+
+- **Images whose filename contains an umlaut, an accent or a space now display.** ([#101](https://github.com/nextcloud/IntraVox/issues/101)) Media in the Shared library was served only if its name matched `a-z A-Z 0-9 _ - .`, so `Übersicht.png` and `Team foto.jpg` were refused with an HTTP 400. Because the picker thumbnail, the image widget and the News tile all fetch through that one endpoint, an affected image was blank in all three at once. The check contradicted the rest of the app, which stores those names deliberately — the app was saving an image reference it then refused to serve. Path traversal, dotfiles, executable extensions and control characters are all still refused; they each have their own check and never depended on the character list.
+
+- **An uploaded file keeps the name you gave it.** Accented letters were treated as punctuation and stripped, so `Übersicht.png` was stored as `bersicht.png`, `Öl.png` as `l.png`, and a name written in a non-latin script lost every character and was replaced by `file_<random>`. Letters and digits in any script are now kept. Path separators, control characters and shell metacharacters are still replaced, so the name remains safe to put on disk.
+
+- **"A file with this name already exists" now asks about the right name.** The check used the name as you picked it, while the upload saved the sanitized one. Two files whose names differed only in characters that get replaced were both reported as new, and then collided on save.
+
+- **A filename containing `#`, `%`, `?` or `+` resolves.** Media URLs were assembled by pasting the filename straight into the address, so `foto #1.png` asked the server for `foto ` and rendered blank, and `foto+1.png` arrived as `foto 1.png`. Every part of the path is now encoded, in the widget, the editor preview and the picker alike.
+
 ## [2.3.0] - 2026-08-21 - Security hardening: shares, rate limits and uploads
 
 A hardening pass over the parts of the app that face anonymous visitors, plus

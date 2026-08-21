@@ -588,9 +588,26 @@ class ApiController extends Controller {
                 );
             }
 
-            $exists = $this->pageService->checkMediaExists($pageId, $filename, $target);
+            // Ask about the name the upload will actually write. The client
+            // sends the name as the user picked it, while
+            // uploadMediaWithOriginalName() sanitizes before writing, so
+            // checking the raw name answered a question nobody asked: two
+            // different names that sanitize to the same one were reported as
+            // "no duplicate" and then collided on write.
+            $exists = $this->pageService->checkMediaExists(
+                $pageId,
+                $this->pageService->sanitizeFilename($filename),
+                $target
+            );
 
             return new DataResponse(['exists' => $exists]);
+        } catch (\InvalidArgumentException $e) {
+            // A rejected extension is the caller's input, not a server fault —
+            // the same 400 the upload itself answers with.
+            return new DataResponse(
+                ['error' => $e->getMessage()],
+                Http::STATUS_BAD_REQUEST
+            );
         } catch (\Exception $e) {
             return new DataResponse(
                 ['error' => $e->getMessage()],

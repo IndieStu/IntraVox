@@ -432,6 +432,7 @@
 import axios from '@nextcloud/axios';
 import { generateUrl } from '@nextcloud/router';
 import { translate } from '@nextcloud/l10n';
+import { encodeMediaPath } from '../utils/mediaUrl.js';
 import { NcButton, NcModal } from '@nextcloud/vue';
 import PageTreeSelect from './PageTreeSelect.vue';
 import MediaPicker from './MediaPicker.vue';
@@ -684,17 +685,21 @@ export default {
       }, 500);
     },
     getImageUrl(src) {
-      if (!src) return '';
+      return this.buildMediaUrl(src, /^(📷 images\/|images\/|_media\/)/);
+    },
+    /**
+     * One builder for both preview types — see the same helper in Widget.vue.
+     * Segments are percent-encoded so accents and spaces resolve (#101).
+     */
+    buildMediaUrl(filename, legacyPrefix) {
+      if (!filename) return '';
 
-      // Check mediaFolder property (new format)
       if (this.localWidget.mediaFolder === 'resources') {
-        return generateUrl(`/apps/intravox/api/resources/media/${src}`);
+        return generateUrl(`/apps/intravox/api/resources/media/${encodeMediaPath(filename)}`);
       }
 
-      // Remove legacy prefixes if present
-      const cleanFilename = src.replace(/^(📷 images\/|images\/|_media\/)/, '');
-      // Default: page media
-      return generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${cleanFilename}`);
+      const path = encodeMediaPath(filename.replace(legacyPrefix, ''));
+      return generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${path}`);
     },
     setImageSize(width) {
       // Vue 3: Direct assignment is reactive
@@ -949,17 +954,7 @@ export default {
       }
     },
     getVideoUrl(filename) {
-      if (!filename) return '';
-
-      // Check mediaFolder property (new format)
-      if (this.localWidget.mediaFolder === 'resources') {
-        return generateUrl(`/apps/intravox/api/resources/media/${filename}`);
-      }
-
-      // Remove legacy prefixes if present
-      const cleanFilename = filename.replace(/^(videos\/|_media\/)/, '');
-      // Default: page media
-      return generateUrl(`/apps/intravox/api/pages/${this.pageId}/media/${cleanFilename}`);
+      return this.buildMediaUrl(filename, /^(videos\/|_media\/)/);
     }
   }
 };

@@ -73,6 +73,88 @@ class MediaSanitizerTest extends TestCase {
         $this->assertSame('image.png', $this->sanitizer->sanitizeFilename('image.PNG'));
     }
 
+    // ---------- sanitizeFilename: unicode is a letter, not a special char (#101) ----------
+
+    /**
+     * An uploaded name keeps its letters, whatever alphabet they are in.
+     *
+     * The rule was `[^a-zA-Z0-9_\-]`, which treated every accented letter as
+     * punctuation: "Übersicht.png" was stored as "bersicht.png" and "Öl.png"
+     * as "l.png". The file worked, but under a name its owner never chose.
+     *
+     * @dataProvider unicodeFilenames
+     */
+    public function testFilenameKeepsUnicodeLetters(string $input, string $expected, string $why): void {
+        $this->assertSame($expected, $this->sanitizer->sanitizeFilename($input), $why);
+    }
+
+    public static function unicodeFilenames(): array {
+        return [
+            'leading umlaut'  => ['Übersicht.png', 'Übersicht.png', 'lost its first letter entirely'],
+            'inner umlaut'    => ['Größe.jpg', 'Größe.jpg', 'ß and ö are letters'],
+            'two-letter name' => ['Öl.png', 'Öl.png', 'was reduced to "l"'],
+            'umlauts + space' => ['Über uns.png', 'Über_uns.png', 'space still becomes an underscore'],
+            'reported name'   => ['image with äüö.png', 'image_with_äüö.png', 'the filename from issue #101'],
+            'french accent'   => ['café.jpg', 'café.jpg', 'matches what the serving path now accepts'],
+            'cyrillic'        => ['изображение.png', 'изображение.png', 'collapsed to a uniqid fallback'],
+            'cjk'             => ['写真.jpg', '写真.jpg', 'collapsed to a uniqid fallback'],
+            'digits kept'     => ['Foto 2026.jpg', 'Foto_2026.jpg', 'digits were never the problem'],
+        ];
+    }
+
+    /**
+     * Widening the letter rule must not widen the separator rule with it.
+     *
+     * These are the characters the ASCII floor used to stop as a side effect,
+     * and the reason the replacement is an allowlist of \p{L}\p{N}_- rather
+     * than "anything printable".
+     *
+     * @dataProvider dangerousFilenames
+     */
+    public function testFilenameStillStripsPathAndShellCharacters(string $input, string $forbidden, string $why): void {
+        $output = $this->sanitizer->sanitizeFilename($input);
+        $this->assertStringNotContainsString($forbidden, $output, $why);
+    }
+
+    public static function dangerousFilenames(): array {
+        return [
+            'forward slash'  => ['../etc/passwd.png', '/', 'path separator'],
+            'backslash'      => ['..\\windows\\x.png', '\\', 'path separator on the other platform'],
+            'null byte'      => ["foto\0.png", "\0", 'truncates downstream checks'],
+            'newline'        => ["foto\n.png", "\n", 'splits log lines'],
+            'semicolon'      => ['foto;rm -rf.png', ';', 'shell metacharacter'],
+            'dollar'         => ['foto$(id).png', '$', 'shell metacharacter'],
+            'quote'          => ["foto'.png", "'", 'quoting'],
+            'unicode + slash' => ['Über/uns.png', '/', 'unicode does not smuggle a separator'],
+        ];
+    }
+
+    public function testFilenameRefusesInvalidUtf8(): void {
+        // preg_replace with /u returns null here; failing closed beats writing
+        // a name the filesystem and the database disagree about.
+        $this->expectException(\InvalidArgumentException::class);
+        $this->sanitizer->sanitizeFilename("foto\xC3\x28.png");
+    }
+
+    public function testFilenameTruncatesMultibyteNameOnACharacterBoundary(): void {
+        // 400 two-byte characters is 800 bytes, well past the 255-byte limit,
+        // so this only stays valid UTF-8 if the cut respects the boundary.
+        $long = str_repeat('ü', 400) . '.png';
+        $output = $this->sanitizer->sanitizeFilename($long);
+
+        $this->assertLessThanOrEqual(255, strlen($output));
+        $this->assertStringEndsWith('.png', $output);
+        $this->assertSame($output, mb_convert_encoding($output, 'UTF-8', 'UTF-8'), 'truncation split a character');
+    }
+
+    public function testFilenameStillFallsBackWhenNothingSurvives(): void {
+        // Punctuation-only names have no letters to keep, so the fallback that
+        // guarded non-latin scripts before is still needed for these.
+        $output = $this->sanitizer->sanitizeFilename('!!!.png');
+        $this->assertStringStartsWith('file_', $output);
+        $this->assertStringEndsWith('.png', $output);
+    }
+
     // ---------- sanitizeSVG ----------
 
     public function testSvgKeepsCleanContent(): void {

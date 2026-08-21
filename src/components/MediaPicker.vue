@@ -245,6 +245,7 @@ import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate } from '@nextcloud/l10n'
 import { showError } from '@nextcloud/dialogs'
+import { encodeMediaPath } from '../utils/mediaUrl.js'
 
 export default {
   name: 'MediaPicker',
@@ -604,20 +605,10 @@ export default {
 
     getMediaThumbnail(media, folder) {
       if (folder === 'resources') {
-        // Use path for resources (supports subfolders)
-        const path = media.path || media.name
-
-        // Split path into folder and filename for two-parameter route
-        const lastSlashIndex = path.lastIndexOf('/')
-        if (lastSlashIndex > 0) {
-          // Path contains subfolder (e.g., "icons/document-icon.svg")
-          const folderPart = path.substring(0, lastSlashIndex)
-          const filenamePart = path.substring(lastSlashIndex + 1)
-          return generateUrl(`/apps/intravox/api/resources/media/${folderPart}/${filenamePart}`)
-        } else {
-          // Path is just filename (root level)
-          return generateUrl(`/apps/intravox/api/resources/media/${path}`)
-        }
+        // Use path for resources (supports subfolders). Encoding per segment
+        // keeps the "/" that picks the {folder}/{filename} route, so the split
+        // this used to do by hand is no longer needed.
+        return generateUrl(`/apps/intravox/api/resources/media/${encodeMediaPath(media.path || media.name)}`)
       }
       return generateUrl('/apps/intravox/api/pages/{pageId}/media/{filename}', {
         pageId: this.pageId,

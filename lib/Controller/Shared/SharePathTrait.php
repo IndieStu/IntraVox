@@ -23,8 +23,12 @@ trait SharePathTrait {
      * - Unicode normalization (NFD/NFC attacks)
      * - Directory traversal (..)
      * - Backslash conversion
+     * - Control characters
      * - Hidden files (starting with .)
      * - Executable file extensions
+     *
+     * Accented letters, spaces and other printable unicode are legitimate
+     * filenames and are passed through — see the note on step 7.
      *
      * @param string $path User-provided path
      * @return string Safe path
@@ -40,17 +44,26 @@ trait SharePathTrait {
             throw new \InvalidArgumentException('Invalid path: null bytes detected');
         }
 
-        // 2. URL decode and check for double-encoding attacks
+        // 2. Look through any further URL-encoding for a smuggled traversal.
+        //
+        // Every caller receives $path from the router or from getParam(), both
+        // of which have already decoded it once. Decoding again here is a
+        // detection step only: it must NOT replace $path, because a filename
+        // may legitimately contain the characters urldecode() consumes.
+        // "foto+1.png" decoded to "foto 1.png" and we then looked up a file
+        // that does not exist — the same shape as #101, a name the app stores
+        // happily and cannot serve.
         $decoded = urldecode($path);
         if ($decoded !== $path) {
-            // Path was URL-encoded, decode once more to detect double-encoding
             $doubleDecoded = urldecode($decoded);
-            if (strpos($doubleDecoded, '..') !== false ||
+            if (strpos($decoded, '..') !== false ||
+                strpos($decoded, '\\') !== false ||
+                strpos($decoded, "\0") !== false ||
+                strpos($doubleDecoded, '..') !== false ||
                 strpos($doubleDecoded, '\\') !== false ||
                 strpos($doubleDecoded, "\0") !== false) {
                 throw new \InvalidArgumentException('Path traversal detected');
             }
-            $path = $decoded;
         }
 
         // 3. Unicode normalization (prevent NFD/NFC attacks)
@@ -73,8 +86,25 @@ trait SharePathTrait {
             throw new \InvalidArgumentException('Path traversal detected');
         }
 
-        // 7. Validate characters - only allow safe path characters
-        if (!empty($path) && !preg_match('#^[a-zA-Z0-9/_\-\.]+$#', $path)) {
+        // 7. Refuse control characters.
+        //
+        // This used to be an allowlist, `^[a-zA-Z0-9/_\-\.]+$`, which refused
+        // every accented letter and every space: "Übersicht.png" and
+        // "Team foto.jpg" in the Shared library were unservable, and because
+        // the picker thumbnail, the rendered widget and the News tile all
+        // resolve through here, an affected image was blank in all three
+        // (issue #101). The allowlist also contradicted the storage side —
+        // PageShapeSanitizer::sanitizePath() accepts unicode on purpose, and
+        // PathSanitizerSpecTest pins `afdeling/café.jpg` — so the app stored
+        // a src it then refused to serve.
+        //
+        // The allowlist was never what made this safe. Null bytes (1),
+        // traversal (6), empty/dot segments, dotfiles and executable
+        // extensions (8) each have their own check, and the lookup itself is
+        // a Folder::get() inside an already-scoped folder. Control characters
+        // are the one class with no legitimate use in a filename, so they are
+        // the one class refused here.
+        if (preg_match('/[\x00-\x1F\x7F]/', $path)) {
             throw new \InvalidArgumentException('Invalid characters in path');
         }
 
