@@ -462,6 +462,16 @@ The `.tx/`, `.l10nignore`, and `translationfiles/` are dev-only artefacts for Tr
 
 > ⚠️ **STOP** — before running this: (1) is `npm run lint:l10n` green (source strings pushed)? (2) did you merge the bot's latest translations (§2 "At release time — just merge the bot")? A tarball cut before the merge ships the wrong set of languages and must be regenerated. Run `git fetch github && git log --oneline HEAD..github/main` — if it's empty, you're already up to date.
 
+> ⚠️ **Build the tarball from a tree that matches the tag.** `./deploy.sh` runs
+> `scripts/auto-bump-dev.js`, which rewrites `appinfo/info.xml` and
+> `package.json` to a dev version (2.3.0 → 2.3.0.1). Deploying to nc-dev to test
+> the release and *then* packaging produces a tarball whose `info.xml` disagrees
+> with the tag. Check before packaging, and restore if it drifted:
+> ```bash
+> git diff --stat vX.Y.Z             # must be empty
+> git checkout appinfo/info.xml package.json
+> ```
+
 **Root folder must be `intravox` (lowercase, no version number)**
 
 > ⚠️ **`vendor/` MUST be in the tarball.** `Application.php` requires
