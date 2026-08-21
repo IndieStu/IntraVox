@@ -106,6 +106,89 @@ class MediaSanitizerTest extends TestCase {
         $this->sanitizer->sanitizeSVG('');
     }
 
+    /**
+     * Regression: REL-1. The release tarballs shipped without vendor/, so the
+     * enshrined\svgSanitize\Sanitizer class was absent on every App Store
+     * install. Instantiating a missing class raises an \Error, which is NOT an
+     * \Exception — the original `catch (\Exception $e)` let it through and an
+     * SVG upload became a fatal instead of a rejected file.
+     *
+     * The condition is "this class does not exist", which cannot be simulated
+     * in-process while the real package is installed. So we run the sanitizer in
+     * a subprocess whose autoloader deliberately does not provide the class, and
+     * assert it reports a rejection rather than dying on an uncaught \Error.
+     *
+     * On the pre-fix code (catch \Exception) this subprocess exits FATAL.
+     */
+    public function testSvgFailsClosedWhenSanitizerDependencyIsUnavailable(): void {
+        $mediaSanitizerSource = \dirname(__DIR__, 4) . '/lib/Service/Sanitize/MediaSanitizer.php';
+        $this->assertFileExists($mediaSanitizerSource);
+
+        // Load MediaSanitizer WITHOUT enshrined/svg-sanitize on the classpath.
+        $script = <<<'PHPSRC'
+            <?php
+            spl_autoload_register(static function (string $class): void {
+                if (str_starts_with($class, 'enshrined\\')) {
+                    return; // deliberately unresolvable: mimics a vendor-less package
+                }
+            });
+            interface_exists(\Psr\Log\LoggerInterface::class) || eval(
+                'namespace Psr\Log; interface LoggerInterface {'
+                . 'public function emergency($m, array $c = []);'
+                . 'public function alert($m, array $c = []);'
+                . 'public function critical($m, array $c = []);'
+                . 'public function error($m, array $c = []);'
+                . 'public function warning($m, array $c = []);'
+                . 'public function notice($m, array $c = []);'
+                . 'public function info($m, array $c = []);'
+                . 'public function debug($m, array $c = []);'
+                . 'public function log($l, $m, array $c = []);'
+                . '}'
+            );
+            $logger = new class implements \Psr\Log\LoggerInterface {
+                public function emergency($m, array $c = []): void {}
+                public function alert($m, array $c = []): void {}
+                public function critical($m, array $c = []): void {}
+                public function error($m, array $c = []): void {}
+                public function warning($m, array $c = []): void {}
+                public function notice($m, array $c = []): void {}
+                public function info($m, array $c = []): void {}
+                public function debug($m, array $c = []): void {}
+                public function log($l, $m, array $c = []): void {}
+            };
+            require $argv[1];
+            $s = new \OCA\IntraVox\Service\Sanitize\MediaSanitizer($logger);
+            try {
+                $s->sanitizeSVG('<svg xmlns="http://www.w3.org/2000/svg"><rect/></svg>');
+                echo 'NO_THROW';
+            } catch (\Exception $e) {
+                echo 'REJECTED';
+            }
+            PHPSRC;
+
+        $scriptFile = \tempnam(\sys_get_temp_dir(), 'ivsvg') . '.php';
+        \file_put_contents($scriptFile, $script);
+
+        try {
+            $cmd = \escapeshellarg(PHP_BINARY) . ' ' . \escapeshellarg($scriptFile)
+                . ' ' . \escapeshellarg($mediaSanitizerSource) . ' 2>&1';
+            $output = (string)\shell_exec($cmd);
+        } finally {
+            @\unlink($scriptFile);
+        }
+
+        $this->assertStringNotContainsString(
+            'Fatal error',
+            $output,
+            'A missing svg-sanitize dependency must not escape as a fatal; it must be a rejected upload.'
+        );
+        $this->assertStringContainsString(
+            'REJECTED',
+            $output,
+            'sanitizeSVG must fail closed when the sanitizer dependency is unavailable.'
+        );
+    }
+
     // ---------- validateImageFile ----------
 
     public function testValidateImageAcceptsRealPng(): void {

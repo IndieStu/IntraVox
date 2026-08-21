@@ -104,6 +104,10 @@ final class MediaSanitizer {
      * file is malformed or contains content the dangerous-patterns scan
      * catches even after the svg-sanitize allowlist.
      *
+     * Fails closed: any failure inside the sanitizer — including a missing
+     * svg-sanitize dependency, which raises an \Error rather than an
+     * \Exception — is reported as a rejected upload.
+     *
      * @throws \Exception
      */
     public function sanitizeSVG(string $svgContent): string {
@@ -127,8 +131,15 @@ final class MediaSanitizer {
             }
 
             return $cleanSvg;
-        } catch (\Exception $e) {
-            $this->logger->error('SVG sanitization error: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // \Throwable, not \Exception: when vendor/ is missing from the
+            // package the Sanitizer class does not exist, and `new Sanitizer()`
+            // raises an \Error. Catching only \Exception let that escape as a
+            // fatal on every App Store install (see REL-1). Whatever the cause,
+            // an SVG we could not sanitize must be refused, never passed through.
+            $this->logger->error('SVG sanitization error: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
             throw new \Exception('Invalid SVG file');
         }
     }

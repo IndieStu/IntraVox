@@ -2401,12 +2401,24 @@ class FeedReaderService {
     /**
      * Sanitize SVG content to prevent XSS attacks.
      * Uses enshrined/svg-sanitize + additional pattern checks.
+     *
+     * Fails closed. A missing svg-sanitize dependency raises an \Error, not an
+     * \Exception, so it would otherwise escape as a fatal instead of being
+     * refused like any other unsafe SVG (see REL-1).
+     *
+     * @throws \RuntimeException on any SVG we cannot prove safe
      */
     private function sanitizeSvgContent(string $content): string {
-        $sanitizer = new Sanitizer();
-        $sanitizer->removeRemoteReferences(true);
-
-        $clean = $sanitizer->sanitize($content);
+        try {
+            $sanitizer = new Sanitizer();
+            $sanitizer->removeRemoteReferences(true);
+            $clean = $sanitizer->sanitize($content);
+        } catch (\Throwable $e) {
+            $this->logger->error('SVG sanitization unavailable: ' . $e->getMessage(), [
+                'exception' => $e,
+            ]);
+            throw new \RuntimeException('SVG sanitization failed');
+        }
         if ($clean === false || empty($clean)) {
             throw new \RuntimeException('SVG sanitization failed');
         }
