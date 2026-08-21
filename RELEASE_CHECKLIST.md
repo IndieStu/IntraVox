@@ -462,6 +462,18 @@ The `.tx/`, `.l10nignore`, and `translationfiles/` are dev-only artefacts for Tr
 
 > ⚠️ **STOP** — before running this: (1) is `npm run lint:l10n` green (source strings pushed)? (2) did you merge the bot's latest translations (§2 "At release time — just merge the bot")? A tarball cut before the merge ships the wrong set of languages and must be regenerated. Run `git fetch github && git log --oneline HEAD..github/main` — if it's empty, you're already up to date.
 
+> ⚠️ **Fetch GitHub before you build, not after.** The l10n bot commits
+> translations to GitHub only. Building before the merge ships a package whose
+> `l10n/` is behind — and nothing catches it: the guards pass, the tests pass,
+> the packaging smoketest passes, and the tarball installs fine. It surfaced in
+> 2.3.0 only because `git push github main` was rejected, *after* the package
+> had been signed and verified. Working order is **fetch → merge → build →
+> sign**:
+> ```bash
+> git fetch github && git log --oneline HEAD..github/main   # empty = go ahead
+> git merge github/main --no-edit                           # plain merge, never -X ours
+> ```
+
 > ⚠️ **Build the tarball from a tree that matches the tag.** `./deploy.sh` runs
 > `scripts/auto-bump-dev.js`, which rewrites `appinfo/info.xml` and
 > `package.json` to a dev version (2.3.0 → 2.3.0.1). Deploying to nc-dev to test
