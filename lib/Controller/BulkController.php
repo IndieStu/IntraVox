@@ -6,7 +6,7 @@ namespace OCA\IntraVox\Controller;
 use OCA\IntraVox\Service\BulkOperationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\UserRateThrottle;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
@@ -116,7 +116,7 @@ class BulkController extends Controller {
      *
      * @return DataResponse
      */
-    #[UserRateThrottle(limit: 5, period: 60)]
+    #[UserRateLimit(limit: 5, period: 60)]
     public function deletePages(): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required for bulk operations');
@@ -175,7 +175,7 @@ class BulkController extends Controller {
      *
      * @return DataResponse
      */
-    #[UserRateThrottle(limit: 5, period: 60)]
+    #[UserRateLimit(limit: 5, period: 60)]
     public function movePages(): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required for bulk operations');

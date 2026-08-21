@@ -11,7 +11,7 @@ use OCP\Activity\IManager as IActivityManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\IURLGenerator;
@@ -332,7 +332,7 @@ class PeopleController extends Controller {
      * @param int $offset Offset for pagination
      * @return DataResponse
      */
-    #[AnonRateThrottle(limit: 30, period: 60)]
+    #[AnonRateLimit(limit: 30, period: 60)]
     public function getPeopleByShare(
         string $token,
         ?string $userIds = null,

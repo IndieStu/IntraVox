@@ -26,12 +26,12 @@ use OCA\IntraVox\Service\SetupService;
 use OCA\IntraVox\Service\SystemFileService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
-use OCP\AppFramework\Http\Attribute\UserRateThrottle;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\Security\Bruteforce\IThrottler;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\JSONResponse;
@@ -314,7 +314,7 @@ class ApiController extends Controller {
     /**
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 10, period: 60)]
+    #[UserRateLimit(limit: 10, period: 60)]
     public function createPage(): DataResponse {
         try {
             $data = $this->request->getParams();
@@ -429,7 +429,7 @@ class ApiController extends Controller {
     /**
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 10, period: 60)]
+    #[UserRateLimit(limit: 10, period: 60)]
     public function deletePage(string $id): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -469,7 +469,7 @@ class ApiController extends Controller {
      *
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 20, period: 60)]
+    #[UserRateLimit(limit: 20, period: 60)]
     public function reorderPages(?string $parentId = null, array $orderedIds = []): DataResponse {
         try {
             if (!is_array($orderedIds) || count($orderedIds) === 0) {
@@ -1436,7 +1436,7 @@ class ApiController extends Controller {
      *
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 20, period: 60)]
+    #[UserRateLimit(limit: 20, period: 60)]
     public function movePage(?string $pageId = null, ?string $targetParentId = null): DataResponse {
         try {
             if (!is_string($pageId) || $pageId === '') {
@@ -2563,15 +2563,13 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
-     * @BruteForceProtection(action="intravox_share_page")
      * @param string $token The NC share token
      * @param string $uniqueId The page's unique ID
      * @return JSONResponse
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     #[BruteForceProtection(action: 'intravox_share_page')]
     public function getPageByShare(string $token, string $uniqueId): JSONResponse {
         // Validate token format first (cheap check)
@@ -2735,13 +2733,12 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      * @param string $token The NC share token
      * @return JSONResponse
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getNavigationByShare(string $token): JSONResponse {
         // Validate token format
         if (!$this->isValidShareTokenFormat($token)) {
@@ -2856,13 +2853,12 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      * @param string $token The NC share token
      * @return JSONResponse
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getPageTreeByShare(string $token): JSONResponse {
         if (!$this->isValidShareTokenFormat($token)) {
             return $this->shareNotFoundResponse();
@@ -2944,13 +2940,12 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      * @param string $token The NC share token
      * @return JSONResponse
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getNewsByShare(string $token): JSONResponse {
         if (!$this->isValidShareTokenFormat($token)) {
             return $this->shareNotFoundResponse();
@@ -3460,7 +3455,6 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      * @param string $token The NC share token
      * @param string $uniqueId The page's unique ID
      * @param string $filename The media filename
@@ -3468,7 +3462,7 @@ class ApiController extends Controller {
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getMediaByShare(string $token, string $uniqueId, string $filename) {
         // Validate token format first (cheap check)
         if (!$this->isValidShareTokenFormat($token)) {
@@ -3597,14 +3591,13 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      * @param string $token The NC share token
      * @param string $filename The resource filename
      * @return Response
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getResourcesMediaByShare(string $token, string $filename) {
         // Validate token format first (cheap check)
         if (!$this->isValidShareTokenFormat($token)) {
@@ -3715,11 +3708,10 @@ class ApiController extends Controller {
      *
      * @PublicPage
      * @NoCSRFRequired
-     * @AnonRateThrottle(limit=60, period=60)
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function getResourcesMediaWithFolderByShare(string $token, string $folder, string $filename) {
         $path = $folder . '/' . $filename;
         return $this->getResourcesMediaByShare($token, $path);

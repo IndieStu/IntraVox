@@ -11,7 +11,7 @@ use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
-use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\TemplateResponse;
@@ -131,7 +131,7 @@ class PageController extends Controller {
     #[PublicPage]
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     #[BruteForceProtection(action: 'intravox_share_access')]
     public function index(): TemplateResponse {
         // Check if this is a share access request
@@ -236,7 +236,7 @@ class PageController extends Controller {
     #[PublicPage]
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     #[BruteForceProtection(action: 'intravox_share_access')]
     public function shareAccess(string $shareToken): TemplateResponse {
         $isAnonymous = $this->userSession->getUser() === null;
@@ -317,7 +317,7 @@ class PageController extends Controller {
     #[PublicPage]
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 10, period: 60)]
+    #[AnonRateLimit(limit: 10, period: 60)]
     #[BruteForceProtection(action: 'intravox_share_password')]
     public function shareAuthenticate(string $shareToken): TemplateResponse|RedirectResponse {
         // Validate the share token format

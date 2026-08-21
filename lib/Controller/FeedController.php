@@ -7,7 +7,7 @@ use OCA\IntraVox\Service\FeedService;
 use OCA\IntraVox\Service\FeedTokenService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\BruteForceProtection;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
@@ -40,7 +40,7 @@ class FeedController extends Controller {
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 30, period: 60)]
+    #[AnonRateLimit(limit: 30, period: 60)]
     #[BruteForceProtection(action: 'intravox_feed')]
     public function getFeed(string $token): Response {
         // Cheap format validation first
@@ -135,7 +135,7 @@ class FeedController extends Controller {
      */
     #[PublicPage]
     #[NoCSRFRequired]
-    #[AnonRateThrottle(limit: 60, period: 60)]
+    #[AnonRateLimit(limit: 60, period: 60)]
     #[BruteForceProtection(action: 'intravox_feed')]
     public function getFeedMedia(string $token, string $pageId, string $filename): Response {
         if (!$this->isValidFeedTokenFormat($token)) {

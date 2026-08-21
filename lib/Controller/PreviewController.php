@@ -9,7 +9,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\Attribute\UserRateThrottle;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\RedirectResponse;
@@ -76,7 +76,7 @@ class PreviewController extends Controller {
 	// comfortably under 600/min. Sustained 10 req/s is well below what NC's
 	// other preview-style endpoints allow, but enough to throttle an account
 	// trying to hammer a remote NC via our proxy.
-	#[UserRateThrottle(limit: 600, period: 60)]
+	#[UserRateLimit(limit: 600, period: 60)]
 	public function fetch(): \OCP\AppFramework\Http\Response {
 		$fileIdRaw = $this->request->getParam('file_id', null);
 		$xRaw = $this->request->getParam('x', '400');
@@ -210,7 +210,7 @@ class PreviewController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	#[UserRateThrottle(limit: 60, period: 60)]
+	#[UserRateLimit(limit: 60, period: 60)]
 	public function warmup(): DataResponse {
 		$raw = $this->request->getParam('file_ids', null);
 		if (is_string($raw)) {

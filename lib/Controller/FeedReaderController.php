@@ -8,8 +8,8 @@ use OCA\IntraVox\Service\FeedReaderService;
 use OCA\IntraVox\Service\PublicShareService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\AnonRateThrottle;
-use OCP\AppFramework\Http\Attribute\UserRateThrottle;
+use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
@@ -37,7 +37,7 @@ class FeedReaderController extends Controller {
      *
      * @return DataResponse
      */
-    #[UserRateThrottle(limit: 30, period: 60)]
+    #[UserRateLimit(limit: 30, period: 60)]
     public function getFeed(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -74,7 +74,7 @@ class FeedReaderController extends Controller {
      *
      * @return DataResponse
      */
-    #[UserRateThrottle(limit: 30, period: 60)]
+    #[UserRateLimit(limit: 30, period: 60)]
     public function getPreview(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -107,7 +107,7 @@ class FeedReaderController extends Controller {
      * @param string $token Share token
      * @return DataResponse
      */
-    #[AnonRateThrottle(limit: 30, period: 60)]
+    #[AnonRateLimit(limit: 30, period: 60)]
     public function getFeedByShare(string $token): DataResponse {
         try {
             $share = $this->publicShareService->getShareByToken($token);

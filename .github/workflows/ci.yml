@@ -135,3 +135,6 @@ jobs:
 
       - name: File budgets (ratchet)
         run: node scripts/check-file-budgets.js
+
+      - name: Security markers
+        run: node scripts/check-security-markers.js

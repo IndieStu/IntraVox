@@ -7,7 +7,7 @@ use OCA\IntraVox\Service\CommentService;
 use OCA\IntraVox\Service\PageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
-use OCP\AppFramework\Http\Attribute\UserRateThrottle;
+use OCP\AppFramework\Http\Attribute\UserRateLimit;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
@@ -106,7 +106,7 @@ class CommentController extends Controller {
      *
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 20, period: 60)]
+    #[UserRateLimit(limit: 20, period: 60)]
     public function createComment(string $pageId, string $message, ?string $parentId = null): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -256,7 +256,7 @@ class CommentController extends Controller {
      *
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 30, period: 60)]
+    #[UserRateLimit(limit: 30, period: 60)]
     public function addPageReaction(string $pageId, string $emoji): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -350,7 +350,7 @@ class CommentController extends Controller {
      *
      * @NoAdminRequired
      */
-    #[UserRateThrottle(limit: 30, period: 60)]
+    #[UserRateLimit(limit: 30, period: 60)]
     public function addCommentReaction(string $commentId, string $emoji): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to
