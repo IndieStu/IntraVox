@@ -161,13 +161,13 @@ diff rather than staying buried in 14 controllers.
 | POST | `/api/feed/token` | `feed#regenerateToken` | any logged-in user | required |
 | DELETE | `/api/feed/token` | `feed#revokeToken` | any logged-in user | required |
 | PUT | `/api/feed/config` | `feed#updateConfig` | any logged-in user | required |
-| GET | `/api/share/{token}/page/{uniqueId}` | `api#getPageByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/page/{uniqueId}/media/{filename}` | `api#getMediaByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/resources/media/{filename}` | `api#getResourcesMediaByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/resources/media/{folder}/{filename}` | `api#getResourcesMediaWithFolderByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/navigation` | `api#getNavigationByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/tree` | `api#getPageTreeByShare` | anonymous | exempt |
-| GET | `/api/share/{token}/news` | `api#getNewsByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/page/{uniqueId}` | `publicShare#getPageByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/page/{uniqueId}/media/{filename}` | `publicShare#getMediaByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/resources/media/{filename}` | `publicShare#getResourcesMediaByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/resources/media/{folder}/{filename}` | `publicShare#getResourcesMediaWithFolderByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/navigation` | `publicShare#getNavigationByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/tree` | `publicShare#getPageTreeByShare` | anonymous | exempt |
+| GET | `/api/share/{token}/news` | `publicShare#getNewsByShare` | anonymous | exempt |
 | GET | `/api/share/{token}/people` | `people#getPeopleByShare` | anonymous | exempt |
 | GET | `/api/share/{token}/calendar/events` | `calendar#getEventsByShare` | anonymous | exempt |
 | GET | `/api/share/{token}/feed/external` | `feedReader#getFeedByShare` | anonymous | exempt |

@@ -64,7 +64,7 @@ class SecurityMarkerTest extends IntegrationTestCase {
 	 * present and constructible — not merely spelled correctly.
 	 */
 	public function testShareEndpointsCarryAWorkingAnonRateLimit(): void {
-		$reflection = new \ReflectionClass(\OCA\IntraVox\Controller\ApiController::class);
+		$reflection = new \ReflectionClass(\OCA\IntraVox\Controller\PublicShareController::class);
 
 		foreach (['getPageByShare', 'getNavigationByShare', 'getNewsByShare'] as $method) {
 			$attributes = $reflection->getMethod($method)
@@ -110,7 +110,7 @@ class SecurityMarkerTest extends IntegrationTestCase {
 	 * attribute, whose action string is not mangled by the annotation parser.
 	 */
 	public function testShareEndpointBruteForceActionMatchesTheRegisteredAction(): void {
-		$attributes = (new \ReflectionClass(\OCA\IntraVox\Controller\ApiController::class))
+		$attributes = (new \ReflectionClass(\OCA\IntraVox\Controller\PublicShareController::class))
 			->getMethod('getPageByShare')
 			->getAttributes(BruteForceProtection::class);
 

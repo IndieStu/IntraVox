@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Tests\Unit\Controller;
 
-use OCA\IntraVox\Controller\ApiController;
+use OCA\IntraVox\Controller\PublicShareController;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -21,10 +21,10 @@ use PHPUnit\Framework\TestCase;
 class ShareScopeFailClosedTest extends TestCase {
 
 	private function extract(array $tree, string $scopePath): array {
-		$method = new \ReflectionMethod(ApiController::class, 'extractSubtreeByScope');
+		$method = new \ReflectionMethod(PublicShareController::class, 'extractSubtreeByScope');
 
 		return $method->invoke(
-			(new \ReflectionClass(ApiController::class))->newInstanceWithoutConstructor(),
+			(new \ReflectionClass(PublicShareController::class))->newInstanceWithoutConstructor(),
 			$tree,
 			$scopePath
 		);

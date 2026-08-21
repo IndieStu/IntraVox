@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Tests\Unit\Controller;
 
-use OCA\IntraVox\Controller\ApiController;
+use OCA\IntraVox\Controller\PublicShareController;
 use OCA\IntraVox\Service\PageService;
 use PHPUnit\Framework\TestCase;
 
@@ -23,21 +23,21 @@ use PHPUnit\Framework\TestCase;
 class PublicNewsPublicationGateTest extends TestCase {
 
 	/** @param list<string> $hiddenIds ids isHiddenFromReaders() should reject */
-	private function controller(array $hiddenIds): ApiController {
+	private function controller(array $hiddenIds): PublicShareController {
 		$pageService = $this->createMock(PageService::class);
 		$pageService->method('isHiddenFromReaders')->willReturnCallback(
 			static fn (array $page): bool => in_array($page['uniqueId'] ?? '', $hiddenIds, true)
 		);
 
-		$controller = (new \ReflectionClass(ApiController::class))->newInstanceWithoutConstructor();
-		(new \ReflectionProperty(ApiController::class, 'pageService'))->setValue($controller, $pageService);
+		$controller = (new \ReflectionClass(PublicShareController::class))->newInstanceWithoutConstructor();
+		(new \ReflectionProperty(PublicShareController::class, 'pageService'))->setValue($controller, $pageService);
 
 		return $controller;
 	}
 
 	/** @param list<array<string,mixed>> $items */
-	private function filter(ApiController $controller, array $items): array {
-		$method = new \ReflectionMethod(ApiController::class, 'filterUnpublishedNewsItems');
+	private function filter(PublicShareController $controller, array $items): array {
+		$method = new \ReflectionMethod(PublicShareController::class, 'filterUnpublishedNewsItems');
 
 		return $method->invoke($controller, $items);
 	}
