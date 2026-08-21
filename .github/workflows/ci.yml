@@ -129,3 +129,6 @@ jobs:
 
       - name: Facet serialization
         run: node scripts/check-facet-serialization.js
+
+      - name: Line endings
+        run: node scripts/check-eol-consistency.js
