@@ -4,7 +4,7 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [Unreleased] — Security hardening: shares, rate limits and uploads
+## [2.3.0] - 2026-08-21 - Security hardening: shares, rate limits and uploads
 
 A hardening pass over the parts of the app that face anonymous visitors, plus
 the packaging fix below. Several protections that were meant to be active turned
