@@ -7,6 +7,7 @@ use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Service\PhotoStory\ExifReader;
 use OCA\IntraVox\Service\PhotoStory\GeocodeCache;
 use OCA\IntraVox\Service\PhotoStory\NCFilesMetadataReader;
+use OCA\IntraVox\Service\GroupFolders\GroupFoldersGateway;
 use OCP\App\IAppManager;
 use OCP\Files\Folder;
 use OCP\Files\IMimeTypeLoader;
@@ -191,10 +192,16 @@ class PhotoStoryService {
 		private ICacheFactory $cacheFactory,
 		private IL10N $l10n,
 		private LoggerInterface $logger,
+		private ?GroupFoldersGateway $groupFoldersGateway = null,
 	) {
 		// createDistributed() returns Redis when configured, APCu otherwise,
 		// and a NoOp cache in dev/test setups. Never null.
 		$this->cache = $this->cacheFactory->createDistributed('intravox.photostory.');
+	}
+
+	/** The groupfolders gateway, built on demand for hand-constructed instances. */
+	private function groupFolders(): GroupFoldersGateway {
+		return $this->groupFoldersGateway ??= new GroupFoldersGateway($this->appManager, $this->logger);
 	}
 
 	/**
@@ -2608,9 +2615,9 @@ class PhotoStoryService {
 			if (!$this->appManager->isEnabledForUser('groupfolders')) {
 				return [];
 			}
-			/** @var \OCA\GroupFolders\Folder\FolderManager $fm */
-			$fm = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-			$folders = $fm->getFoldersForUser($user);
+			// Through the gateway (GFG-0). The row shape still differs per
+			// groupfolders release, so the normalisation below stays here.
+			$folders = $this->groupFolders()->foldersForUser($user);
 			$ids = [];
 			foreach ($folders as $entry) {
 				// FolderManager evolved across NC versions / GroupFolders releases:

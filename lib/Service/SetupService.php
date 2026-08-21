@@ -12,6 +12,7 @@ use OCP\IUserSession;
 use OCP\Share\IManager as IShareManager;
 use OCP\Share\IShare;
 use OCP\IGroupManager;
+use OCA\IntraVox\Service\GroupFolders\GroupFoldersGateway;
 use OCP\App\IAppManager;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\Process\Process;
@@ -39,6 +40,7 @@ class SetupService {
      * @var array<string, int|null>
      */
     private array $groupFolderIdCache = [];
+    private GroupFoldersGateway $groupFolders;
 
     public function __construct(
         IRootFolder $rootFolder,
@@ -48,7 +50,8 @@ class SetupService {
         IShareManager $shareManager,
         IGroupManager $groupManager,
         LanguageService $languageService,
-        IAppManager $appManager
+        IAppManager $appManager,
+        ?GroupFoldersGateway $groupFolders = null
     ) {
         $this->rootFolder = $rootFolder;
         $this->config = $config;
@@ -57,6 +60,9 @@ class SetupService {
         $this->shareManager = $shareManager;
         $this->groupManager = $groupManager;
         $this->languageService = $languageService;
+        // Optional so the many manual constructions in tests and occ keep working;
+        // built on demand from the same dependencies when absent.
+        $this->groupFolders = $groupFolders ?? new GroupFoldersGateway($appManager, $logger);
         $this->appManager = $appManager;
     }
 
@@ -202,7 +208,11 @@ class SetupService {
     private function configureGroupfolderPermissions(int $folderId): void {
         try {
             $this->logger->info("Getting FolderManager for permissions configuration...");
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
+            // Setup-only group wiring: addApplicableGroup/setGroupPermissions have
+            // no gateway wrapper because nothing else calls them. Reached through
+            // the gateway's escape hatch so there is still exactly one place that
+            // resolves FolderManager (GFG-0).
+            $groupfolderManager = $this->groupFolders->folderManager();
 
             // Define groups to configure
             $groupsToAdd = [
@@ -376,18 +386,9 @@ class SetupService {
             return $this->groupFolderIdCache[$folderName];
         }
 
-        $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-        $folders = $groupfolderManager->getAllFolders();
-        $folderId = null;
-        $highestId = 0;
-
-        foreach ($folders as $id => $folderData) {
-            $mountPoint = $this->getMountPointFromFolderData($folderData);
-            if ($mountPoint === $folderName && $id > $highestId) {
-                $folderId = (int)$id;
-                $highestId = $id;
-            }
-        }
+        // The walk itself lives in GroupFoldersGateway (SE-1). This local cache
+        // stays because callers here also memoise "not found" between setup steps.
+        $folderId = $this->groupFolders->findFolderIdByMountPoint($folderName);
 
         $this->groupFolderIdCache[$folderName] = $folderId;
 
@@ -655,33 +656,18 @@ class SetupService {
      * @throws \Exception if groupfolder not found
      */
     public function getGroupFolderId(): int {
-        try {
-            if (!$this->appManager->isEnabledForUser('groupfolders')) {
-                throw new \Exception('Groupfolders app is not enabled');
-            }
-
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-            $folders = $groupfolderManager->getAllFolders();
-            $folderId = null;
-            $highestId = 0;
-
-            foreach ($folders as $id => $folderData) {
-                $mountPoint = $this->getMountPointFromFolderData($folderData);
-                if ($mountPoint === self::GROUPFOLDER_NAME && $id > $highestId) {
-                    $folderId = $id;
-                    $highestId = $id;
-                }
-            }
-
-            if ($folderId === null) {
-                throw new \Exception('IntraVox groupfolder not found');
-            }
-
-            return $folderId;
-
-        } catch (\Exception $e) {
-            throw new \Exception('Failed to get groupfolder ID: ' . $e->getMessage());
+        if (!$this->groupFolders->isAvailable()) {
+            throw new \Exception('Failed to get groupfolder ID: Groupfolders app is not enabled');
         }
+
+        // Same resolution as everywhere else, through the one chokepoint (SE-1).
+        $folderId = $this->groupFolders->findFolderIdByMountPoint(self::GROUPFOLDER_NAME);
+
+        if ($folderId === null) {
+            throw new \Exception('Failed to get groupfolder ID: IntraVox groupfolder not found');
+        }
+
+        return $folderId;
     }
 
     /**
@@ -730,38 +716,28 @@ class SetupService {
      */
     private function createOrGetGroupfolderByName(string $folderName): ?int {
         try {
-            if (!$this->appManager->isEnabledForUser('groupfolders')) {
+            if (!$this->groupFolders->isAvailable()) {
                 $this->logger->error('Groupfolders app is not enabled');
                 return null;
             }
 
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-            $folders = $groupfolderManager->getAllFolders();
-
-            $existingFolderId = null;
-            $highestId = 0;
-
-            foreach ($folders as $id => $folderData) {
-                $mountPoint = $this->getMountPointFromFolderData($folderData);
-                if ($mountPoint === $folderName && $id > $highestId) {
-                    $existingFolderId = $id;
-                    $highestId = $id;
-                }
-            }
+            // Resolution through the one chokepoint (SE-1).
+            $existingFolderId = $this->groupFolders->findFolderIdByMountPoint($folderName);
 
             if ($existingFolderId !== null) {
                 $this->logger->info("Using existing groupfolder '{$folderName}' with ID: {$existingFolderId}");
                 return $existingFolderId;
             }
 
-            $folderId = $groupfolderManager->createFolder($folderName);
-            // Setup runs in the same request that may already have looked this
-            // name up and memoised "not found"; drop that so the folder we just
-            // created is visible to getSharedFolder() below.
-            unset($this->groupFolderIdCache[$folderName]);
-            $this->logger->info("Created groupfolder '{$folderName}' with ID: {$folderId}");
-            return $folderId;
+            $folderId = $this->groupFolders->createFolder($folderName);
 
+            // Setup runs in the same request that may already have looked this
+            // name up and memoised "not found"; drop both caches so the folder we
+            // just created is visible to getSharedFolder() below.
+            unset($this->groupFolderIdCache[$folderName]);
+
+            $this->logger->info("Created groupfolder '{$folderName}' with ID: " . var_export($folderId, true));
+            return $folderId;
         } catch (\Exception $e) {
             $this->logger->error("Exception in createOrGetGroupfolderByName('{$folderName}'): " . $e->getMessage());
             return null;

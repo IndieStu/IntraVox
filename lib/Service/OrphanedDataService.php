@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace OCA\IntraVox\Service;
 
 use OCP\IConfig;
+use OCA\IntraVox\Service\GroupFolders\GroupFoldersGateway;
 use OCP\App\IAppManager;
 use Psr\Log\LoggerInterface;
 
@@ -27,19 +28,22 @@ class OrphanedDataService {
     private LoggerInterface $logger;
     private LanguageService $languageService;
     private IAppManager $appManager;
+    private GroupFoldersGateway $groupFolders;
 
     public function __construct(
         IConfig $config,
         SetupService $setupService,
         LoggerInterface $logger,
         LanguageService $languageService,
-        IAppManager $appManager
+        IAppManager $appManager,
+        ?GroupFoldersGateway $groupFolders = null
     ) {
         $this->config = $config;
         $this->setupService = $setupService;
         $this->logger = $logger;
         $this->languageService = $languageService;
         $this->appManager = $appManager;
+        $this->groupFolders = $groupFolders ?? new GroupFoldersGateway($appManager, $logger);
     }
 
     /**
@@ -326,15 +330,14 @@ class OrphanedDataService {
      */
     private function getRegisteredGroupFolderIds(): array {
         try {
-            if (!$this->appManager->isEnabledForUser('groupfolders')) {
+            if (!$this->groupFolders->isAvailable()) {
                 $this->logger->warning('[OrphanedData] GroupFolders app is not enabled');
                 return [];
             }
 
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-            $folders = $groupfolderManager->getAllFolders();
-
-            return array_map('intval', array_keys($folders));
+            // Through the gateway (GFG-0); the orphan scan is the one caller that
+            // legitimately wants every folder id.
+            return $this->groupFolders->allFolderIds();
 
         } catch (\Exception $e) {
             $this->logger->error('[OrphanedData] Failed to get registered folders: ' . $e->getMessage());

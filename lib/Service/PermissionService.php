@@ -12,6 +12,7 @@ use OCP\IGroupManager;
 use OCP\IConfig;
 use OCP\IUserManager;
 use OCP\IDBConnection;
+use OCA\IntraVox\Service\GroupFolders\GroupFoldersGateway;
 use OCP\App\IAppManager;
 use OCP\Constants;
 use Psr\Log\LoggerInterface;
@@ -62,6 +63,7 @@ class PermissionService {
      * @var array<string, int|null>
      */
     private array $groupFolderIdCache = [];
+    private GroupFoldersGateway $groupFolders;
 
     /** Distributed cache TTL for the per-language page path map (5 minutes). */
     private const PAGE_PATH_MAP_TTL = 300;
@@ -77,7 +79,8 @@ class PermissionService {
         IUserManager $userManager,
         IDBConnection $db,
         IAppManager $appManager,
-        ?string $userId
+        ?string $userId,
+        ?GroupFoldersGateway $groupFolders = null
     ) {
         $this->rootFolder = $rootFolder;
         $this->userSession = $userSession;
@@ -89,6 +92,8 @@ class PermissionService {
         $this->db = $db;
         $this->appManager = $appManager;
         $this->userId = $userId;
+        // Optional: 11 test files build this service without a container.
+        $this->groupFolders = $groupFolders ?? new GroupFoldersGateway($appManager, $logger);
 
         if ($cacheFactory->isAvailable()) {
             $this->distributedCache = $cacheFactory->createDistributed('intravox-permissions');
@@ -125,50 +130,28 @@ class PermissionService {
      * it is now called once per request rather than once per check.
      */
     protected function resolveGroupFolderId(string $folderName): ?int {
-        try {
-            if (!$this->appManager->isEnabledForUser('groupfolders')) {
-                $this->logger->warning(
-                    'IntraVox permission check with the groupfolders app disabled; denying access. '
-                    . 'IntraVox stores all content in a groupfolder, so this is a broken installation, '
-                    . 'not an unconfigured one.'
-                );
-                return null;
-            }
-
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-            $folders = $groupfolderManager->getAllFolders();
-            $highestId = 0;
-            $folderId = null;
-
-            foreach ($folders as $id => $folderData) {
-                $mountPoint = null;
-                if (is_object($folderData)) {
-                    $mountPoint = property_exists($folderData, 'mountPoint') ? $folderData->mountPoint :
-                                 (method_exists($folderData, 'getMountPoint') ? $folderData->getMountPoint() : null);
-                } else {
-                    $mountPoint = $folderData['mount_point'] ?? null;
-                }
-
-                if ($mountPoint === $folderName && $id > $highestId) {
-                    $folderId = (int)$id;
-                    $highestId = $id;
-                }
-            }
-
-            if ($folderId === null) {
-                $this->logger->warning(
-                    'No groupfolder named "' . $folderName . '" found; denying access. '
-                    . 'Either IntraVox has not been set up yet, or the groupfolder was renamed '
-                    . '(resolution is by mount point name).'
-                );
-            }
-
-            return $folderId;
-        } catch (\Exception $e) {
-            $this->logger->error('Failed to get GroupFolder ID: ' . $e->getMessage());
+        if (!$this->groupFolders->isAvailable()) {
+            $this->logger->warning(
+                'IntraVox permission check with the groupfolders app disabled; denying access. '
+                . 'IntraVox stores all content in a groupfolder, so this is a broken installation, '
+                . 'not an unconfigured one.'
+            );
+            return null;
         }
 
-        return null;
+        // One chokepoint for the walk (SE-1). This used to be a fourth copy of
+        // the same loop, with its own inline mount-point extraction.
+        $folderId = $this->groupFolders->findFolderIdByMountPoint($folderName);
+
+        if ($folderId === null) {
+            $this->logger->warning(
+                'No groupfolder named "' . $folderName . '" found; denying access. '
+                . 'Either IntraVox has not been set up yet, or the groupfolder was renamed '
+                . '(resolution is by mount point name).'
+            );
+        }
+
+        return $folderId;
     }
 
     /**
@@ -222,8 +205,6 @@ class PermissionService {
         }
 
         try {
-            $groupfolderManager = \OC::$server->get(\OCA\GroupFolders\Folder\FolderManager::class);
-
             // Get user's groups
             $user = $this->userManager->get($userId);
             if (!$user) {
@@ -238,7 +219,7 @@ class PermissionService {
             // methods), so this is not a behaviour change — but it was a call
             // that only looked correct, and any groupfolders release that adds
             // a second parameter would have started feeding it our storage id.
-            $folderData = $groupfolderManager->getFolder($folderId);
+            $folderData = $this->groupFolders->getFolder($folderId);
 
             // Calculate base permissions from group membership
             $basePermissions = 0;
