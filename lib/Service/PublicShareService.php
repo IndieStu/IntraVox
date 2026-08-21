@@ -237,6 +237,40 @@ class PublicShareService {
     }
 
     /**
+     * Has this session unlocked a password-protected share? (SHARE-PW)
+     *
+     * The password check lived only in ApiController, so People, Calendar and
+     * FeedReader served a password-protected share to anyone holding the token —
+     * verified on nc-dev: with a password set, /navigation returned 401 while
+     * /people and /calendar/events still returned 200.
+     *
+     * Putting it here means every controller answers the same question the same
+     * way. Returns true when the share needs no password, or when the session
+     * carries the right one.
+     */
+    public function isShareUnlocked(string $token, ?string $sessionPassword): bool {
+        try {
+            if (!$this->shareRequiresPassword($token)) {
+                return true;
+            }
+        } catch (\Throwable $e) {
+            // Unknown share: not our call to answer, the share gate handles it.
+            return true;
+        }
+
+        if ($sessionPassword === null || $sessionPassword === '') {
+            return false;
+        }
+
+        return $this->checkSharePassword($token, $sessionPassword);
+    }
+
+    /** The session key a share password is stored under. */
+    public function sharePasswordSessionKey(string $token): string {
+        return 'intravox_share_pw_' . $token;
+    }
+
+    /**
      * Resolve a token to an IntraVox link share, or null. (SHARE-ROOT)
      *
      * This is THE gate for every anonymous endpoint. getShareByToken() used to

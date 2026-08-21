@@ -112,6 +112,8 @@ class PeopleControllerFacetTest extends TestCase {
 		);
 
 		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		// These cases are about the people projection, not the password gate.
+		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
 
 		// The faceted path must never be entered.
 		$this->userService->expects($this->never())->method('queryFaceted');
@@ -144,6 +146,8 @@ class PeopleControllerFacetTest extends TestCase {
 	 */
 	public function testPublicShareReturnsNoPeopleByDefault(): void {
 		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		// These cases are about the people projection, not the password gate.
+		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
 		$this->userService->expects($this->never())->method('getUsersByFilters');
 
 		$response = $this->controller->getPeopleByShare(
@@ -175,6 +179,8 @@ class PeopleControllerFacetTest extends TestCase {
 		);
 
 		$this->publicShareService->method('resolveIntraVoxLinkShare')->willReturn($this->createMock(\OCP\Share\IShare::class));
+		// These cases are about the people projection, not the password gate.
+		$this->publicShareService->method('isShareUnlocked')->willReturn(true);
 		$this->userService->method('getUsersByFilters')->willReturn([
 			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
 			'total' => 1,

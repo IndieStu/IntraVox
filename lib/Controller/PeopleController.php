@@ -14,6 +14,7 @@ use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\IConfig;
 use OCP\IRequest;
+use OCP\ISession;
 use OCP\IURLGenerator;
 use Psr\Log\LoggerInterface;
 
@@ -53,7 +54,8 @@ class PeopleController extends Controller {
         private LoggerInterface $logger,
         private ?IActivityManager $activityManager = null,
         private ?IURLGenerator $urlGenerator = null,
-        private ?IConfig $config = null
+        private ?IConfig $config = null,
+        private ?ISession $session = null
     ) {
         parent::__construct($appName, $request);
     }
@@ -354,6 +356,18 @@ class PeopleController extends Controller {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],
                     Http::STATUS_FORBIDDEN
+                );
+            }
+            // A password-protected share must stay locked here too (SHARE-PW). The
+            // check used to live only in ApiController, so this endpoint served a
+            // protected share to anyone holding the token.
+            if (!$this->publicShareService->isShareUnlocked(
+                $token,
+                $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
+            )) {
+                return new DataResponse(
+                    ['error' => 'Password required', 'passwordRequired' => true],
+                    Http::STATUS_UNAUTHORIZED
                 );
             }
 

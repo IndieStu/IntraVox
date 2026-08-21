@@ -14,6 +14,7 @@ use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
+use OCP\ISession;
 use Psr\Log\LoggerInterface;
 
 class FeedReaderController extends Controller {
@@ -25,6 +26,7 @@ class FeedReaderController extends Controller {
         private IGroupManager $groupManager,
         private LoggerInterface $logger,
         private ?string $userId = null,
+        private ?ISession $session = null,
     ) {
         parent::__construct($appName, $request);
     }
@@ -117,6 +119,18 @@ class FeedReaderController extends Controller {
                     Http::STATUS_FORBIDDEN
                 );
             }
+            // A password-protected share must stay locked here too (SHARE-PW). The
+            // check used to live only in ApiController, so this endpoint served a
+            // protected share to anyone holding the token.
+            if (!$this->publicShareService->isShareUnlocked(
+                $token,
+                $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
+            )) {
+                return new DataResponse(
+                    ['error' => 'Password required', 'passwordRequired' => true],
+                    Http::STATUS_UNAUTHORIZED
+                );
+            }
 
             $sourceType = $this->request->getParam('sourceType', 'rss');
             $limit = (int)$this->request->getParam('limit', 5);
@@ -166,6 +180,18 @@ class FeedReaderController extends Controller {
             return new DataResponse(
                 ['error' => 'Invalid or expired share token'],
                 Http::STATUS_FORBIDDEN
+            );
+        }
+        // A password-protected share must stay locked here too (SHARE-PW). The
+        // check used to live only in ApiController, so this endpoint served a
+        // protected share to anyone holding the token.
+        if (!$this->publicShareService->isShareUnlocked(
+            $token,
+            $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
+        )) {
+            return new DataResponse(
+                ['error' => 'Password required', 'passwordRequired' => true],
+                Http::STATUS_UNAUTHORIZED
             );
         }
         return $this->handleProxyImage();

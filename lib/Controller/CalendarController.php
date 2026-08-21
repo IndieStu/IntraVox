@@ -10,6 +10,7 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
+use OCP\ISession;
 use Psr\Log\LoggerInterface;
 
 class CalendarController extends Controller {
@@ -20,6 +21,7 @@ class CalendarController extends Controller {
         private PublicShareService $publicShareService,
         private LoggerInterface $logger,
         private ?string $userId = null,
+        private ?ISession $session = null,
     ) {
         parent::__construct($appName, $request);
     }
@@ -140,6 +142,18 @@ class CalendarController extends Controller {
                 return new DataResponse(
                     ['error' => 'Invalid or expired share token'],
                     Http::STATUS_FORBIDDEN
+                );
+            }
+            // A password-protected share must stay locked here too (SHARE-PW). The
+            // check used to live only in ApiController, so this endpoint served a
+            // protected share to anyone holding the token.
+            if (!$this->publicShareService->isShareUnlocked(
+                $token,
+                $this->session?->get($this->publicShareService->sharePasswordSessionKey($token))
+            )) {
+                return new DataResponse(
+                    ['error' => 'Password required', 'passwordRequired' => true],
+                    Http::STATUS_UNAUTHORIZED
                 );
             }
 
