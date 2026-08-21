@@ -307,7 +307,7 @@ or changes UI.
 
 For **every** feature/fix in this release, confirm both halves, because the two drift apart easily:
 
-1. **Exposed at the API layer** (not just the frontend). A widget config field or page mutation only "works via the API" if the **backend accepts and persists it**. The classic trap: a new widget-config key is added in the Vue editor but the backend `sanitizeWidget`/`sanitizePage` allowlist in `lib/Service/PageService.php` silently drops it — the setting reverts on reload. Every new config key MUST be added to that allowlist (this is what broke `paginationMode`/`pageSize` in 1.9.0 until added). Verify by round-tripping through the real service, e.g.:
+1. **Exposed at the API layer** (not just the frontend). A widget config field or page mutation only "works via the API" if the **backend accepts and persists it**. The classic trap: a new widget-config key is added in the Vue editor but the backend `sanitizeWidget`/`sanitizePage` allowlist in `lib/Service/Sanitize/PageShapeSanitizer.php` silently drops it (PageService still has same-named private wrappers that delegate there — the allowlist itself moved) — the setting reverts on reload. Every new config key MUST be added to that allowlist (this is what broke `paginationMode`/`pageSize` in 1.9.0 until added). Verify by round-tripping through the real service, e.g.:
    ```bash
    # Adjust the widget/config to the release's new fields, then confirm they survive sanitizePage:
    ssh rik@<nc-dev> "docker exec -u www-data nc-dev php -r '…sanitizePage(…); // assert the new keys are still present'"
@@ -322,6 +322,53 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 - [ ] Bump `openapi.json` `"version"` to match (see §3 — `sync-version.js` does not touch it).
 - [ ] Verify all public share endpoints are documented
 - [ ] Update response schemas if changed
+
+---
+
+## 4b. Quality gate — run what CI runs
+
+Since the F0–F7 refactor the repository has an automated gate, and it is the
+same one `.gitea/workflows/ci.yml` runs on every push. **Run all of it locally
+before tagging**, not a subset — a guard you have not heard of still fails the
+pipeline.
+
+- [ ] Every guard, in one go:
+  ```bash
+  for s in lint:imports lint:facets lint:eol lint:budgets lint:security lint:routes; do
+    printf '%-16s ' "$s"; npm run --silent $s >/dev/null 2>&1 && echo ok || echo FAIL
+  done
+  ```
+  | script | what it refuses |
+  |---|---|
+  | `lint:imports` | mixed sync/async `.vue` imports (webpack chunk race) |
+  | `lint:facets` | facet serialisation that does not round-trip |
+  | `lint:eol` | a new CRLF file, or any mixed-ending file |
+  | `lint:budgets` | a file that grew; the ratchet only lets sizes fall |
+  | `lint:security` | a rate-limit/brute-force marker that cannot fire |
+  | `lint:routes` | `docs/route-table.md` out of date vs the controllers |
+
+- [ ] PHP unit tests:
+  ```bash
+  ./vendor/bin/phpunit --testsuite Unit --no-coverage
+  ```
+- [ ] Integration tests, on a real Nextcloud (they need the NC autoloader):
+  ```bash
+  ./scripts/run-integration-tests.sh
+  ```
+- [ ] If `lint:budgets` reports growth, **extract code rather than raising the
+      budget**. `npm run lint:budgets -- --update` is for recording genuinely new
+      files — run it *after* creating them, then re-run the plain check and
+      confirm it exits 0. Recording a baseline before the files exist silently
+      leaves them unbudgeted.
+- [ ] If `lint:routes` is red, regenerate and review the diff — a changed
+      handler name is expected after a controller move; a changed **URL** is not:
+      ```bash
+      npm run route-table && git diff docs/route-table.md
+      ```
+
+> The anonymous attack surface is pinned by `PublicEndpointInventoryTest`. If it
+> fails, a `#[PublicPage]` was added or moved — that is a deliberate decision to
+> review, never something to make green by editing the expectation.
 
 ---
 
@@ -417,11 +464,23 @@ The `.tx/`, `.l10nignore`, and `translationfiles/` are dev-only artefacts for Tr
 
 **Root folder must be `intravox` (lowercase, no version number)**
 
+> ⚠️ **`vendor/` MUST be in the tarball.** `Application.php` requires
+> `vendor/autoload.php` behind a `file_exists()`, so a package without it fails
+> **silently**: `enshrined/svg-sanitize` and `lsolesen/pel` are simply absent and
+> the first SVG upload is a fatal. Build the vendor tree with `--no-dev` in a
+> scratch directory so phpunit/mockery never reach an end-user install.
+
+**Prefer `./create-release.sh`**, which does all of the below and runs the
+packaging guard itself. The manual recipe is the fallback:
+
 ```bash
 TEMP_DIR=$(mktemp -d) && \
-mkdir -p "$TEMP_DIR/intravox" && \
+mkdir -p "$TEMP_DIR/intravox" "$TEMP_DIR/vendor-build" && \
 cp -r appinfo lib l10n templates css img js demo-data "$TEMP_DIR/intravox/" && \
-cp CHANGELOG.md LICENSE README.md "$TEMP_DIR/intravox/" && \
+cp CHANGELOG.md LICENSE README.md composer.json composer.lock "$TEMP_DIR/intravox/" && \
+cp composer.json composer.lock "$TEMP_DIR/vendor-build/" && \
+(cd "$TEMP_DIR/vendor-build" && composer install --no-dev --optimize-autoloader --no-interaction) && \
+cp -r "$TEMP_DIR/vendor-build/vendor" "$TEMP_DIR/intravox/" && \
 cd "$TEMP_DIR" && \
 tar -czf intravox-X.Y.Z.tar.gz intravox && \
 mv intravox-X.Y.Z.tar.gz /Users/rikdekker/Documents/Development/IntraVox/ && \
@@ -429,6 +488,18 @@ rm -rf "$TEMP_DIR"
 ```
 
 ### 9.2 Tarball Security Check (CRITICAL!)
+
+**Run the versioned guard first** — it is the same check CI runs, so a green
+local run means a green pipeline:
+
+```bash
+./scripts/check-package-contents.sh intravox-X.Y.Z.tar.gz
+```
+
+It asserts the three things that have actually gone wrong before: `vendor/` and
+`vendor/autoload.php` are present, `svg-sanitize` and `pel` are present, dev
+dependencies (phpunit/mockery/vendor-bin) are absent, and no key material is
+packaged. The manual checks below remain useful when diagnosing a failure:
 
 ```bash
 # Verify no sensitive files
@@ -530,6 +601,13 @@ git merge github/main --no-edit
 # 2. Prep — do NOT run npm run l10n:generate-js (js is the bot's output)
 npm run build                                # prebuild re-runs check-l10n-sync.js
 
+# 2b. Quality gate — all of it, not a subset (§4b)
+for s in lint:imports lint:facets lint:eol lint:budgets lint:security lint:routes; do
+  printf '%-16s ' "$s"; npm run --silent $s >/dev/null 2>&1 && echo ok || echo FAIL
+done
+./vendor/bin/phpunit --testsuite Unit --no-coverage
+./scripts/run-integration-tests.sh
+
 # 3. Commit & tag
 git add -A
 git commit -s -m "Release vX.Y.Z - [Label]"
@@ -540,6 +618,7 @@ git push github main --tags
 git push gitea main --tags
 
 # 5. Tarball — AFTER step 1 merged, never before (see section 9.1)
+./create-release.sh X.Y.Z "Label" "Description"   # ships vendor/ and self-tests
 
 # 6. Deploy & test
 ./deploy.sh  # select 3dev
