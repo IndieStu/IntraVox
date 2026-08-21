@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service\Sanitize;
 
-use OCA\IntraVox\AppInfo\Application;
 use OCA\IntraVox\Constants;
 use OCP\IConfig;
 use Psr\Log\LoggerInterface;
@@ -432,7 +431,7 @@ final class PageShapeSanitizer {
                 // Layout options
                 $allowedLayouts = ['list', 'grid', 'carousel'];
                 $sanitized['layout'] = in_array($widget['layout'] ?? 'list', $allowedLayouts)
-                    ? $widget['layout']
+                    ? ($widget['layout'] ?? 'list')
                     : 'list';
 
                 // Grid columns (2-4)
@@ -444,12 +443,12 @@ final class PageShapeSanitizer {
                 // Sort options
                 $allowedSortBy = ['modified', 'title'];
                 $sanitized['sortBy'] = in_array($widget['sortBy'] ?? 'modified', $allowedSortBy)
-                    ? $widget['sortBy']
+                    ? ($widget['sortBy'] ?? 'modified')
                     : 'modified';
 
                 $allowedSortOrder = ['asc', 'desc'];
                 $sanitized['sortOrder'] = in_array($widget['sortOrder'] ?? 'desc', $allowedSortOrder)
-                    ? $widget['sortOrder']
+                    ? ($widget['sortOrder'] ?? 'desc')
                     : 'desc';
 
                 // Display options (booleans)
@@ -511,7 +510,7 @@ final class PageShapeSanitizer {
 
                 $allowedFilterOperators = ['AND', 'OR'];
                 $sanitized['filterOperator'] = in_array($widget['filterOperator'] ?? 'AND', $allowedFilterOperators)
-                    ? $widget['filterOperator']
+                    ? ($widget['filterOperator'] ?? 'AND')
                     : 'AND';
 
                 // Publication date filter (show only published pages)
@@ -525,7 +524,7 @@ final class PageShapeSanitizer {
                 // Selection mode
                 $allowedModes = ['manual', 'filter'];
                 $sanitized['selectionMode'] = in_array($widget['selectionMode'] ?? 'manual', $allowedModes)
-                    ? $widget['selectionMode']
+                    ? ($widget['selectionMode'] ?? 'manual')
                     : 'manual';
 
                 // Selected users (array of user IDs for manual mode)
@@ -574,13 +573,13 @@ final class PageShapeSanitizer {
 
                 $allowedFilterOperators = ['AND', 'OR'];
                 $sanitized['filterOperator'] = in_array($widget['filterOperator'] ?? 'AND', $allowedFilterOperators)
-                    ? $widget['filterOperator']
+                    ? ($widget['filterOperator'] ?? 'AND')
                     : 'AND';
 
                 // Layout options
                 $allowedLayouts = ['card', 'list', 'grid'];
                 $sanitized['layout'] = in_array($widget['layout'] ?? 'card', $allowedLayouts)
-                    ? $widget['layout']
+                    ? ($widget['layout'] ?? 'card')
                     : 'card';
 
                 // Grid/card columns (2-4)
@@ -592,12 +591,12 @@ final class PageShapeSanitizer {
                 // Sort options
                 $allowedSortBy = ['displayName', 'email'];
                 $sanitized['sortBy'] = in_array($widget['sortBy'] ?? 'displayName', $allowedSortBy)
-                    ? $widget['sortBy']
+                    ? ($widget['sortBy'] ?? 'displayName')
                     : 'displayName';
 
                 $allowedSortOrder = ['asc', 'desc'];
                 $sanitized['sortOrder'] = in_array($widget['sortOrder'] ?? 'asc', $allowedSortOrder)
-                    ? $widget['sortOrder']
+                    ? ($widget['sortOrder'] ?? 'asc')
                     : 'asc';
 
                 // Display options (showFields object)
@@ -667,7 +666,7 @@ final class PageShapeSanitizer {
                 // Date range
                 $allowedRanges = ['upcoming', 'this_week', 'next_two_weeks', 'this_month', 'next_three_months', 'next_six_months', 'next_year', 'past_week', 'past_month', 'past_three_months'];
                 $sanitized['dateRange'] = in_array($widget['dateRange'] ?? 'upcoming', $allowedRanges)
-                    ? $widget['dateRange']
+                    ? ($widget['dateRange'] ?? 'upcoming')
                     : 'upcoming';
 
                 // Limit (1-20 events)
@@ -689,7 +688,7 @@ final class PageShapeSanitizer {
                 $sanitizedConfig['folderPath'] = $this->sanitizeFolderPath($config['folderPath'] ?? '');
                 $allowedModes = ['timeline', 'highlights', 'grid', 'on-this-day'];
                 $sanitizedConfig['mode'] = in_array($config['mode'] ?? 'timeline', $allowedModes, true)
-                    ? $config['mode']
+                    ? ($config['mode'] ?? 'timeline')
                     : 'timeline';
                 // Long-list handling: infinite scroll (default) or page buttons.
                 $sanitizedConfig['paginationMode'] = (($config['paginationMode'] ?? 'infinite') === 'pages')
@@ -763,7 +762,7 @@ final class PageShapeSanitizer {
                 // Visual style (already used in the editor but wasn't persisted yet — add it here)
                 $allowedStyles = ['magazine', 'apple', 'travelogue'];
                 $sanitizedConfig['style'] = in_array($config['style'] ?? 'apple', $allowedStyles, true)
-                    ? $config['style']
+                    ? ($config['style'] ?? 'apple')
                     : 'apple';
 
                 $sanitized['config'] = $sanitizedConfig;
@@ -778,7 +777,7 @@ final class PageShapeSanitizer {
                 $sanitizedConfig['folderPath'] = $this->sanitizeFolderPath($config['folderPath'] ?? '');
                 $allowedModes = ['timeline', 'tiles', 'list', 'grouped'];
                 $sanitizedConfig['mode'] = in_array($config['mode'] ?? 'timeline', $allowedModes, true)
-                    ? $config['mode'] : 'timeline';
+                    ? ($config['mode'] ?? 'timeline') : 'timeline';
                 // Long-list handling: infinite scroll (default) or page buttons (#78).
                 $sanitizedConfig['paginationMode'] = (($config['paginationMode'] ?? 'infinite') === 'pages')
                     ? 'pages' : 'infinite';
@@ -863,12 +862,13 @@ final class PageShapeSanitizer {
 
                 // Source type — dynamically accept configured LMS types
                 $configuredTypes = array_unique(array_column(
-                    json_decode($this->config->getAppValue(Application::APP_ID, 'feed_connections', '[]'), true) ?: [],
+                    // Literal app id: Application::APP_ID would pull in the app framework.
+                    json_decode($this->config->getAppValue('intravox', 'feed_connections', '[]'), true) ?: [],
                     'type'
                 ));
                 $allowedSourceTypes = array_unique(array_merge(['rss', 'connection'], $configuredTypes));
                 $sanitized['sourceType'] = in_array($widget['sourceType'] ?? 'rss', $allowedSourceTypes)
-                    ? $widget['sourceType']
+                    ? ($widget['sourceType'] ?? 'rss')
                     : 'rss';
 
                 // Feed URL (for RSS type)
@@ -891,7 +891,7 @@ final class PageShapeSanitizer {
 
                 // Layout
                 $sanitized['layout'] = in_array($widget['layout'] ?? 'list', ['list', 'grid'])
-                    ? $widget['layout']
+                    ? ($widget['layout'] ?? 'list')
                     : 'list';
 
                 // Columns (for grid layout, 2-4)
@@ -909,8 +909,8 @@ final class PageShapeSanitizer {
                 $sanitized['openInNewTab'] = (bool) ($widget['openInNewTab'] ?? true);
 
                 // Sort and filter
-                $sanitized['sortBy'] = in_array($widget['sortBy'] ?? 'date', ['date', 'title'], true) ? $widget['sortBy'] : 'date';
-                $sanitized['sortOrder'] = in_array($widget['sortOrder'] ?? 'desc', ['asc', 'desc'], true) ? $widget['sortOrder'] : 'desc';
+                $sanitized['sortBy'] = in_array($widget['sortBy'] ?? 'date', ['date', 'title'], true) ? ($widget['sortBy'] ?? 'date') : 'date';
+                $sanitized['sortOrder'] = in_array($widget['sortOrder'] ?? 'desc', ['asc', 'desc'], true) ? ($widget['sortOrder'] ?? 'desc') : 'desc';
                 $filterKeyword = trim((string) ($widget['filterKeyword'] ?? ''));
                 $sanitized['filterKeyword'] = mb_substr($filterKeyword, 0, 100);
 

@@ -94,6 +94,13 @@ present in every earlier one.
   A malformed share token is also refused before anything is looked up, on all
   endpoints rather than most of them.
 
+- **Widget settings you never chose are stored as their default again.** For a
+  handful of settings — how a news, people, feed or story widget is sorted and
+  laid out — leaving the choice untouched stored an empty value instead of the
+  default. Widgets fell back to sensible behaviour when displaying, so this was
+  mostly invisible, but the stored page said something different from what the
+  editor showed. Existing pages are corrected the next time they are saved.
+
 ### Changed
 
 - **Team Folder lookup happens once per request instead of five times.** Four
