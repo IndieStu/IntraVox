@@ -124,9 +124,6 @@ class PageController extends Controller {
      * When a valid share token is provided, the page is rendered for anonymous users.
      * The hash fragment (#page-{uniqueId}) determines which page to show.
      *
-     * @PublicPage
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
     #[PublicPage]
     #[NoAdminRequired]
@@ -229,9 +226,6 @@ class PageController extends Controller {
      * This route is used for anonymous access via NC share links.
      * The share token is passed as a path parameter to avoid query string issues.
      *
-     * @PublicPage
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
     #[PublicPage]
     #[NoAdminRequired]

@@ -64,13 +64,13 @@ class AnalyticsController extends Controller {
     /**
      * Get statistics for a specific page
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $pageId The unique ID of the page
      * @param int $days Number of days to include (default 30, max 365)
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPageStats(string $pageId, int $days = 30): DataResponse {
         try {
             // Verify page exists and user has access
@@ -97,13 +97,13 @@ class AnalyticsController extends Controller {
     /**
      * Get top pages by view count
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param int $limit Maximum pages to return (default 10, max 50)
      * @param int $days Number of days to consider (default 30, max 365)
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getTopPages(int $limit = 10, int $days = 30): DataResponse {
         try {
             // Limit parameters to reasonable ranges
@@ -146,11 +146,11 @@ class AnalyticsController extends Controller {
      * Get dashboard statistics
      * Admin only - shows aggregate statistics across all pages.
      *
-     * @NoCSRFRequired
      *
      * @param int $days Number of days to include (default 30, max 365)
      * @return DataResponse
      */
+    #[NoCSRFRequired]
     public function getDashboard(int $days = 30): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required');
@@ -188,10 +188,10 @@ class AnalyticsController extends Controller {
     /**
      * Get analytics settings (admin only)
      *
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoCSRFRequired]
     public function getSettings(): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required');
@@ -237,12 +237,12 @@ class AnalyticsController extends Controller {
     /**
      * Track a page view (called from frontend)
      *
-     * @NoAdminRequired
      *
      * @param string $pageId The unique ID of the page
      * @return DataResponse
      */
     #[UserRateLimit(limit: 60, period: 60)]
+    #[NoAdminRequired]
     public function trackView(string $pageId): DataResponse {
         try {
             // Verify page exists

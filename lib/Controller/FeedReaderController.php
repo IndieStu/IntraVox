@@ -10,6 +10,9 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDownloadResponse;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
@@ -34,12 +37,12 @@ class FeedReaderController extends Controller {
     /**
      * Fetch feed items from an external source.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
     #[UserRateLimit(limit: 30, period: 60)]
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getFeed(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -72,12 +75,12 @@ class FeedReaderController extends Controller {
     /**
      * Fetch feed preview (limited items for editor).
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
     #[UserRateLimit(limit: 30, period: 60)]
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPreview(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -104,13 +107,13 @@ class FeedReaderController extends Controller {
     /**
      * Fetch feed via public share link.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      *
      * @param string $token Share token
      * @return DataResponse
      */
     #[AnonRateLimit(limit: 30, period: 60)]
+    #[NoCSRFRequired]
+    #[PublicPage]
     public function getFeedByShare(string $token): DataResponse {
         try {
             $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
@@ -189,11 +192,11 @@ class FeedReaderController extends Controller {
      * Proxy an external image to bypass CSP restrictions.
      * Only serves images whose URL was signed by the backend (HMAC).
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataDownloadResponse|DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function proxyImage(): DataDownloadResponse|DataResponse {
         return $this->handleProxyImage();
     }
@@ -201,12 +204,12 @@ class FeedReaderController extends Controller {
     /**
      * Proxy an external image via public share link.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      *
      * @param string $token Share token
      * @return DataDownloadResponse|DataResponse
      */
+    #[NoCSRFRequired]
+    #[PublicPage]
     public function proxyImageByShare(string $token): DataDownloadResponse|DataResponse {
         $share = $this->publicShareService->resolveIntraVoxLinkShare($token);
         if ($share === null) {
@@ -277,11 +280,11 @@ class FeedReaderController extends Controller {
     /**
      * Get configured LMS connections (without tokens).
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getConnections(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -310,12 +313,12 @@ class FeedReaderController extends Controller {
     /**
      * Get available courses for a connection (uses current user's token).
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $connectionId
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getCourses(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -338,12 +341,12 @@ class FeedReaderController extends Controller {
     /**
      * Get available lists and document libraries for a SharePoint connection.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $connectionId
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getSharePointLists(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -370,12 +373,12 @@ class FeedReaderController extends Controller {
     /**
      * Get available Jira projects for a connection.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $connectionId
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getJiraProjects(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -398,12 +401,12 @@ class FeedReaderController extends Controller {
     /**
      * Get available Moodle forums for a course in a connection.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $connectionId
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getMoodleForums(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(

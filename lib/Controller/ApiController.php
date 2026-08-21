@@ -195,9 +195,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function listPages(): DataResponse {
         try {
             $pages = $this->pageService->listPages();
@@ -234,9 +234,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPage(string $id): DataResponse {
         try {
             $page = $this->pageService->getPage($id);
@@ -312,9 +312,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 10, period: 60)]
+    #[NoAdminRequired]
     public function createPage(): DataResponse {
         try {
             $data = $this->request->getParams();
@@ -354,8 +354,8 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function updatePage(string $id): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -427,9 +427,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 10, period: 60)]
+    #[NoAdminRequired]
     public function deletePage(string $id): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -467,9 +467,9 @@ class ApiController extends Controller {
     /**
      * Reorder sibling pages within a parent (issue #69).
      *
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 20, period: 60)]
+    #[NoAdminRequired]
     public function reorderPages(?string $parentId = null, array $orderedIds = []): DataResponse {
         try {
             if (!is_array($orderedIds) || count($orderedIds) === 0) {
@@ -514,8 +514,8 @@ class ApiController extends Controller {
     /**
      * Upload media (image or video) for a page
      * Unified endpoint that stores all media in a single 'media' folder
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function uploadMedia(string $pageId): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -571,8 +571,8 @@ class ApiController extends Controller {
 
     /**
      * Check if media file with given name already exists
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function checkMediaDuplicate(string $pageId): DataResponse {
         try {
             $filename = $this->request->getParam('filename');
@@ -598,8 +598,8 @@ class ApiController extends Controller {
 
     /**
      * Upload media with original filename
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function uploadMediaWithName(string $pageId): DataResponse {
         try {
             // Check write permission
@@ -666,9 +666,9 @@ class ApiController extends Controller {
 
     /**
      * Get list of media files for a page or resources folder
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function listMedia(string $pageId): DataResponse {
         try {
             $folder = $this->request->getParam('folder', 'page');
@@ -700,9 +700,9 @@ class ApiController extends Controller {
     /**
      * Get media file from resources folder with separate folder and filename
      * Handles URLs like: /api/resources/media/backgrounds/header.svg
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getResourcesMediaWithFolder(string $folder, string $filename) {
         $path = $folder . '/' . $filename;
         return $this->getResourcesMedia($path);
@@ -710,9 +710,9 @@ class ApiController extends Controller {
 
     /**
      * Get media file from resources folder (globally readable)
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getResourcesMedia(string $filename) {
         try {
             // Security: Validate path (prevent directory traversal)
@@ -758,9 +758,9 @@ class ApiController extends Controller {
     /**
      * Get server upload limit
      * Returns the effective upload limit in bytes
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getUploadLimit(): DataResponse {
         try {
             $limit = $this->pageService->getUploadLimit();
@@ -779,9 +779,9 @@ class ApiController extends Controller {
     /**
      * Get media (image or video) for a page
      * Unified endpoint that serves all media from a single 'media' folder
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getMedia(string $pageId, string $filename) {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -805,9 +805,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPageVersions(string $pageId): DataResponse {
         $this->logger->info('[ApiController::getPageVersions] Called with pageId: ' . $pageId);
 
@@ -840,8 +840,8 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function restorePageVersion(string $pageId, string $timestamp): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -866,8 +866,8 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function updateVersionLabel(string $pageId, string $timestamp): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -893,9 +893,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getVersionContent(string $pageId, string $timestamp): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -920,9 +920,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getCurrentPageContent(string $pageId): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -947,9 +947,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPageMetadata(string $pageId): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -974,8 +974,8 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function updatePageMetadata(string $pageId): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -1001,9 +1001,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getMetavoxStatus(): DataResponse {
         try {
             $appManager = $this->appManager;
@@ -1023,9 +1023,9 @@ class ApiController extends Controller {
 
     /**
      * Get MetaVox fields for the IntraVox groupfolder
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getMetavoxFields(): DataResponse {
         try {
             $appManager = $this->appManager;
@@ -1070,9 +1070,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function checkPageCacheStatus(string $pageId): DataResponse {
         try {
             $status = $this->pageService->checkPageCacheStatus($pageId);
@@ -1088,9 +1088,9 @@ class ApiController extends Controller {
     /**
      * Get news pages for the News widget
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getNews(): DataResponse {
         try {
             $sourcePath = $this->request->getParam('sourcePath', '');
@@ -1145,9 +1145,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function searchPages(string $query): DataResponse {
         try {
             if (strlen($query) < 2) {
@@ -1190,9 +1190,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getBreadcrumb(string $id): DataResponse {
         try {
             // First get the page to check permissions (from Nextcloud filesystem)
@@ -1228,8 +1228,8 @@ class ApiController extends Controller {
      * Set a root-level page as the homepage for the current language
      * (issue: configurable homepage).
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function setHomepage(?string $pageUniqueId = null): DataResponse {
         try {
             if (!is_string($pageUniqueId) || $pageUniqueId === '') {
@@ -1261,8 +1261,8 @@ class ApiController extends Controller {
      * the "source", so removing one language later shrinks the group instead
      * of orphaning the other.
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function linkTranslation(string $pageId, ?string $targetUniqueId = null): DataResponse {
         try {
             if (!is_string($targetUniqueId) || $targetUniqueId === '') {
@@ -1295,8 +1295,8 @@ class ApiController extends Controller {
      * Acts on this page only — the other language versions stay linked to each
      * other. Nothing is inferred or re-linked afterwards.
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function unlinkTranslation(string $pageId): DataResponse {
         try {
             $this->pageService->unlinkTranslation($pageId);
@@ -1318,8 +1318,8 @@ class ApiController extends Controller {
      * group with something else, so linking cannot silently steal a page out of
      * an existing set.
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function getTranslationCandidates(string $pageId, ?string $language = null): DataResponse {
         try {
             $candidates = $this->pageService->getTranslationCandidates($pageId, $language);
@@ -1337,8 +1337,8 @@ class ApiController extends Controller {
      * The entry point editors actually reach for — "make this page in German" —
      * rather than creating a blank page elsewhere and linking it afterwards.
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function createTranslation(
         string $pageId,
         ?string $language = null,
@@ -1373,8 +1373,8 @@ class ApiController extends Controller {
      * version of it, so the "add translation" control only ever offers a
      * choice that will succeed.
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function getTranslatableLanguages(string $pageId): DataResponse {
         try {
             return new DataResponse([
@@ -1390,8 +1390,8 @@ class ApiController extends Controller {
     /**
      * Copy a page into a new draft (issue: copy page).
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function copyPage(?string $sourceId = null, ?string $targetParentId = null, ?string $title = null): DataResponse {
         try {
             if (!is_string($sourceId) || $sourceId === '') {
@@ -1434,9 +1434,9 @@ class ApiController extends Controller {
      * so a department editor can move within their own rights — unlike the
      * admin-only bulk endpoint.
      *
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 20, period: 60)]
+    #[NoAdminRequired]
     public function movePage(?string $pageId = null, ?string $targetParentId = null): DataResponse {
         try {
             if (!is_string($pageId) || $pageId === '') {
@@ -1482,9 +1482,9 @@ class ApiController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPageTree(?string $currentPageId = null, ?string $language = null, ?string $rootPageId = null): DataResponse {
         try {
             $tree = $this->pageService->getPageTree($currentPageId, $language, $rootPageId);
@@ -1614,9 +1614,9 @@ class ApiController extends Controller {
     /**
      * Get current user's permissions for IntraVox
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPermissions(?string $path = null): DataResponse {
         try {
             $checkPath = $path ?? '';
@@ -1640,8 +1640,6 @@ class ApiController extends Controller {
     /**
      * Health check endpoint for monitoring and orchestration.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -1697,9 +1695,9 @@ class ApiController extends Controller {
     /**
      * Get video domain whitelist
      *
-     * @NoCSRFRequired
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getVideoDomains(): DataResponse {
         $domains = $this->config->getAppValue(
             Application::APP_ID,
@@ -1893,9 +1891,9 @@ class ApiController extends Controller {
     /**
      * Get engagement settings (reactions & comments)
      *
-     * @NoCSRFRequired
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getEngagementSettings(): DataResponse {
         return new DataResponse($this->engagementSettings->getAll());
     }
@@ -1938,9 +1936,9 @@ class ApiController extends Controller {
     /**
      * Get publication settings (MetaVox field names for date filtering)
      *
-     * @NoCSRFRequired
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPublicationSettings(): DataResponse {
         return new DataResponse($this->publicationSettings->getAll());
     }
@@ -1952,9 +1950,9 @@ class ApiController extends Controller {
     /**
      * Whether People widgets may render on public share links.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPublicSharePeopleSetting(): DataResponse {
         return new DataResponse([
             'allowPeopleOnPublicShares' => $this->peopleAllowedOnPublicShares(),
@@ -2494,11 +2492,11 @@ class ApiController extends Controller {
      * Checks if an NC Files share link exists for the page or its parent folder.
      * Used by the ShareButton component to determine if the share button should be shown.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      * @param string $uniqueId The page's unique ID
      * @return JSONResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getShareInfo(string $uniqueId): JSONResponse {
         try {
             // Get the page to verify it exists and get its language
@@ -2561,8 +2559,6 @@ class ApiController extends Controller {
      * IMPORTANT: This returns READ-ONLY data. No write operations are possible
      * through this endpoint regardless of NC share permissions.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @param string $uniqueId The page's unique ID
      * @return JSONResponse
@@ -2731,8 +2727,6 @@ class ApiController extends Controller {
      * Only navigation items whose pages fall within the share target path are returned.
      * External URL items are always included.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @return JSONResponse
      */
@@ -2851,8 +2845,6 @@ class ApiController extends Controller {
      * Returns a hierarchical tree of pages within the share target folder.
      * The share root becomes the tree root — ancestors above it are not included.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @return JSONResponse
      */
@@ -2949,8 +2941,6 @@ class ApiController extends Controller {
     /**
      * Get news items for a public share.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @return JSONResponse
      */
@@ -3499,8 +3489,6 @@ class ApiController extends Controller {
      *
      * Validates the share token and serves media if the page is within the share scope.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @param string $uniqueId The page's unique ID
      * @param string $filename The media filename
@@ -3645,8 +3633,6 @@ class ApiController extends Controller {
      * Pages within any scope may reference these shared resources (backgrounds, icons, etc.).
      * Access is granted to all resources within the language, not limited to share scope.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      * @param string $token The NC share token
      * @param string $filename The resource filename
      * @return Response
@@ -3762,8 +3748,6 @@ class ApiController extends Controller {
     /**
      * Get resources media with folder via NC share token.
      *
-     * @PublicPage
-     * @NoCSRFRequired
      */
     #[PublicPage]
     #[NoCSRFRequired]
@@ -3780,7 +3764,6 @@ class ApiController extends Controller {
     /**
      * List all available page templates
      *
-     * @NoAdminRequired
      */
     #[NoAdminRequired]
     public function listTemplates(): DataResponse {
@@ -3803,7 +3786,6 @@ class ApiController extends Controller {
     /**
      * Get a specific template by ID
      *
-     * @NoAdminRequired
      */
     #[NoAdminRequired]
     public function getTemplate(string $id): DataResponse {
@@ -3828,7 +3810,6 @@ class ApiController extends Controller {
     /**
      * Save a page as a template
      *
-     * @NoAdminRequired
      */
     #[NoAdminRequired]
     public function saveAsTemplate(): DataResponse {
@@ -3870,7 +3851,6 @@ class ApiController extends Controller {
     /**
      * Delete a template
      *
-     * @NoAdminRequired
      */
     #[NoAdminRequired]
     public function deleteTemplate(string $id): DataResponse {
@@ -3895,7 +3875,6 @@ class ApiController extends Controller {
     /**
      * Create a new page from a template
      *
-     * @NoAdminRequired
      */
     #[NoAdminRequired]
     public function createPageFromTemplate(): DataResponse {

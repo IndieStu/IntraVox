@@ -7,6 +7,9 @@ namespace OCA\IntraVox\Controller;
 use OCA\IntraVox\Service\CalendarService;
 use OCA\IntraVox\Service\PublicShareService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -29,11 +32,11 @@ class CalendarController extends Controller {
     /**
      * Get available calendars for the current user
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getCalendars(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -62,11 +65,11 @@ class CalendarController extends Controller {
     /**
      * Get events from one or more calendars
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getEvents(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -129,12 +132,12 @@ class CalendarController extends Controller {
     /**
      * Get events via public share link
      *
-     * @PublicPage
-     * @NoCSRFRequired
      *
      * @param string $token Share token
      * @return DataResponse
      */
+    #[NoCSRFRequired]
+    #[PublicPage]
     public function getEventsByShare(string $token): DataResponse {
         try {
             // Validate share token

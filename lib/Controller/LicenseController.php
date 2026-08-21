@@ -66,10 +66,10 @@ class LicenseController extends Controller {
      * Returns page counts per language and total.
      * Admin only - no @NoAdminRequired annotation.
      *
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoCSRFRequired]
     public function getStats(): DataResponse {
         // Double-check admin (annotation already enforces this, but extra safety)
         if (!$this->isAdmin()) {
@@ -127,10 +127,10 @@ class LicenseController extends Controller {
      *
      * Admin only - no @NoAdminRequired annotation.
      *
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoCSRFRequired]
     public function getInstanceInfo(): DataResponse {
         // Double-check admin
         if (!$this->isAdmin()) {

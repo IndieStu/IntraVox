@@ -8,6 +8,8 @@ use OCA\IntraVox\Service\FeedReaderService;
 use OCA\IntraVox\Service\LmsOAuthService;
 use OCA\IntraVox\Service\LmsTokenService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
@@ -38,11 +40,11 @@ class LmsOAuthController extends Controller {
     /**
      * Get all LMS connections with the current user's connection status.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getUserConnections(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -99,10 +101,10 @@ class LmsOAuthController extends Controller {
      * Start an OAuth2 flow for a specific connection.
      * Returns the authorization URL for the frontend to redirect to.
      *
-     * @NoAdminRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
     public function startOAuth(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -162,11 +164,11 @@ class LmsOAuthController extends Controller {
      * OAuth2 callback endpoint. Exchanges the code for tokens and stores them.
      * Returns an HTML page that sends postMessage to the opener and closes the popup.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataDisplayResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function callback(): DataDisplayResponse {
         $code = $this->request->getParam('code', '');
         $state = $this->request->getParam('state', '');
@@ -237,10 +239,10 @@ class LmsOAuthController extends Controller {
     /**
      * Save a manually entered API token (e.g. Moodle web service token).
      *
-     * @NoAdminRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
     public function saveManualToken(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
@@ -308,10 +310,10 @@ class LmsOAuthController extends Controller {
     /**
      * Disconnect a user's LMS account (delete their token).
      *
-     * @NoAdminRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
     public function disconnect(string $connectionId): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(

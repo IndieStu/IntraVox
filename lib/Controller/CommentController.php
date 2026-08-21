@@ -8,6 +8,8 @@ use OCA\IntraVox\Service\PageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\UserRateLimit;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IGroupManager;
 use OCP\IRequest;
@@ -70,9 +72,9 @@ class CommentController extends Controller {
     /**
      * Get comments for a page
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getComments(string $pageId, int $limit = 50, int $offset = 0): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -104,9 +106,9 @@ class CommentController extends Controller {
     /**
      * Create a new comment
      *
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 20, period: 60)]
+    #[NoAdminRequired]
     public function createComment(string $pageId, string $message, ?string $parentId = null): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -141,8 +143,8 @@ class CommentController extends Controller {
     /**
      * Update an existing comment
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function updateComment(string $commentId, string $message): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to
@@ -185,8 +187,8 @@ class CommentController extends Controller {
     /**
      * Delete a comment
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function deleteComment(string $commentId): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to
@@ -224,9 +226,9 @@ class CommentController extends Controller {
     /**
      * Get reactions for a page
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPageReactions(string $pageId): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -254,9 +256,9 @@ class CommentController extends Controller {
     /**
      * Add a reaction to a page
      *
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 30, period: 60)]
+    #[NoAdminRequired]
     public function addPageReaction(string $pageId, string $emoji): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -285,8 +287,8 @@ class CommentController extends Controller {
     /**
      * Remove a reaction from a page
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function removePageReaction(string $pageId, string $emoji): DataResponse {
         try {
             if (!$this->checkPageAccess($pageId)) {
@@ -317,9 +319,9 @@ class CommentController extends Controller {
     /**
      * Get reactions for a comment
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getCommentReactions(string $commentId): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to
@@ -348,9 +350,9 @@ class CommentController extends Controller {
     /**
      * Add a reaction to a comment
      *
-     * @NoAdminRequired
      */
     #[UserRateLimit(limit: 30, period: 60)]
+    #[NoAdminRequired]
     public function addCommentReaction(string $commentId, string $emoji): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to
@@ -380,8 +382,8 @@ class CommentController extends Controller {
     /**
      * Remove a reaction from a comment
      *
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function removeCommentReaction(string $commentId, string $emoji): DataResponse {
         try {
             // Security: verify user has access to the page this comment belongs to

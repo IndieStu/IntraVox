@@ -6,6 +6,8 @@ namespace OCA\IntraVox\Controller;
 use OCA\IntraVox\Service\FooterService;
 use OCA\IntraVox\Service\PageService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
@@ -32,9 +34,9 @@ class FooterController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function get(): JSONResponse {
         try {
             // Get root permissions using Nextcloud's filesystem
@@ -69,8 +71,8 @@ class FooterController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function save(): JSONResponse {
         try {
             // Check write permission using Nextcloud's filesystem

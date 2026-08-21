@@ -138,3 +138,6 @@ jobs:
 
       - name: Security markers
         run: node scripts/check-security-markers.js
+
+      - name: Route table is current
+        run: node scripts/generate-route-table.js --check

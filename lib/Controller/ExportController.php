@@ -5,6 +5,8 @@ namespace OCA\IntraVox\Controller;
 
 use OCA\IntraVox\Service\ExportService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\AppFramework\Http\DataDownloadResponse;
@@ -25,10 +27,10 @@ class ExportController extends Controller {
     /**
      * Get available languages for export
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      * @return JSONResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getExportableLanguages(): JSONResponse {
         $languages = $this->exportService->getExportableLanguages();
         return new JSONResponse($languages);
@@ -37,11 +39,11 @@ class ExportController extends Controller {
     /**
      * Export all pages for a language as JSON download
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      * @param string $language Language code
      * @return DataDownloadResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function exportLanguage(string $language): DataDownloadResponse {
         $includeComments = $this->request->getParam('includeComments', '1') === '1';
 
@@ -55,11 +57,11 @@ class ExportController extends Controller {
     /**
      * Export single page as JSON download
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      * @param string $uniqueId Page unique ID
      * @return DataDownloadResponse|JSONResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function exportPage(string $uniqueId): DataDownloadResponse|JSONResponse {
         $includeComments = $this->request->getParam('includeComments', '1') === '1';
 
@@ -79,11 +81,11 @@ class ExportController extends Controller {
     /**
      * Export all pages for a language as ZIP with media files
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      * @param string $language Language code
      * @return DataDownloadResponse|JSONResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function exportLanguageZip(string $language): DataDownloadResponse|JSONResponse {
         try {
             $includeComments = $this->request->getParam('includeComments', '1') === '1';

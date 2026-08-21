@@ -6,6 +6,8 @@ namespace OCA\IntraVox\Controller;
 use OCA\IntraVox\Service\PageLockService;
 use OCA\IntraVox\Service\PermissionService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\IRequest;
@@ -30,9 +32,9 @@ class PageLockController extends Controller {
 	/**
 	 * Get the current lock status for a page.
 	 *
-	 * @NoAdminRequired
-	 * @NoCSRFRequired
 	 */
+	#[NoAdminRequired]
+	#[NoCSRFRequired]
 	public function getLock(string $pageId): DataResponse {
 		$lock = $this->lockService->getLock($pageId);
 		return new DataResponse(['lock' => $lock]);
@@ -43,8 +45,8 @@ class PageLockController extends Controller {
 	 *
 	 * Returns 409 Conflict if the page is already locked by another user.
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	public function acquireLock(string $pageId): DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
@@ -68,8 +70,8 @@ class PageLockController extends Controller {
 	 *
 	 * Returns 409 Conflict if the lock was lost (expired or taken by another user).
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	public function refreshLock(string $pageId): DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
@@ -91,8 +93,8 @@ class PageLockController extends Controller {
 	/**
 	 * Release a page lock after saving or cancelling.
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	public function releaseLock(string $pageId): DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
@@ -109,8 +111,8 @@ class PageLockController extends Controller {
 	 * Allows IntraVox admins to remove a lock held by another user,
 	 * e.g. after a browser crash where the lock was not released.
 	 *
-	 * @NoAdminRequired
 	 */
+	#[NoAdminRequired]
 	public function forceReleaseLock(string $pageId): DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {

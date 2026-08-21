@@ -8,6 +8,8 @@ use OCA\IntraVox\Service\NavigationService;
 use OCA\IntraVox\Service\PageService;
 use OCA\IntraVox\Service\PermissionService;
 use OCP\AppFramework\Controller;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\Files\NotPermittedException;
@@ -46,9 +48,9 @@ class NavigationController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function get(): JSONResponse {
         try {
             // Get the current language
@@ -105,8 +107,8 @@ class NavigationController extends Controller {
     }
 
     /**
-     * @NoAdminRequired
      */
+    #[NoAdminRequired]
     public function save(): JSONResponse {
         try {
             // Check write permission on root using Nextcloud's filesystem

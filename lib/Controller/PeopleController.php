@@ -12,6 +12,9 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\DataResponse;
 use OCP\AppFramework\Http\Attribute\AnonRateLimit;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
+use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\IConfig;
 use OCP\IRequest;
 use OCP\ISession;
@@ -63,13 +66,13 @@ class PeopleController extends Controller {
     /**
      * Search users by name or email
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string $query Search query
      * @param int $limit Maximum results (default 20)
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function searchUsers(string $query = '', int $limit = 20): DataResponse {
         try {
             if (strlen($query) < 2) {
@@ -99,11 +102,11 @@ class PeopleController extends Controller {
     /**
      * Get user profiles by IDs
      *
-     * @NoAdminRequired
      *
      * @param array $userIds Array of user IDs
      * @return DataResponse
      */
+    #[NoAdminRequired]
     public function getUsers(array $userIds = []): DataResponse {
         try {
             if (empty($userIds)) {
@@ -134,11 +137,11 @@ class PeopleController extends Controller {
     /**
      * Get available groups for filtering
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getGroups(): DataResponse {
         try {
             $groups = $this->userService->getGroups();
@@ -160,11 +163,11 @@ class PeopleController extends Controller {
     /**
      * Get available user profile fields for filtering/display configuration
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getUserFields(): DataResponse {
         try {
             $fields = $this->userService->getAvailableFields();
@@ -186,8 +189,6 @@ class PeopleController extends Controller {
     /**
      * Get people for widget display (supports both manual and filter modes)
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      *
      * @param string|null $userIds Comma-separated user IDs for manual mode
      * @param string|null $filters JSON-encoded filters for filter mode
@@ -198,6 +199,8 @@ class PeopleController extends Controller {
      * @param int $offset Offset for pagination
      * @return DataResponse
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function getPeople(
         ?string $userIds = null,
         ?string $filters = null,
@@ -321,8 +324,6 @@ class PeopleController extends Controller {
     /**
      * Get people for widget display via public share link
      *
-     * @PublicPage
-     * @NoCSRFRequired
      *
      * @param string $token Share token
      * @param string|null $userIds Comma-separated user IDs for manual mode
@@ -335,6 +336,8 @@ class PeopleController extends Controller {
      * @return DataResponse
      */
     #[AnonRateLimit(limit: 30, period: 60)]
+    #[NoCSRFRequired]
+    #[PublicPage]
     public function getPeopleByShare(
         string $token,
         ?string $userIds = null,
@@ -418,9 +421,9 @@ class PeopleController extends Controller {
      * Worth answering while a widget is being configured rather than letting
      * an editor discover approximate counts in production.
      *
-     * @NoAdminRequired
-     * @NoCSRFRequired
      */
+    #[NoAdminRequired]
+    #[NoCSRFRequired]
     public function facetPreflight(): DataResponse {
         try {
             $stats = $this->userService->facetPreflight();
