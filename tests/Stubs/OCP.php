@@ -439,6 +439,81 @@ interface IAccountManager {
     public function getAccount(\OCP\IUser $user): IAccount;
 }
 
+namespace OCP\Search;
+
+use OCP\IUser;
+
+interface ISearchQuery {
+    public function getTerm(): string;
+    public function getSortOrder(): int;
+    public function getLimit(): int;
+    public function getCursor();
+    public function getRoute(): string;
+    public function getRouteParameters(): array;
+}
+
+class SearchResultEntry implements \JsonSerializable {
+    public function __construct(
+        public string $thumbnailUrl,
+        public string $title,
+        public string $subline,
+        public string $resourceUrl = '',
+        public string $icon = '',
+        public bool $rounded = false,
+    ) {
+    }
+
+    public function jsonSerialize(): array {
+        return [
+            'thumbnailUrl' => $this->thumbnailUrl,
+            'title' => $this->title,
+            'subline' => $this->subline,
+            'resourceUrl' => $this->resourceUrl,
+            'icon' => $this->icon,
+            'rounded' => $this->rounded,
+        ];
+    }
+}
+
+class SearchResult implements \JsonSerializable {
+    private function __construct(
+        private string $name,
+        private bool $isPaginated,
+        private array $entries,
+        private $cursor = null,
+    ) {
+    }
+
+    public static function complete(string $name, array $entries): self {
+        return new self($name, false, $entries);
+    }
+
+    public static function paginated(string $name, array $entries, $cursor): self {
+        return new self($name, true, $entries, $cursor);
+    }
+
+    /** Test helper: the entries this result carries. */
+    public function getEntries(): array {
+        return $this->entries;
+    }
+
+    public function jsonSerialize(): array {
+        return [
+            'name' => $this->name,
+            'isPaginated' => $this->isPaginated,
+            'entries' => $this->entries,
+            'cursor' => $this->cursor,
+        ];
+    }
+}
+
+interface IProvider {
+    public function getId(): string;
+    public function getName(): string;
+    public function getOrder(string $route, array $routeParameters): ?int;
+    public function search(IUser $user, ISearchQuery $query): SearchResult;
+}
+
 namespace Psr\Log;
 
 interface LoggerInterface {

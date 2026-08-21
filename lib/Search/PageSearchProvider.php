@@ -52,6 +52,48 @@ class PageSearchProvider implements IProvider {
         return -5;
     }
 
+    /**
+     * Whether an indexed hit must be hidden from THIS user. (SEARCH-ACL)
+     *
+     * Unified search had no publication gate at all: both the title index and
+     * the full-text scan returned drafts, scheduled and expired pages to every
+     * user who could read the folder. The title and the URL of an unpublished
+     * page leaked to readers, which for a page being prepared (a reorganisation,
+     * a departure, an announcement) is exactly the content that must not be
+     * visible yet.
+     *
+     * The index row carries a status column but is not the authority: publish
+     * and expiry dates live in MetaVox and are only interpreted by
+     * effectivePublishState(). So the page body is loaded and put through the
+     * same gate the tree and the API use — isHiddenFromReaders() plus the
+     * canWrite escape hatch, so editors keep finding their own drafts.
+     *
+     * A page we cannot load is treated as hidden: failing closed on a search
+     * result costs a hit, failing open leaks one.
+     */
+    private function isHiddenFromThisUser(?string $uniqueId): bool {
+        if ($uniqueId === null || $uniqueId === '') {
+            return true;
+        }
+
+        try {
+            $page = $this->pageService->getPage($uniqueId);
+        } catch (\Throwable $e) {
+            return true;
+        }
+
+        if (!is_array($page) || $page === []) {
+            return true;
+        }
+
+        if (!$this->pageService->isHiddenFromReaders($page)) {
+            return false;
+        }
+
+        // Hidden — unless this user may edit it.
+        return !($page['permissions']['canWrite'] ?? false);
+    }
+
     public function search(IUser $user, ISearchQuery $query): SearchResult {
         $term = trim($query->getTerm());
 
@@ -89,6 +131,10 @@ class PageSearchProvider implements IProvider {
             $entries = [];
             $seenIds = [];
             foreach ($indexedResults as $row) {
+                if ($this->isHiddenFromThisUser($row['unique_id'] ?? null)) {
+                    continue;
+                }
+
                 $url = $this->urlGenerator->linkToRouteAbsolute(
                     'intravox.page.index',
                     ['page' => $row['unique_id']]
@@ -112,6 +158,14 @@ class PageSearchProvider implements IProvider {
 
             foreach ($results as $result) {
                 if (isset($seenIds[$result['uniqueId'] ?? ''])) {
+                    continue;
+                }
+
+                // Unpublished pages must not surface to readers. searchPages()
+                // returns the page body, so the state is decided directly.
+                if ($this->pageService->isHiddenFromReaders($result)
+                    && !($result['permissions']['canWrite'] ?? false)
+                ) {
                     continue;
                 }
                 // Create IntraVox app URL (not Files URL)
