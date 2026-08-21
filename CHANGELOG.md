@@ -113,6 +113,24 @@ before upgrading.
 
 ### Changed
 
+- **Team Folder lookup happens once per request instead of five times.** Four
+  places each walked every Team Folder on the instance to find the IntraVox one,
+  and the folder lookup runs on the page-render path. On a server with many Team
+  Folders that walk dominated page load; it is now resolved once and reused. If
+  two Team Folders share a name the app still picks one, but now says so in the
+  log instead of choosing silently.
+
+- **Every endpoint's access rule is now written the modern way, and listed in
+  one place.** The app used a mix of old doc-comment markers and current PHP
+  attributes; everything is now attributes. `docs/route-table.md` lists all 175
+  endpoints with what each one requires — 122 need a logged-in user, 36 are
+  admin-only, 17 are public. The file is checked automatically, so a change in
+  who may reach an endpoint shows up as a visible diff instead of being buried
+  in a controller.
+
+  No endpoint changed what it requires: all 189 handlers were compared before
+  and after, and verified on a running server.
+
 - **SVG uploads fail cleanly when the SVG sanitiser is unavailable.** Release
   packages shipped without their PHP dependencies, so on an App Store install
   the sanitiser class was missing and the first SVG upload was a fatal error.
