@@ -1,0 +1,131 @@
+# The minimal quality gate (QG-3).
+#
+# Before this existed, the repo had 547 unit tests and 13 integration tests that
+# ran NOWHERE: the only workflow was the l10n sync check. A suite that never runs
+# is not a safety net, it is decoration — and the refactor that follows leans on
+# it to prove "behaviour is byte-identical".
+#
+# Deliberately minimal, because a gate that is slow or flaky gets ignored:
+#   - unit tests only. The integration suite needs a real Nextcloud + groupfolders
+#     and runs via scripts/run-integration-tests.sh inside the nc-dev container.
+#   - `php -l` over lib/ and tests/, which catches a parse error in a file no test
+#     happens to load (most of lib/ has no direct coverage yet).
+#   - the prebuild guards that need no node_modules and no build.
+#   - the packaging guard's own self-test, so the release contract stays honest.
+#
+# Explicitly NOT here: compliance.yml, psalm, or a coverage threshold. Those come
+# later in the plan (QG-2 lands after the seam, with a baseline); adding them now
+# would mean a permanently red main, which trains everyone to ignore the gate.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes the in-flight run irrelevant.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  php:
+    name: PHP unit tests + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          # Matches composer.json ("php": ">=8.2") — the lowest version we claim
+          # to support, so CI fails on syntax newer than our own floor.
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      # Lint before installing: a parse error should be reported as a parse
+      # error, not as a confusing autoloader failure during composer install.
+      - name: Syntax-check all PHP sources
+        run: |
+          set -euo pipefail
+          find lib tests -name '*.php' -print0 \
+            | xargs -0 -n1 -P4 php -l > /dev/null
+
+      - name: Install composer dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Unit tests
+        run: composer run test:unit
+
+  packaging:
+    name: Packaging guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The guard protects the release contract, so it must itself be known-good.
+      # We build three tarballs — one correct, one without vendor/ (the exact
+      # shape intravox-2.2.0.tar.gz shipped in), and one carrying a dev
+      # dependency — and assert the guard accepts the first and rejects the
+      # other two. A guard that cannot fail proves nothing.
+      - name: Self-test the packaging guard
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+
+          make_pkg() { # $1=name  $2=vendor|novendor|devvendor
+            local root="$work/$1/intravox"
+            mkdir -p "$root/appinfo" "$root/lib/AppInfo"
+            touch "$root/appinfo/info.xml" "$root/lib/AppInfo/Application.php"
+            if [ "$2" != "novendor" ]; then
+              mkdir -p "$root/vendor/enshrined/svg-sanitize/src" "$root/vendor/lsolesen/pel/src"
+              touch "$root/vendor/autoload.php" \
+                    "$root/vendor/enshrined/svg-sanitize/src/Sanitizer.php" \
+                    "$root/vendor/lsolesen/pel/src/Pel.php"
+            fi
+            if [ "$2" = "devvendor" ]; then
+              mkdir -p "$root/vendor/phpunit/phpunit"
+              touch "$root/vendor/phpunit/phpunit/phpunit.php"
+            fi
+            tar -czf "$work/$1.tar.gz" -C "$work/$1" intravox
+          }
+
+          make_pkg good vendor
+          make_pkg novendor novendor
+          make_pkg devvendor devvendor
+
+          echo "--- a correct package must be accepted"
+          ./scripts/check-package-contents.sh "$work/good.tar.gz"
+
+          echo "--- a package without vendor/ must be rejected"
+          if ./scripts/check-package-contents.sh "$work/novendor.tar.gz"; then
+            echo "FAIL: the guard accepted a package with no vendor/" >&2
+            exit 1
+          fi
+
+          echo "--- a package carrying dev dependencies must be rejected"
+          if ./scripts/check-package-contents.sh "$work/devvendor.tar.gz"; then
+            echo "FAIL: the guard accepted a package containing phpunit" >&2
+            exit 1
+          fi
+
+          echo "Packaging guard behaves correctly in all three cases."
+
+  frontend:
+    name: Frontend guards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # These three are pure Node with no dependencies, so they run without an
+      # npm install and stay fast. The l10n sync guard has its own workflow.
+      - name: Import consistency
+        run: node scripts/check-import-consistency.js
+
+      - name: Facet serialization
+        run: node scripts/check-facet-serialization.js
