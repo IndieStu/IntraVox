@@ -1,4 +1,5 @@
 { "translations": {
+    "Text" : "Tekst",
     "Other" : "Anna",
     "Image" : "Bilete",
     "Link" : "Lenkje",
@@ -14,6 +15,7 @@
     "Support" : "Støtte",
     "Language" : "Språk",
     "Status" : "Status",
+    "Action" : "Handling",
     "Install" : "Installer",
     "Remove" : "Fjern",
     "Visit website" : "Besøk nettstaden",
@@ -22,6 +24,7 @@
     "Import" : "Importer",
     "Export" : "Eksporter",
     "Select language" : "Vel språk",
+    "Empty" : "Tom",
     "Comments" : "Kommentarar",
     "Never" : "Aldri",
     "Size" : "Storleik",

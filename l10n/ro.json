@@ -1,4 +1,6 @@
 { "translations": {
+    "Spreadsheets" : "Foi de calcul",
+    "Presentations" : "Prezentări",
     "Text" : "Text",
     "Forms" : "Formulare",
     "Other" : "Altele",
@@ -85,6 +87,7 @@
     "Smallest first" : "Cel mai mic mai întâi",
     "Filters" : "Filtre",
     "Year" : "An",
+    "Remove filter" : "Înlătură filtrul",
     "Order" : "Ordine",
     "Display" : "Display",
     "All" : "Toate ",
@@ -112,6 +115,7 @@
     "Forum" : "Forum",
     "Code" : "Cod",
     "Folder" : "Director",
+    "Folders" : "Dosare",
     "Message" : "Mesaj",
     "Tasks" : "Sarcini",
     "Dashboard" : "Panou",

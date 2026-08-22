@@ -1,6 +1,8 @@
 OC.L10N.register(
     "intravox",
     {
+    "Spreadsheets" : "Foi de calcul",
+    "Presentations" : "Prezentări",
     "Text" : "Text",
     "Forms" : "Formulare",
     "Other" : "Altele",
@@ -87,6 +89,7 @@ OC.L10N.register(
     "Smallest first" : "Cel mai mic mai întâi",
     "Filters" : "Filtre",
     "Year" : "An",
+    "Remove filter" : "Înlătură filtrul",
     "Order" : "Ordine",
     "Display" : "Display",
     "All" : "Toate ",
@@ -114,6 +117,7 @@ OC.L10N.register(
     "Forum" : "Forum",
     "Code" : "Cod",
     "Folder" : "Director",
+    "Folders" : "Dosare",
     "Message" : "Mesaj",
     "Tasks" : "Sarcini",
     "Dashboard" : "Panou",

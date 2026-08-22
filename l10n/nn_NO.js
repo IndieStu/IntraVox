@@ -1,6 +1,7 @@
 OC.L10N.register(
     "intravox",
     {
+    "Text" : "Tekst",
     "Other" : "Anna",
     "Image" : "Bilete",
     "Link" : "Lenkje",
@@ -16,6 +17,7 @@ OC.L10N.register(
     "Support" : "Støtte",
     "Language" : "Språk",
     "Status" : "Status",
+    "Action" : "Handling",
     "Install" : "Installer",
     "Remove" : "Fjern",
     "Visit website" : "Besøk nettstaden",
@@ -24,6 +26,7 @@ OC.L10N.register(
     "Import" : "Importer",
     "Export" : "Eksporter",
     "Select language" : "Vel språk",
+    "Empty" : "Tom",
     "Comments" : "Kommentarar",
     "Never" : "Aldri",
     "Size" : "Storleik",
