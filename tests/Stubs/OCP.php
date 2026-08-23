@@ -207,6 +207,21 @@ abstract class GroupMembershipEvent extends Event {
 class UserAddedEvent extends GroupMembershipEvent {}
 class UserRemovedEvent extends GroupMembershipEvent {}
 
+namespace OCP\Files\Cache;
+
+use OCP\EventDispatcher\Event;
+
+/**
+ * Fired when a file leaves the filecache for good — trashbin emptied, or a
+ * delete that bypasses it — and NOT when it is moved to the trashbin.
+ */
+class CacheEntryRemovedEvent extends Event {
+    public function __construct(
+        private int $fileId = 0,
+    ) {}
+    public function getFileId(): int { return $this->fileId; }
+}
+
 namespace OCA\Files_Versions\Versions;
 
 interface IVersion {
@@ -314,7 +329,9 @@ class PublicPage {}
 
 namespace OCP\Comments;
 
-interface ICommentsManager {}
+interface ICommentsManager {
+    public function deleteCommentsAtObject(string $objectType, string $objectId): bool;
+}
 interface IComment {}
 
 namespace OCP\Activity;

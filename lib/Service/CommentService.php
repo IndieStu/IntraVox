@@ -585,17 +585,6 @@ class CommentService {
     }
 
     /**
-     * Delete all comments for a page (cleanup when page is deleted)
-     */
-    public function deleteAllCommentsForPage(string $pageId): void {
-        $this->commentsManager->deleteCommentsAtObject(self::OBJECT_TYPE, $pageId);
-
-        $this->logger->info('IntraVox: All comments deleted for page', [
-            'pageId' => $pageId
-        ]);
-    }
-
-    /**
      * Get comment count for a page
      */
     public function getCommentCount(string $pageId): int {

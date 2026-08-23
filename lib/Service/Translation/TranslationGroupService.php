@@ -80,7 +80,8 @@ class TranslationGroupService {
                 $data,
                 $language,
                 $result['folder']->getPath(),
-                $file->getId()
+                $file->getId(),
+                $result['folder']->getId()
             );
         } catch (\Exception $e) {
             $this->logger->warning('Failed to index translation group', [

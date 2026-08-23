@@ -8,10 +8,9 @@ use OCA\IntraVox\Activity\Setting as ActivitySetting;
 use OCA\IntraVox\Command\SetupCommand;
 use OCA\IntraVox\Command\AddDemoFieldsCommand;
 use OCA\IntraVox\Command\DebugShareCommand;
-use OCA\IntraVox\Event\PageDeletedEvent;
+use OCA\IntraVox\Listener\CacheCleanupListener;
 use OCA\IntraVox\Listener\CommentsEntityListener;
 use OCA\IntraVox\Listener\GroupMembershipChangedListener;
-use OCA\IntraVox\Listener\PageDeletedListener;
 use OCA\IntraVox\Listener\UserDeletedListener;
 use OCA\IntraVox\Search\PageSearchProvider;
 use OCA\IntraVox\Search\UserSearchProvider;
@@ -20,6 +19,7 @@ use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
 use OCP\Comments\CommentsEntityEvent;
+use OCP\Files\Cache\CacheEntryRemovedEvent;
 use OCP\Group\Events\UserAddedEvent;
 use OCP\Group\Events\UserRemovedEvent;
 use OCP\User\Events\UserDeletedEvent;
@@ -48,10 +48,12 @@ class Application extends App implements IBootstrap {
             CommentsEntityListener::class
         );
 
-        // Register Page Deleted Listener (cleanup comments when page is deleted)
+        // Comment cleanup: fires when a file leaves the filecache for good
+        // (trashbin emptied), not when it is moved to the trashbin — so a
+        // restored page keeps its comments.
         $context->registerEventListener(
-            PageDeletedEvent::class,
-            PageDeletedListener::class
+            CacheEntryRemovedEvent::class,
+            CacheCleanupListener::class
         );
 
         // GDPR: cleanup user data when Nextcloud user is deleted

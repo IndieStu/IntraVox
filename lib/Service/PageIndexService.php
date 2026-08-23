@@ -24,7 +24,7 @@ class PageIndexService {
      * Upsert a page into the index.
      * Called after page create/update.
      */
-    public function indexPage(array $pageData, string $language, string $path, ?int $fileId = null): void {
+    public function indexPage(array $pageData, string $language, string $path, ?int $fileId = null, ?int $folderId = null): void {
         $uniqueId = $pageData['uniqueId'] ?? '';
         if (empty($uniqueId)) {
             return;
@@ -50,6 +50,7 @@ class PageIndexService {
                 ->set('modified_at', $qb->createNamedParameter(time(), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
                 ->set('parent_id', $qb->createNamedParameter($pageData['parentId'] ?? null))
                 ->set('file_id', $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
+                ->set('folder_id', $qb->createNamedParameter($folderId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT))
                 ->set('translation_group', $qb->createNamedParameter($pageData['translationGroup'] ?? null))
                 ->where($qb->expr()->eq('unique_id', $qb->createNamedParameter($uniqueId)))
                 ->andWhere($qb->expr()->eq('language', $qb->createNamedParameter($language)));
@@ -69,6 +70,7 @@ class PageIndexService {
                         'modified_at' => $qb->createNamedParameter(time(), \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
                         'parent_id' => $qb->createNamedParameter($pageData['parentId'] ?? null),
                         'file_id' => $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
+                        'folder_id' => $qb->createNamedParameter($folderId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT),
                         'translation_group' => $qb->createNamedParameter($pageData['translationGroup'] ?? null),
                     ]);
                 $qb->executeStatement();
@@ -136,14 +138,16 @@ class PageIndexService {
      */
     public function getPagesByLanguage(string $language, ?string $status = null): array {
         $qb = $this->db->getQueryBuilder();
-        $qb->select('unique_id', 'title', 'path', 'status', 'modified_at', 'parent_id', 'file_id')
-            ->from(self::TABLE)
-            ->where($qb->expr()->eq('language', $qb->createNamedParameter($language)))
-            ->orderBy('title', 'ASC');
+        $qb->select('p.unique_id', 'p.title', 'p.path', 'p.status', 'p.modified_at', 'p.parent_id', 'p.file_id')
+            ->from(self::TABLE, 'p')
+            ->where($qb->expr()->eq('p.language', $qb->createNamedParameter($language)))
+            ->orderBy('p.title', 'ASC');
 
         if ($status !== null) {
-            $qb->andWhere($qb->expr()->eq('status', $qb->createNamedParameter($status)));
+            $qb->andWhere($qb->expr()->eq('p.status', $qb->createNamedParameter($status)));
         }
+
+        $this->whereFileIsLive($qb, 'p');
 
         $result = $qb->executeQuery();
         $pages = $result->fetchAll();
@@ -158,12 +162,14 @@ class PageIndexService {
      */
     public function searchByTitle(string $query, string $language, int $limit = 20): array {
         $qb = $this->db->getQueryBuilder();
-        $qb->select('unique_id', 'title', 'path', 'status', 'modified_at')
-            ->from(self::TABLE)
-            ->where($qb->expr()->eq('language', $qb->createNamedParameter($language)))
-            ->andWhere($qb->expr()->iLike('title', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($query) . '%')))
-            ->orderBy('modified_at', 'DESC')
+        $qb->select('p.unique_id', 'p.title', 'p.path', 'p.status', 'p.modified_at')
+            ->from(self::TABLE, 'p')
+            ->where($qb->expr()->eq('p.language', $qb->createNamedParameter($language)))
+            ->andWhere($qb->expr()->iLike('p.title', $qb->createNamedParameter('%' . $this->db->escapeLikeParameter($query) . '%')))
+            ->orderBy('p.modified_at', 'DESC')
             ->setMaxResults($limit);
+
+        $this->whereFileIsLive($qb, 'p');
 
         $result = $qb->executeQuery();
         $pages = $result->fetchAll();
@@ -176,15 +182,117 @@ class PageIndexService {
      */
     public function getPage(string $uniqueId, string $language): ?array {
         $qb = $this->db->getQueryBuilder();
-        $qb->select('*')
-            ->from(self::TABLE)
-            ->where($qb->expr()->eq('unique_id', $qb->createNamedParameter($uniqueId)))
-            ->andWhere($qb->expr()->eq('language', $qb->createNamedParameter($language)));
+        $qb->select('p.*')
+            ->from(self::TABLE, 'p')
+            ->where($qb->expr()->eq('p.unique_id', $qb->createNamedParameter($uniqueId)))
+            ->andWhere($qb->expr()->eq('p.language', $qb->createNamedParameter($language)));
+
+        $this->whereFileIsLive($qb, 'p');
 
         $result = $qb->executeQuery();
         $row = $result->fetch();
         $result->closeCursor();
         return $row ?: null;
+    }
+
+    /**
+     * Restrict a query to pages whose file is still live.
+     *
+     * Index rows outlive the page file on purpose: deleting a page moves it to
+     * the trashbin, which is reversible, and restoring it fires no event of any
+     * kind (verified on NC34). A row dropped at delete time could therefore
+     * never be restored, which is why a recovered page used to stay invisible
+     * in IntraVox until `occ intravox:reindex` was run by hand.
+     *
+     * So instead of a flag that nothing could ever clear, liveness is read from
+     * the filecache, which Nextcloud itself keeps correct in both directions: a
+     * trashed file has its path moved out of `files/`, and a restored file is
+     * back under it before any IntraVox code runs. The page drops out of every
+     * listing and comes back on restore with no bookkeeping of our own.
+     *
+     * Joins on the filecache primary key (an eq_ref lookup), so this costs one
+     * row per candidate rather than a second query per page.
+     *
+     * Rows with no file_id — written before 1.3.0 — cannot be checked this way
+     * and are treated as live: hiding a page because its id was never recorded
+     * would be a worse failure than showing one that is in the trashbin, and
+     * `occ intravox:reindex` fills the id in.
+     *
+     * @param \OCP\DB\QueryBuilder\IQueryBuilder $qb    query selecting from TABLE
+     * @param string                              $alias alias used for TABLE
+     */
+    private function whereFileIsLive(\OCP\DB\QueryBuilder\IQueryBuilder $qb, string $alias): void {
+        $qb->leftJoin(
+            $alias,
+            'filecache',
+            'fc',
+            $qb->expr()->eq('fc.fileid', $alias . '.file_id')
+        )->andWhere($qb->expr()->orX(
+            // Never indexed with a file id (pre-1.3.0) — cannot be judged.
+            $qb->expr()->isNull($alias . '.file_id'),
+            // Live: still sitting under the storage's `files/` root. A trashed
+            // file is moved to `trash/…`, a deleted one loses its row entirely.
+            $qb->expr()->like('fc.path', $qb->createNamedParameter('files/%'))
+        ));
+    }
+
+    /**
+     * Locate the page rows that belong to a file id.
+     *
+     * Used by CacheCleanupListener, which learns from CacheEntryRemovedEvent
+     * that a file is permanently gone and has only its id to go on.
+     *
+     * Returns every matching row, not one. A page is one row per language and
+     * an index can hold more than one row for the same file after a partial
+     * reindex; the caller cleans up all of them rather than guessing which is
+     * the real one.
+     *
+     * A file id of 0 or less never matches. `file_id` is nullable for rows
+     * written before 1.3.0, and letting an empty id through would turn one
+     * unrelated deletion into a query that matches those rows and wipes the
+     * comments of pages that were never touched.
+     *
+     * @return array<array> index rows, empty when the id is unknown
+     */
+    public function findByFileId(int $fileId): array {
+        if ($fileId <= 0) {
+            return [];
+        }
+
+        try {
+            $qb = $this->db->getQueryBuilder();
+            $qb->select('*')
+                ->from(self::TABLE)
+                ->where($qb->expr()->orX(
+                    // The JSON file's own id, for a page removed file-by-file.
+                    $qb->expr()->eq(
+                        'file_id',
+                        $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)
+                    ),
+                    // The page FOLDER's id. A page is deleted as a folder and
+                    // the removal event reports only that folder, never the
+                    // JSON inside it (verified on NC34) — and by the time the
+                    // event fires the JSON's filecache row is already gone, so
+                    // the link cannot be resolved through the filecache. It is
+                    // recorded on the page row itself at index time instead.
+                    $qb->expr()->eq(
+                        'folder_id',
+                        $qb->createNamedParameter($fileId, \OCP\DB\QueryBuilder\IQueryBuilder::PARAM_INT)
+                    )
+                ));
+
+            $result = $qb->executeQuery();
+            $rows = $result->fetchAll();
+            $result->closeCursor();
+
+            return $rows ?: [];
+        } catch (\Exception $e) {
+            $this->logger->warning('IntraVox: findByFileId failed', [
+                'fileId' => $fileId,
+                'error' => $e->getMessage(),
+            ]);
+            return [];
+        }
     }
 
     /**
@@ -208,9 +316,11 @@ class PageIndexService {
     public function findByUniqueId(string $uniqueId, ?string $preferredLanguage = null): ?array {
         try {
             $qb = $this->db->getQueryBuilder();
-            $qb->select('*')
-                ->from(self::TABLE)
-                ->where($qb->expr()->eq('unique_id', $qb->createNamedParameter($uniqueId)));
+            $qb->select('p.*')
+                ->from(self::TABLE, 'p')
+                ->where($qb->expr()->eq('p.unique_id', $qb->createNamedParameter($uniqueId)));
+
+            $this->whereFileIsLive($qb, 'p');
 
             $result = $qb->executeQuery();
             $rows = $result->fetchAll();
@@ -261,13 +371,15 @@ class PageIndexService {
         }
         try {
             $qb = $this->db->getQueryBuilder();
-            $qb->select('*')
-                ->from(self::TABLE)
+            $qb->select('p.*')
+                ->from(self::TABLE, 'p')
                 ->where($qb->expr()->eq(
-                    'translation_group',
+                    'p.translation_group',
                     $qb->createNamedParameter($translationGroup)
                 ))
-                ->orderBy('language', 'ASC');
+                ->orderBy('p.language', 'ASC');
+
+            $this->whereFileIsLive($qb, 'p');
 
             $result = $qb->executeQuery();
             $rows = $result->fetchAll();
@@ -285,6 +397,11 @@ class PageIndexService {
 
     /**
      * Check if index has any entries (to know if initial population is needed).
+     *
+     * Deliberately NOT filtered on liveness, unlike the listing methods: this
+     * answers "has the index been populated at all", and a row whose page sits
+     * in the trashbin still proves that it has. Filtering here would report an
+     * empty index and trigger a needless rebuild.
      */
     public function hasEntries(string $language): bool {
         $qb = $this->db->getQueryBuilder();
@@ -421,7 +538,12 @@ class PageIndexService {
         $qb->executeStatement();
     }
 
-    /** Total number of indexed pages, for reporting after a rebuild. */
+    /**
+     * Total number of indexed pages, for reporting after a rebuild.
+     *
+     * Counts every row, trashed pages included — it reports what the rebuild
+     * wrote, not what is currently visible.
+     */
     public function countAll(): int {
         $qb = $this->db->getQueryBuilder();
         $qb->select($qb->func()->count('id'))->from(self::TABLE);

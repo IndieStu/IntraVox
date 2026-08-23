@@ -2666,7 +2666,8 @@ class PageService {
                 $data,
                 $language,
                 $indexFolder->getPath(),
-                $file->getId()
+                $file->getId(),
+                $indexFolder->getId()
             );
         } catch (\Exception $e) {
             $this->logger->warning('Failed to index new page', ['error' => $e->getMessage()]);
@@ -2956,7 +2957,7 @@ class PageService {
         try {
             $folderPath = $result['folder']->getPath();
             $language = $this->languageOfFolder($result['folder']) ?? $this->getUserLanguage();
-            $this->pageIndexService->indexPage($validatedData, $language, $folderPath, $file->getId());
+            $this->pageIndexService->indexPage($validatedData, $language, $folderPath, $file->getId(), $result['folder']->getId());
         } catch (\Exception $e) {
             $this->logger->warning('Failed to update page index', ['error' => $e->getMessage()]);
         }
@@ -3030,20 +3031,21 @@ class PageService {
             $this->logger->warning('Failed to dispatch PageDeletedEvent for page ' . $id . ': ' . $e->getMessage());
         }
 
-        // Remove from page metadata index before deleting files (non-blocking).
-        // Deleting a page deletes everything nested inside it, so the subtree
-        // goes too: removePage() only knows this one uniqueId, and without the
-        // subtree sweep the children linger as rows pointing at folders that
-        // no longer exist.
-        $deletedPath = $result['folder']->getPath();
-        try {
-            if (!empty($uniqueId)) {
-                $this->pageIndexService->removePage($uniqueId);
-            }
-            $this->pageIndexService->removeSubtree($deletedPath);
-        } catch (\Exception $e) {
-            $this->logger->warning('Failed to remove page from index', ['error' => $e->getMessage()]);
-        }
+        // The index rows are deliberately LEFT IN PLACE. Deleting a page moves
+        // its folder to the trashbin, which is reversible, so anything dropped
+        // here would have to be rebuilt on restore — and restoring fires no
+        // event at all (verified on NC34: trashing gives NodeDeletedEvent,
+        // restoring gives nothing). Rows removed here could therefore never
+        // come back, which is exactly why a restored page used to reappear in
+        // Files but stay missing from the IntraVox page structure until
+        // `occ intravox:reindex` was run by hand.
+        //
+        // Instead the rows stay and readers ask the filecache whether the file
+        // is still live (PageIndexService::whereFileIsLive()). A trashed page has
+        // its filecache path moved out of `files/`, so it drops out of every
+        // listing without a flag to maintain, and a restore puts it back —
+        // no event, no repair step. The rows are removed for good by
+        // CacheCleanupListener once the trashbin is emptied.
 
         // Delete the entire folder (includes .json, images/, files/)
         $result['folder']->delete();
@@ -4230,7 +4232,8 @@ class PageService {
                         // The page's OWN folder, matching createPage/updatePage —
                         // locateViaIndex derives its candidates from this path.
                         $pageFolder->getPath(),
-                        $node->getId()
+                        $node->getId(),
+                        $pageFolder->getId()
                     );
                 }
                 $stats['indexed']++;

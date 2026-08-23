@@ -635,8 +635,9 @@ class ImportService {
             // PageService. $pageFolderPath is relative and stays that way — it
             // is this method's return value and callers depend on that shape.
             try {
-                $indexPath = $file->getParent()->getPath();
-                $this->pageIndexService->indexPage($content, $language, $indexPath, $fileId);
+                $parentFolder = $file->getParent();
+                $indexPath = $parentFolder->getPath();
+                $this->pageIndexService->indexPage($content, $language, $indexPath, $fileId, $parentFolder->getId());
             } catch (\Exception $e) {
                 $this->logger->warning('Failed to index imported page ' . $uniqueId, [
                     'error' => $e->getMessage(),

@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.3.2] - 2026-08-23 — Comments survive the trashbin
+
+### Fixed
+
+- **Restoring a page from the trashbin brings its comments back.** Deleting a page moved its folder to the trashbin, which is reversible, but wiped its comments and reactions from the database in the same step, which is not. Restoring the page therefore returned it without its discussion, and there was nothing left to recover — no warning beforehand, no way back afterwards. Comment cleanup now runs when the file leaves the filecache for good (the trashbin being emptied) instead of when it is moved there, so comments have the same lifetime as the page they belong to: they survive the trashbin, come back on restore, and are removed for good once the trashbin is emptied. Restoring needs no repair step — the comments were never deleted to begin with.
+
+  Comments belonging to pages deleted **before** this version were already permanently removed and cannot be recovered.
+
+- **A page restored from the trashbin reappears in the page structure.** The page came back in Files but stayed missing from IntraVox, because its index row was dropped the moment the page was trashed — and restoring a page fires no event of any kind, so nothing could ever put the row back. The only way out was to run `occ intravox:reindex` by hand, which nothing told you about. Index rows now stay in place while a page sits in the trashbin, and listings ask the filecache whether the page is still live: a trashed page drops out of every listing, and a restored one is back immediately with no repair step. Rows are removed for good, together with the comments, once the trashbin is emptied.
+
 ## [2.3.1] - 2026-08-21 — Filenames with accents, umlauts and spaces
 
 ### Fixed
