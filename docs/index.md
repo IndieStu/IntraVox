@@ -80,3 +80,4 @@ New to IntraVox? Start with the [Getting Started Guide](getting-started.md) for 
 ## License
 
 IntraVox is licensed under the [AGPL-3.0 License](https://www.gnu.org/licenses/agpl-3.0.html).
+
