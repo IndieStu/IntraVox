@@ -499,7 +499,7 @@ Required files in tarball:
 
 The `.tx/`, `.l10nignore`, and `translationfiles/` are dev-only artefacts for Transifex sync. Runtime IntraVox loads translations only from `l10n/*.{js,json}`.
 
-> **POT detail**: the generated `translationfiles/templates/intravox.pot` contains absolute-path source-file references (`#: /Users/rikdekker/Documents/Development/IntraVox/lib/...`). This is harmless — Transifex only uses msgids, not the comments — and the POT is excluded from the tarball anyway. Don't try to make those paths repo-relative; the NC sync-bot regenerates the POT server-side with its own paths.
+> **POT detail**: the generated `translationfiles/templates/intravox.pot` contains absolute-path source-file references (`#: /Users/rikdekker/Documents/Development/voxcloud-apps/intravox/lib/...`). This is harmless — Transifex only uses msgids, not the comments — and the POT is excluded from the tarball anyway. Don't try to make those paths repo-relative; the NC sync-bot regenerates the POT server-side with its own paths.
 
 ---
 
@@ -560,7 +560,7 @@ cp composer.json composer.lock "$TEMP_DIR/vendor-build/" && \
 cp -r "$TEMP_DIR/vendor-build/vendor" "$TEMP_DIR/intravox/" && \
 cd "$TEMP_DIR" && \
 tar -czf intravox-X.Y.Z.tar.gz intravox && \
-mv intravox-X.Y.Z.tar.gz /Users/rikdekker/Documents/Development/IntraVox/ && \
+mv intravox-X.Y.Z.tar.gz /Users/rikdekker/Documents/Development/voxcloud-apps/intravox/ && \
 rm -rf "$TEMP_DIR"
 ```
 
