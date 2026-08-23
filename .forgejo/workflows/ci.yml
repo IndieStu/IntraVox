@@ -1,16 +1,17 @@
 # The quality gate, on the remote that actually receives our pushes.
 #
 # .github/workflows/ci.yml is the same gate for the public GitHub mirror. This
-# file exists because day-to-day work goes to gitea.rikdekker.nl, so the GitHub
-# copy only runs when a release is mirrored — which is far too late to catch a
+# file exists because day-to-day work goes to forgejo.voxcloud.nl, so the GitHub
+# copy only runs when a release is pushed there — far too late to catch a
 # broken commit.
 #
-# Runner notes, checked against ax42-runner-1 rather than assumed:
+# Runner notes, checked against voxcloud-srv-runner-1 rather than assumed:
 #   - the job image is catthehacker/ubuntu:act-22.04. It has Node 24 but NO php
 #     and NO composer, so PHP is installed per run via setup-php.
-#   - the runner does reach the internet, so actions from GitHub resolve.
-#   - `cache: enabled: false` in the runner config, so there is nothing to cache
-#     between runs; every job installs its own dependencies.
+#   - job containers run on proxy-net, so they do reach the internet and the
+#     instance; see /opt/docker/forgejo-runner/README.md for why not the
+#     internal network.
+#   - the runner cache IS enabled, unlike on the old ax42 runner.
 #
 # Kept deliberately close to the GitHub file so the two do not drift. When you
 # change one, change the other.

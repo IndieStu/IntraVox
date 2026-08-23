@@ -13,6 +13,13 @@
 # met dode bookmarks. Voor deze repo is de slug `intravox`.
 #
 # Vereist secret WINDMILL_TOKEN (Windmill → User Settings → Tokens).
+#
+# WAAROM repo_url NOG NAAR GITHUB WIJST (en dat klopt):
+# Forgejo draait met REQUIRE_SIGNIN_VIEW=true, dus een anonieme clone geeft 401.
+# Windmill cloont zonder credentials en zou daarop stukloopen. GitHub is voor
+# IntraVox de publieke spiegel en levert exact dezelfde docs/-boom.
+# Wil je dit tóch naar Forgejo halen, dan moet er eerst een token-URL of een
+# deploy-key in de Windmill-flow — niet alleen deze regel omzetten.
 
 name: Publish docs to IntraVox
 
