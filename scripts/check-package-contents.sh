@@ -38,6 +38,19 @@ if [ -z "$ROOT" ]; then
     exit 2
 fi
 
+# The folder inside the tarball must be the plain app id. Nextcloud unpacks it
+# straight into apps/ and derives the app id from the folder name, so anything
+# else — a version suffix in particular — makes the App Store refuse the upload:
+# "No possible app folder found. App folder must contain only lowercase ASCII
+# characters or underscores". 2.3.2 shipped as `intravox-2.3.2` and was rejected
+# on submission; nothing here caught it, because this check did not exist.
+if [ "$ROOT" != "intravox" ]; then
+    echo "✗ Package root is '$ROOT', must be exactly 'intravox'" >&2
+    echo "  Nextcloud derives the app id from this folder; a version suffix" >&2
+    echo "  is rejected by the App Store. The tarball FILE keeps the version." >&2
+    exit 1
+fi
+
 FAILURES=0
 
 fail() {
