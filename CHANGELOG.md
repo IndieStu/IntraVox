@@ -4,6 +4,16 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [2.4.0] - 2026-08-24 — Licence reporting counts users like every other app
+
+### Fixed
+
+- **User counts reported to the licence server were far too low.** IntraVox counted the members of a group named exactly `intravox`, and where no such group existed it fell back to counting only users who had logged in at least once. On a server with 107 accounts that reported 5. Neither figure was what a subscription is priced on, and neither matched what the other VoxCloud apps report. It now counts every account on the instance, the same way MetaVox, FormVox, RoomVox and IntroVox do. The group is no longer consulted: customers rename it, split it or never create one, so it was never a dependable basis. Nothing needs to be reconfigured — instances correct themselves at the next report.
+
+### Added
+
+- **Disabled accounts and recent activity are reported alongside the total.** Disabling a user is how Nextcloud offboards someone while keeping their file ownership, so those accounts still exist; reporting them separately makes it visible when a customer has actually shrunk. The number of users who logged in during the last 30 days is reported too, which shows whether the seats a customer pays for are in use.
+
 ## [2.3.2] - 2026-08-23 — Comments survive the trashbin
 
 ### Fixed

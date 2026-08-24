@@ -6,8 +6,6 @@ namespace OCA\IntraVox\Service;
 use OCA\IntraVox\AppInfo\Application;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
-use OCP\IUserManager;
-use OCP\IGroupManager;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -22,8 +20,7 @@ class TelemetryService {
     private LoggerInterface $logger;
     private PageService $pageService;
     private LicenseService $licenseService;
-    private IUserManager $userManager;
-    private IGroupManager $groupManager;
+    private UserCountService $userCounts;
 
     public function __construct(
         IClientService $httpClient,
@@ -31,16 +28,14 @@ class TelemetryService {
         LoggerInterface $logger,
         PageService $pageService,
         LicenseService $licenseService,
-        IUserManager $userManager,
-        IGroupManager $groupManager
+        UserCountService $userCounts
     ) {
         $this->httpClient = $httpClient;
         $this->config = $config;
         $this->logger = $logger;
         $this->pageService = $pageService;
         $this->licenseService = $licenseService;
-        $this->userManager = $userManager;
-        $this->groupManager = $groupManager;
+        $this->userCounts = $userCounts;
     }
 
     /**
@@ -147,8 +142,9 @@ class TelemetryService {
             'instanceHash' => $instanceHash,
             'totalPages' => $totalPages,
             'pageCountsPerLanguage' => $pageCounts,
-            'totalUsers' => $this->getUserCount(),
-            'activeUsers30d' => $this->getActiveUserCount(30),
+            'totalUsers' => $this->userCounts->getTotal(),
+            'activeUsers30d' => $this->userCounts->getActive(30),
+            'disabledUsers' => $this->userCounts->getDisabled(),
             'intravoxVersion' => $this->getAppVersion(),
             'nextcloudVersion' => $this->getNextcloudVersion(),
             'phpVersion' => PHP_VERSION,
@@ -187,55 +183,6 @@ class TelemetryService {
             ]);
         }
         return false;
-    }
-
-    /**
-     * Get total user count
-     */
-    private function getUserCount(): int {
-        try {
-            // First try the IntraVox group if it exists
-            $group = $this->groupManager->get('intravox');
-            if ($group !== null) {
-                return max(1, count($group->getUsers()));
-            }
-
-            // Fall back to counting all users
-            $count = 0;
-            $this->userManager->callForAllUsers(function ($user) use (&$count) {
-                $count++;
-            });
-            return max(1, $count);
-        } catch (\Exception $e) {
-            $this->logger->warning('TelemetryService: Failed to count users', [
-                'error' => $e->getMessage()
-            ]);
-            return 1;
-        }
-    }
-
-    /**
-     * Get active user count for the last N days
-     */
-    private function getActiveUserCount(int $days): int {
-        try {
-            $cutoffTime = time() - ($days * 24 * 60 * 60);
-            $count = 0;
-
-            $this->userManager->callForSeenUsers(function ($user) use (&$count, $cutoffTime) {
-                $lastLogin = $user->getLastLogin();
-                if ($lastLogin >= $cutoffTime) {
-                    $count++;
-                }
-            });
-
-            return $count;
-        } catch (\Exception $e) {
-            $this->logger->warning('TelemetryService: Failed to count active users', [
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
     }
 
     /**

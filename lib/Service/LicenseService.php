@@ -17,6 +17,7 @@ use OCA\IntraVox\Service\Path\PagePathHelper;
  */
 class LicenseService {
     private const FREE_LIMIT = 50; // Pages per language in free version
+
     private const DEFAULT_LICENSE_SERVER_URL = 'https://licenses.voxcloud.nl';
 
     private SetupService $setupService;
@@ -25,6 +26,7 @@ class LicenseService {
     private LoggerInterface $logger;
     private LanguageService $languageService;
     private IURLGenerator $urlGenerator;
+    private UserCountService $userCounts;
 
     public function __construct(
         SetupService $setupService,
@@ -32,7 +34,8 @@ class LicenseService {
         IClientService $clientService,
         LoggerInterface $logger,
         LanguageService $languageService,
-        IURLGenerator $urlGenerator
+        IURLGenerator $urlGenerator,
+        UserCountService $userCounts
     ) {
         $this->setupService = $setupService;
         $this->config = $config;
@@ -40,6 +43,7 @@ class LicenseService {
         $this->logger = $logger;
         $this->languageService = $languageService;
         $this->urlGenerator = $urlGenerator;
+        $this->userCounts = $userCounts;
     }
 
     /**
@@ -214,7 +218,7 @@ class LicenseService {
         try {
             $client = $this->clientService->newClient();
             $totalPages = $this->getTotalPageCount();
-            $userCount = $this->getUserCount();
+            $userCount = $this->userCounts->getTotal();
 
             $pageCounts = $this->getPageCountsPerLanguage();
 
@@ -226,7 +230,14 @@ class LicenseService {
                     'appType' => 'intravox',
                     'currentPages' => $totalPages,
                     'pageCountsPerLanguage' => $pageCounts,
-                    'currentUsers' => $userCount
+                    'currentUsers' => $userCount,
+                    'activeUsers30d' => $this->userCounts->getActive(30),
+                    'disabledUsers' => $this->userCounts->getDisabled(),
+                    // Tells the server how the count was taken, so readings
+                    // from releases that counted unreliably stay out of the
+                    // averages a contract is measured against.
+                    'countMethod' => UserCountService::COUNT_METHOD,
+                    'appVersion' => $this->getAppVersion()
                 ],
                 'timeout' => 15,
                 'headers' => [
@@ -483,34 +494,6 @@ class LicenseService {
     public function getTotalPageCount(): int {
         $counts = $this->getPageCountsPerLanguage();
         return array_sum($counts);
-    }
-
-    /**
-     * Get the number of users with access to IntraVox
-     */
-    private function getUserCount(): int {
-        try {
-            // Count users in the IntraVox group if it exists
-            $groupManager = \OC::$server->get(\OCP\IGroupManager::class);
-            $group = $groupManager->get('intravox');
-            if ($group) {
-                return count($group->getUsers());
-            }
-
-            // Fall back to counting all users
-            $userManager = \OC::$server->get(\OCP\IUserManager::class);
-            // This is a rough count - in production you might want to be more specific
-            $count = 0;
-            $userManager->callForSeenUsers(function ($user) use (&$count) {
-                $count++;
-            });
-            return $count;
-        } catch (\Exception $e) {
-            $this->logger->warning('LicenseService: Failed to count users', [
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
     }
 
     /**
