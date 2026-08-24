@@ -108,6 +108,7 @@
     "lib/Service/Template/PageTemplateService.php": 222,
     "lib/Service/Template/TemplateMetadataExtractor.php": 95,
     "lib/Service/Translation/TranslationGroupService.php": 362,
+    "lib/Service/UserCountService.php": 121,
     "lib/Service/UserService.php": 1594,
     "lib/Service/Util/PageIdUtils.php": 104,
     "lib/Service/Version/PageVersionFormatter.php": 114,
