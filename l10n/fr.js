@@ -981,6 +981,7 @@ OC.L10N.register(
     "Show {count} more..." : "Afficher {count} de plus...",
     "Could not load page structure: {error}" : "Impossible de charger la structure de la page: {error}",
     "Close" : "Fermer",
+    "Page structure views" : "Affichages de la structure de la page",
     "Pages" : "Pages",
     "On this page" : "Sur cette page",
     "About the page structure" : "À propos de la structure de la page",
