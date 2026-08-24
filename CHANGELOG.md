@@ -4,7 +4,7 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [2.3.3] - 2026-08-24 — Licence reporting counts users like every other app
+## [2.4.0] - 2026-08-24 — Licence reporting counts users like every other app
 
 ### Fixed
 

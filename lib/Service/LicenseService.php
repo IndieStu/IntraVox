@@ -9,7 +9,6 @@ use OCP\Files\NotFoundException;
 use OCP\Http\Client\IClientService;
 use OCP\IConfig;
 use OCP\IURLGenerator;
-use OCP\IUserManager;
 use Psr\Log\LoggerInterface;
 use OCA\IntraVox\Service\Path\PagePathHelper;
 
@@ -19,12 +18,6 @@ use OCA\IntraVox\Service\Path\PagePathHelper;
 class LicenseService {
     private const FREE_LIMIT = 50; // Pages per language in free version
 
-    /**
-     * How the user count is taken, reported alongside it so the licence server
-     * can tell reliable readings from those produced by older releases (which
-     * counted group members, or only users who had logged in).
-     */
-    public const COUNT_METHOD = 'callForAllUsers';
     private const DEFAULT_LICENSE_SERVER_URL = 'https://licenses.voxcloud.nl';
 
     private SetupService $setupService;
@@ -33,7 +26,7 @@ class LicenseService {
     private LoggerInterface $logger;
     private LanguageService $languageService;
     private IURLGenerator $urlGenerator;
-    private IUserManager $userManager;
+    private UserCountService $userCounts;
 
     public function __construct(
         SetupService $setupService,
@@ -42,7 +35,7 @@ class LicenseService {
         LoggerInterface $logger,
         LanguageService $languageService,
         IURLGenerator $urlGenerator,
-        IUserManager $userManager
+        UserCountService $userCounts
     ) {
         $this->setupService = $setupService;
         $this->config = $config;
@@ -50,7 +43,7 @@ class LicenseService {
         $this->logger = $logger;
         $this->languageService = $languageService;
         $this->urlGenerator = $urlGenerator;
-        $this->userManager = $userManager;
+        $this->userCounts = $userCounts;
     }
 
     /**
@@ -225,7 +218,7 @@ class LicenseService {
         try {
             $client = $this->clientService->newClient();
             $totalPages = $this->getTotalPageCount();
-            $userCount = $this->getUserCount();
+            $userCount = $this->userCounts->getTotal();
 
             $pageCounts = $this->getPageCountsPerLanguage();
 
@@ -238,12 +231,12 @@ class LicenseService {
                     'currentPages' => $totalPages,
                     'pageCountsPerLanguage' => $pageCounts,
                     'currentUsers' => $userCount,
-                    'activeUsers30d' => $this->getActiveUserCount(30),
-                    'disabledUsers' => $this->getDisabledUserCount(),
+                    'activeUsers30d' => $this->userCounts->getActive(30),
+                    'disabledUsers' => $this->userCounts->getDisabled(),
                     // Tells the server how the count was taken, so readings
                     // from releases that counted unreliably stay out of the
                     // averages a contract is measured against.
-                    'countMethod' => self::COUNT_METHOD,
+                    'countMethod' => UserCountService::COUNT_METHOD,
                     'appVersion' => $this->getAppVersion()
                 ],
                 'timeout' => 15,
@@ -501,87 +494,6 @@ class LicenseService {
     public function getTotalPageCount(): int {
         $counts = $this->getPageCountsPerLanguage();
         return array_sum($counts);
-    }
-
-    /**
-     * Named users on this instance.
-     *
-     * Every account, from every backend, whether or not it has ever logged in.
-     * This is the figure a subscription is priced on, and it has to mean the
-     * same thing in every VoxCloud app.
-     *
-     * It used to count members of an 'intravox' group and fall back to
-     * callForSeenUsers. Both were wrong for this purpose. The group is not a
-     * reliable basis — customers rename it, split it, or never create one, and
-     * on our own servers the groups are called "IntraVox Users" so the lookup
-     * silently missed. The fallback then counted only users who had logged in
-     * at least once, which reported 5 where the server had 107 accounts.
-     */
-    private function getUserCount(): int {
-        try {
-            $count = 0;
-            $this->userManager->callForAllUsers(function ($user) use (&$count) {
-                $count++;
-            });
-            return max(1, $count);
-        } catch (\Exception $e) {
-            $this->logger->warning('LicenseService: Failed to count users', [
-                'error' => $e->getMessage()
-            ]);
-            return 1;
-        }
-    }
-
-    /**
-     * Users who logged in within the last N days.
-     *
-     * Not a billing figure — seasonal staff, holidays and a freshly launched
-     * environment all push it down — but it shows whether the seats being paid
-     * for are actually in use, which is the useful half of a renewal
-     * conversation.
-     */
-    private function getActiveUserCount(int $days): int {
-        try {
-            $cutoff = time() - ($days * 24 * 60 * 60);
-            $count = 0;
-            $this->userManager->callForSeenUsers(function ($user) use (&$count, $cutoff) {
-                if ($user->getLastLogin() >= $cutoff) {
-                    $count++;
-                }
-            });
-            return $count;
-        } catch (\Exception $e) {
-            $this->logger->warning('LicenseService: Failed to count active users', [
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
-    }
-
-    /**
-     * Accounts that exist but are disabled.
-     *
-     * They count towards the named-user total, because disabling is how
-     * Nextcloud offboards someone while keeping their file ownership. Reported
-     * separately so the difference is visible when usage is compared against a
-     * contract — whether it is billable is still being confirmed with
-     * Nextcloud.
-     */
-    private function getDisabledUserCount(): int {
-        try {
-            $count = 0;
-            $this->userManager->callForAllUsers(function ($user) use (&$count) {
-                if (!$user->isEnabled()) {
-                    $count++;
-                }
-            });
-            return $count;
-        } catch (\Exception $e) {
-            $this->logger->warning('LicenseService: Failed to count disabled users', [
-                'error' => $e->getMessage()
-            ]);
-            return 0;
-        }
     }
 
     /**
