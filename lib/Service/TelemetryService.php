@@ -149,6 +149,7 @@ class TelemetryService {
             'pageCountsPerLanguage' => $pageCounts,
             'totalUsers' => $this->getUserCount(),
             'activeUsers30d' => $this->getActiveUserCount(30),
+            'disabledUsers' => $this->getDisabledUserCount(),
             'intravoxVersion' => $this->getAppVersion(),
             'nextcloudVersion' => $this->getNextcloudVersion(),
             'phpVersion' => PHP_VERSION,
@@ -190,17 +191,15 @@ class TelemetryService {
     }
 
     /**
-     * Get total user count
+     * Named users on this instance.
+     *
+     * Every account, from every backend. The group check that used to come
+     * first is gone: it counted a different population than the other apps
+     * report, and it depended on a group named exactly 'intravox' that
+     * customers rename or never create.
      */
     private function getUserCount(): int {
         try {
-            // First try the IntraVox group if it exists
-            $group = $this->groupManager->get('intravox');
-            if ($group !== null) {
-                return max(1, count($group->getUsers()));
-            }
-
-            // Fall back to counting all users
             $count = 0;
             $this->userManager->callForAllUsers(function ($user) use (&$count) {
                 $count++;
@@ -211,6 +210,24 @@ class TelemetryService {
                 'error' => $e->getMessage()
             ]);
             return 1;
+        }
+    }
+
+    /** Accounts that exist but are disabled — see LicenseService. */
+    private function getDisabledUserCount(): int {
+        try {
+            $count = 0;
+            $this->userManager->callForAllUsers(function ($user) use (&$count) {
+                if (!$user->isEnabled()) {
+                    $count++;
+                }
+            });
+            return $count;
+        } catch (\Exception $e) {
+            $this->logger->warning('TelemetryService: Failed to count disabled users', [
+                'error' => $e->getMessage()
+            ]);
+            return 0;
         }
     }
 
