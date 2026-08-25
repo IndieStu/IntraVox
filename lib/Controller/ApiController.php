@@ -55,6 +55,16 @@ use Psr\Log\LoggerInterface;
  * which automatically respect GroupFolder ACL rules.
  */
 class ApiController extends Controller {
+    /**
+     * Ceiling on GET /api/pages.
+     *
+     * Far above any real instance on purpose: the paid tiers stop at 1000 pages
+     * per language, so this bounds a worst case without shaping ordinary use. It
+     * is not a page size — there is no cursor here yet, because listPages() has no
+     * ORDER BY and cursor paging over an unordered set silently skips and repeats
+     * rows. A stable sort has to land first.
+     */
+    private const MAX_PAGES_IN_LISTING = 2000;
     use ApiErrorTrait;
     use \OCA\IntraVox\Controller\Shared\SharePathTrait;
     use HasConditionalResponse;
@@ -222,17 +232,35 @@ class ApiController extends Controller {
                 $filteredPages[] = $page;
             }
 
-            return new DataResponse($filteredPages);
+            // The response was unbounded: every page in the language, however
+            // many that is. The shape stays a bare array — the frontend treats
+            // this as a complete index of page ids, so wrapping it in an envelope
+            // would be a breaking change for a MINOR release — but it is now
+            // bounded, and a truncated answer says so instead of pretending to be
+            // complete. The ceiling is deliberately far above any real instance
+            // (the paid tiers top out at 1000 pages per language), so this caps a
+            // worst case rather than shaping ordinary use.
+            $total = count($filteredPages);
+            $response = new DataResponse(array_slice($filteredPages, 0, self::MAX_PAGES_IN_LISTING));
+            $response->addHeader('X-IntraVox-Cap', (string)self::MAX_PAGES_IN_LISTING);
+            $response->addHeader('X-IntraVox-Truncated', $total > self::MAX_PAGES_IN_LISTING ? 'true' : 'false');
+
+            if ($total > self::MAX_PAGES_IN_LISTING) {
+                $this->logger->warning('IntraVox: page listing truncated', [
+                    'total' => $total,
+                    'cap' => self::MAX_PAGES_IN_LISTING,
+                ]);
+            }
+
+            return $response;
         } catch (\Exception $e) {
             // If IntraVox folder doesn't exist, return empty array
             // This allows the WelcomeScreen to be shown instead of an error
             if (strpos($e->getMessage(), 'IntraVox folder not found') !== false) {
                 return new DataResponse([]);
             }
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
-            );
+            $this->logger->error('IntraVox: listing pages failed', ['error' => $e->getMessage()]);
+            return new DataResponse(['error' => 'Could not list pages'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
