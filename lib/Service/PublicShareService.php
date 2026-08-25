@@ -459,6 +459,116 @@ class PublicShareService {
     }
 
     /**
+     * The STRUCTURED values a shared page configures for a widget key.
+     *
+     * allowedWidgetValues() above collects scalars, which covers calendar ids and
+     * feed urls. A people widget in filter mode configures something else: a list
+     * of {fieldName, operator, value} objects. Those survive neither the is_string
+     * nor the is_int branch, so that method returns an empty allowlist for them —
+     * and an empty allowlist a caller reads as "nothing published" would blank
+     * every filter-mode widget on every share.
+     *
+     * Returning the sets canonically encoded lets a caller answer the question
+     * that actually matters: is the filter this request asks for one the page
+     * publishes? Comparing structures, rather than intersecting scalars.
+     *
+     * @return list<string> canonical JSON, one entry per configured set
+     */
+    public function allowedWidgetValueSets(IShare $share, string $widgetType, string $key): array {
+        $sets = [];
+
+        try {
+            $node = $share->getNode();
+
+            $files = $node instanceof \OCP\Files\Folder
+                ? $this->collectPageFiles($node)
+                : [$node];
+
+            foreach ($files as $file) {
+                if (!$file instanceof \OCP\Files\File) {
+                    continue;
+                }
+
+                $page = json_decode((string)$file->getContent(), true);
+                if (!is_array($page)) {
+                    continue;
+                }
+
+                foreach (($page['layout']['rows'] ?? []) as $row) {
+                    foreach (($row['widgets'] ?? []) as $widget) {
+                        if (($widget['type'] ?? null) !== $widgetType) {
+                            continue;
+                        }
+
+                        $configured = $widget[$key] ?? null;
+                        if (is_array($configured) && $configured !== []) {
+                            $sets[self::canonicalise($configured)] = true;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            // Same posture as allowedWidgetValues(): a page we cannot read
+            // publishes nothing, so the caller denies rather than falls open.
+            $this->logger->warning('[PublicShareService] could not read the share\'s widget config; denying', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return [];
+        }
+
+        return array_keys($sets);
+    }
+
+    /**
+     * Does the shared page publish exactly this set for that widget key?
+     *
+     * The caller hands over what the request asked for; this answers whether the
+     * page actually configures it. Keeping the comparison here means callers
+     * never see the canonical form and cannot accidentally compare raw JSON,
+     * where a reordered key would read as a different filter.
+     */
+    public function publishesWidgetValueSet(IShare $share, string $widgetType, string $key, mixed $requested): bool {
+        if (!is_array($requested) || $requested === []) {
+            return false;
+        }
+
+        return in_array(
+            self::canonicalise($requested),
+            $this->allowedWidgetValueSets($share, $widgetType, $key),
+            true
+        );
+    }
+
+    /**
+     * A stable encoding, so two structurally equal sets compare equal.
+     *
+     * Key order in JSON carries no meaning and the editor promises none: the same
+     * filter saved twice can serialise as {fieldName,operator,value} or
+     * {value,fieldName,operator}. Sorting every level before encoding makes the
+     * comparison test what a filter MEANS rather than how it happened to be
+     * written.
+     */
+    private static function canonicalise(mixed $value): string {
+        if (is_array($value)) {
+            $isList = array_keys($value) === range(0, count($value) - 1);
+            $mapped = array_map(static fn ($v) => self::canonicalise($v), $value);
+            if ($isList) {
+                sort($mapped);
+                return '[' . implode(',', $mapped) . ']';
+            }
+            ksort($mapped);
+            $parts = [];
+            foreach ($mapped as $k => $v) {
+                $parts[] = json_encode((string)$k) . ':' . $v;
+            }
+            return '{' . implode(',', $parts) . '}';
+        }
+
+        return json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    }
+
+    /**
      * The page JSON files inside a shared folder, bounded so a deep tree cannot
      * turn one anonymous request into a full-tree walk.
      *
