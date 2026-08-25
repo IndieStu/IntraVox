@@ -65,6 +65,9 @@ class ApiController extends Controller {
      * rows. A stable sort has to land first.
      */
     private const MAX_PAGES_IN_LISTING = 2000;
+
+    /** Ceiling on the media listing; the picker shows far fewer than this. */
+    private const MAX_MEDIA_IN_LISTING = 1000;
     use ApiErrorTrait;
     use \OCA\IntraVox\Controller\Shared\SharePathTrait;
     use HasConditionalResponse;
@@ -736,7 +739,16 @@ class ApiController extends Controller {
 
             $mediaList = $this->pageService->getMediaList($pageId, $folder, $path);
 
-            return new DataResponse(['media' => $mediaList]);
+            // Naturally bounded by one folder's contents, which is not the same as
+            // bounded. The shared resources folder in particular grows with the
+            // instance rather than with the page. Same contract as the page
+            // listing: the shape does not change, and a truncated answer says so.
+            $total = count($mediaList);
+            $response = new DataResponse(['media' => array_slice($mediaList, 0, self::MAX_MEDIA_IN_LISTING)]);
+            $response->addHeader('X-IntraVox-Cap', (string)self::MAX_MEDIA_IN_LISTING);
+            $response->addHeader('X-IntraVox-Truncated', $total > self::MAX_MEDIA_IN_LISTING ? 'true' : 'false');
+
+            return $response;
         } catch (\Exception $e) {
             return new DataResponse(
                 ['error' => $e->getMessage()],
@@ -1192,6 +1204,21 @@ class ApiController extends Controller {
 
     /**
      */
+    // Every search reads and json_decodes every page file in the language --
+    // searchPages() calls listPagesWithContent() and scores the lot, then keeps
+    // the top 20. The RESULTS were capped; the WORK was not, and this was the one
+    // anonymous-adjacent amplifier left: any logged-in user could drive a full
+    // content scan as fast as they could send requests.
+    //
+    // A scan cap would be the wrong instrument. listPages() has no ORDER BY, so
+    // stopping halfway means the best match is missed at random rather than
+    // reported as partial -- worse than slow. Throttling bounds the abuse and
+    // leaves the answer correct.
+    //
+    // Safe to add: nothing in src/ calls this endpoint, and Nextcloud's own
+    // search bar reaches PageService directly through PageSearchProvider, which
+    // has its own indexed path and limit.
+    #[UserRateLimit(limit: 30, period: 60)]
     #[NoAdminRequired]
     #[NoCSRFRequired]
     public function searchPages(string $query): DataResponse {
