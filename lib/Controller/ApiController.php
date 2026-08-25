@@ -2180,7 +2180,7 @@ class ApiController extends Controller {
             ]);
 
             // Create HTML importer
-            $htmlImporter = new ConfluenceHtmlImporter($this->logger);
+            $htmlImporter = new ConfluenceHtmlImporter($this->logger, new \OCA\IntraVox\Service\Import\SafeZipExtractor($this->logger));
             $confluenceImporter = new ConfluenceImporter($this->logger);
 
             // Import from ZIP
