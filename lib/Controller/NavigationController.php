@@ -16,6 +16,7 @@ use OCP\Files\NotPermittedException;
 use OCP\IRequest;
 use OCP\IL10N;
 use Psr\Log\LoggerInterface;
+use OCA\IntraVox\Controller\HasConditionalResponse;
 
 /**
  * Navigation Controller
@@ -24,6 +25,8 @@ use Psr\Log\LoggerInterface;
  * respect GroupFolder ACL rules.
  */
 class NavigationController extends Controller {
+    use HasConditionalResponse;
+
     private NavigationService $navigationService;
     private PageService $pageService;
     private PermissionService $permissionService;
@@ -92,17 +95,21 @@ class NavigationController extends Controller {
                 'permissions' => $permissions
             ];
 
-            $response = new JSONResponse($responseData);
+            // The ETag was already being sent; nothing ever read If-None-Match
+            // back, so a client holding the current navigation still received the
+            // whole tree. It is a bandwidth saving only: the payload has to be
+            // built and permission-filtered before the hash exists.
             $etag = '"' . md5(json_encode($responseData)) . '"';
+            $response = $this->clientHasCurrent($etag)
+                ? new JSONResponse([], Http::STATUS_NOT_MODIFIED)
+                : new JSONResponse($responseData);
             $response->addHeader('Cache-Control', 'private, max-age=300, must-revalidate');
             $response->addHeader('ETag', $etag);
 
             return $response;
         } catch (\Exception $e) {
             $this->logger->error('IntraVox: Error loading navigation: ' . $e->getMessage());
-            return new JSONResponse([
-                'error' => $e->getMessage()
-            ], Http::STATUS_INTERNAL_SERVER_ERROR);
+            return new JSONResponse(['error' => 'Could not load navigation'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
