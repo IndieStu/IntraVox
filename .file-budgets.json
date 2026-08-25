@@ -7,7 +7,7 @@
   },
   "files": {
     "lib/Controller/AnalyticsController.php": 267,
-    "lib/Controller/ApiController.php": 2636,
+    "lib/Controller/ApiController.php": 2634,
     "lib/Controller/ApiErrorTrait.php": 112,
     "lib/Controller/BulkController.php": 294,
     "lib/Controller/CalendarController.php": 129,
@@ -15,7 +15,7 @@
     "lib/Controller/DemoDataController.php": 150,
     "lib/Controller/ExportController.php": 134,
     "lib/Controller/FeedController.php": 340,
-    "lib/Controller/FeedReaderController.php": 313,
+    "lib/Controller/FeedReaderController.php": 308,
     "lib/Controller/FileStoryController.php": 356,
     "lib/Controller/FooterController.php": 97,
     "lib/Controller/HasConditionalResponse.php": 56,

@@ -94,10 +94,8 @@ class FeedReaderController extends Controller {
 
             return new DataResponse($result);
         } catch (\Exception $e) {
-            return new DataResponse(
-                ['error' => $e->getMessage(), 'items' => []],
-                Http::STATUS_BAD_REQUEST
-            );
+            $this->logger->warning('IntraVox: feed preview failed', ['error' => $e->getMessage()]);
+            return new DataResponse(['error' => 'Could not fetch that feed', 'items' => []], Http::STATUS_BAD_REQUEST);
         }
     }
 
@@ -200,10 +198,7 @@ class FeedReaderController extends Controller {
                 'connectionId' => $connectionId,
                 'error' => $e->getMessage(),
             ]);
-            return new DataResponse(
-                ['libraries' => [], 'lists' => [], 'error' => $e->getMessage()],
-                Http::STATUS_OK
-            );
+            return new DataResponse(['libraries' => [], 'lists' => [], 'error' => 'Could not load SharePoint lists'], Http::STATUS_OK);
         }
     }
 

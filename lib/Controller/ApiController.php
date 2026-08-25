@@ -1082,10 +1082,8 @@ class ApiController extends Controller {
                 'groupfolderId' => $groupfolderId
             ]);
         } catch (\Exception $e) {
-            return new DataResponse(
-                ['fields' => [], 'error' => $e->getMessage()],
-                Http::STATUS_OK
-            );
+            $this->logger->warning('IntraVox: MetaVox fields unavailable', ['error' => $e->getMessage()]);
+            return new DataResponse(['fields' => [], 'error' => 'MetaVox fields are unavailable'], Http::STATUS_OK);
         }
     }
 
