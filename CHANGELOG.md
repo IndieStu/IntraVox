@@ -4,6 +4,14 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
+## [Unreleased]
+
+### Fixed
+
+- **Telemetry mis-detected Nextcloud Enterprise.** The subscription check read the *Extended Support* add-on rather than the subscription itself, so instances with a plain Enterprise subscription were reported as Community. It now uses `IRegistry::delegateHasValidSubscription()` (public API since NC 17). This only affects the usage figures reported back to VoxCloud; nothing in the app behaves differently.
+- **The instance identifier could change between the cron job and a web request.** Without `overwrite.cli.url` it was derived from the current request host, so the licence server could see one server as two and stop updating its user count. It is now derived from a request-independent source. Instances affected by this migrate themselves at the next report; nothing needs to be reconfigured.
+- **Licence reports did not say how the user count was taken,** so the licence server treated them as unverified. The count itself was already correct. The report now includes the counting method and the number of disabled accounts.
+
 ## [2.4.0] - 2026-08-24 — Licence reporting counts users like every other app
 
 ### Fixed

@@ -94,11 +94,69 @@ class LicenseService {
      * Get the instance URL hash (SHA-256) for privacy
      * The hash is calculated client-side to avoid sending the plain URL
      */
+    /**
+     * SHA-256 of the instance URL, so the licence server never sees the URL
+     * itself.
+     *
+     * The source must be request-context-independent: the daily cron job and an
+     * admin web request both compute this hash, and if they disagreed the server
+     * would see two instances for one customer and freeze the seat count.
+     */
     public function getInstanceUrlHash(): string {
-        $instanceUrl = $this->getInstanceUrl();
-        // Normalize: lowercase, remove trailing slash
-        $normalizedUrl = strtolower(rtrim($instanceUrl, '/'));
-        return hash('sha256', $normalizedUrl);
+        return hash('sha256', $this->normalizedInstanceUrl());
+    }
+
+    /**
+     * Request-independent instance URL, lower-cased and without a trailing
+     * slash. overwrite.cli.url wins; otherwise trusted_domains[0] is promoted
+     * to https:// so it is a full URL rather than a bare hostname.
+     *
+     * Deliberately NOT getInstanceUrl(): that falls back to
+     * getAbsoluteURL(), whose result derives from the current request host and
+     * so differs between a web request and the cron job.
+     */
+    private function normalizedInstanceUrl(): string {
+        $url = $this->config->getSystemValue('overwrite.cli.url', '');
+        if (empty($url)) {
+            $domain = $this->config->getSystemValue('trusted_domains', ['localhost'])[0] ?? 'localhost';
+            // Promote a bare hostname to a full URL; leave an already-qualified
+            // value (someone put a scheme in trusted_domains) untouched.
+            $url = preg_match('#^https?://#i', $domain) ? $domain : 'https://' . $domain;
+        }
+        return strtolower(rtrim($url, '/'));
+    }
+
+    /**
+     * The hash this app used to send before the change above, so the server can
+     * recognise the instance across it instead of treating it as a second one —
+     * which would be refused, freezing the seat count at its pre-update value.
+     *
+     * Returns '' when overwrite.cli.url is set (the hash never changed for those
+     * instances) or when the legacy hash equals the current one. Otherwise it
+     * keeps returning the legacy hash: we have no local signal that the server
+     * has adopted the new one, so we keep sending it — the server is idempotent
+     * and ignores it once adopted.
+     */
+    public function getPreviousInstanceUrlHash(): string {
+        if (!empty($this->config->getSystemValue('overwrite.cli.url', ''))) {
+            return '';
+        }
+
+        $legacy = strtolower(rtrim($this->getInstanceUrl(), '/'));
+        $hash = hash('sha256', $legacy);
+
+        return $hash === $this->getInstanceUrlHash() ? '' : $hash;
+    }
+
+    /**
+     * Includes previousInstanceUrlHash while the legacy hash differs from the
+     * current one, so the server can adopt the new hash. The field is omitted
+     * for instances whose hash never changed (overwrite.cli.url set).
+     */
+    private function hashMigrationPayload(): array {
+        $previous = $this->getPreviousInstanceUrlHash();
+
+        return $previous === '' ? [] : ['previousInstanceUrlHash' => $previous];
     }
 
     /**
@@ -145,7 +203,7 @@ class LicenseService {
                     'licenseKey' => $licenseKey,
                     'instanceUrlHash' => $this->getInstanceUrlHash(),
                     'appType' => 'intravox'
-                ],
+                ] + $this->hashMigrationPayload(),
                 'timeout' => 10,
                 'headers' => [
                     'User-Agent' => 'IntraVox/' . $this->getAppVersion(),
@@ -238,7 +296,7 @@ class LicenseService {
                     // averages a contract is measured against.
                     'countMethod' => UserCountService::COUNT_METHOD,
                     'appVersion' => $this->getAppVersion()
-                ],
+                ] + $this->hashMigrationPayload(),
                 'timeout' => 15,
                 'headers' => [
                     'User-Agent' => 'IntraVox/' . $this->getAppVersion(),
@@ -335,7 +393,7 @@ class LicenseService {
                     'instanceUrlHash' => $this->getInstanceUrlHash(),
                     'language' => $language,
                     'pageCountsPerLanguage' => $pageCounts
-                ],
+                ] + $this->hashMigrationPayload(),
                 'timeout' => 10,
                 'headers' => [
                     'User-Agent' => 'IntraVox/' . $this->getAppVersion(),
