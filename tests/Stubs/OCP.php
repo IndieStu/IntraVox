@@ -21,6 +21,7 @@ interface IRequest {
 interface IConfig {
     public function getAppValue(string $appId, string $key, string $default = ''): string;
     public function setAppValue(string $appId, string $key, string $value): void;
+    public function deleteAppValue(string $appId, string $key): void;
     public function getUserValue(string $userId, string $appId, string $key, string $default = ''): string;
     public function setUserValue(string $userId, string $appId, string $key, string $value): void;
     public function getSystemValue(string $key, $default = '');
@@ -90,6 +91,7 @@ interface IURLGenerator {
     public function imagePath(string $app, string $image): string;
     public function linkToRoute(string $routeName, array $arguments = []): string;
     public function linkToRouteAbsolute(string $routeName, array $arguments = []): string;
+    public function getAbsoluteURL(string $url): string;
 }
 
 interface IUserManager {
@@ -242,6 +244,11 @@ interface IVersionManager {
 namespace OCP\AppFramework;
 
 use OCP\IRequest;
+
+class App {
+    public function __construct(string $appName, array $urlParams = []) {
+    }
+}
 
 abstract class Controller {
     protected string $appName;
@@ -543,4 +550,34 @@ interface LoggerInterface {
     public function info(string|\Stringable $message, array $context = []): void;
     public function debug(string|\Stringable $message, array $context = []): void;
     public function log($level, string|\Stringable $message, array $context = []): void;
+}
+
+namespace OCP\Http\Client;
+
+interface IResponse {
+    public function getBody();
+    public function getStatusCode(): int;
+    public function getHeader(string $key): string;
+}
+
+interface IClient {
+    public function get(string $uri, array $options = []): IResponse;
+    public function post(string $uri, array $options = []): IResponse;
+}
+
+interface IClientService {
+    public function newClient(): IClient;
+}
+
+namespace OCP\AppFramework\Bootstrap;
+
+interface IRegistrationContext {
+}
+
+interface IBootContext {
+}
+
+interface IBootstrap {
+    public function register(IRegistrationContext $context): void;
+    public function boot(IBootContext $context): void;
 }

@@ -217,6 +217,28 @@ class LicenseService {
                 $this->logger->warning('LicenseService: License validation failed', [
                     'reason' => $data['reason'] ?? 'Unknown'
                 ]);
+
+                // The server distinguishes expired from not-found, already-in-use
+                // and inactive; getStats() reads from cache, so keep the reason or
+                // the admin only ever learns that something is wrong.
+                $this->config->setAppValue(Application::APP_ID, 'license_valid', 'false');
+                $this->config->setAppValue(
+                    Application::APP_ID,
+                    'license_reason',
+                    (string)($data['reason'] ?? '')
+                );
+                // A refused response carries validUntil flat rather than nested
+                // under 'license', so an expired key can still name its date.
+                $this->config->setAppValue(
+                    Application::APP_ID,
+                    'license_info',
+                    json_encode($data['license'] ?? array_filter(
+                        ['validUntil' => $data['validUntil'] ?? null],
+                        static fn ($v) => $v !== null
+                    ))
+                );
+                $this->config->setAppValue(Application::APP_ID, 'license_last_check', (string)time());
+
                 return [
                     'valid' => false,
                     'reason' => $data['reason'] ?? 'License validation failed',
@@ -228,6 +250,7 @@ class LicenseService {
             $this->config->setAppValue(Application::APP_ID, 'license_valid', 'true');
             $this->config->setAppValue(Application::APP_ID, 'license_info', json_encode($data['license'] ?? []));
             $this->config->setAppValue(Application::APP_ID, 'license_last_check', (string)time());
+            $this->config->deleteAppValue(Application::APP_ID, 'license_reason');
 
             $this->logger->info('LicenseService: License validated successfully');
 
@@ -644,10 +667,35 @@ class LicenseService {
      * Get license statistics for admin panel
      */
     public function getStats(): array {
-        $validation = $this->validateLicense();
         $limits = $this->checkPageLimit();
         $pageCounts = $this->getPageCountsPerLanguage();
         $hasLicense = !empty($this->getLicenseKey());
+
+        // Read the cached verdict rather than calling the licence server: this
+        // runs on every admin settings render, and a server that is merely slow
+        // would otherwise stall the page for the full 10s timeout. The daily
+        // LicenseUsageJob refreshes the cache, and saving a key revalidates
+        // immediately via LicenseController.
+        $licenseValid = false;
+        $licenseInfo = null;
+        $licenseReason = '';
+        $licenseValidUntil = null;
+        if ($hasLicense) {
+            $licenseValid = $this->config->getAppValue(Application::APP_ID, 'license_valid', '') === 'true';
+            $licenseInfo = json_decode(
+                $this->config->getAppValue(Application::APP_ID, 'license_info', '{}'),
+                true
+            ) ?: null;
+            if (!$licenseValid) {
+                $licenseReason = $this->config->getAppValue(Application::APP_ID, 'license_reason', '');
+            }
+            // A valid response nests the dates under 'license'; a refused one
+            // carries only validUntil. Either way the admin sees the date it
+            // lapsed, not just that it did.
+            $licenseValidUntil = $licenseInfo['license']['validUntil']
+                ?? $licenseInfo['validUntil']
+                ?? null;
+        }
 
         // Mask license key for display
         $maskedKey = '';
@@ -666,8 +714,10 @@ class LicenseService {
             'freeLimit' => self::FREE_LIMIT,
             'supportedLanguages' => $this->languageService->getEnabledLanguages(),
             'hasLicense' => $hasLicense,
-            'licenseValid' => $validation['valid'],
-            'licenseInfo' => $validation['license'] ?? null,
+            'licenseValid' => $licenseValid,
+            'licenseInfo' => $licenseInfo,
+            'licenseReason' => $licenseReason,
+            'licenseValidUntil' => $licenseValidUntil,
             'licenseKeyMasked' => $maskedKey,
             'maxPagesPerLanguage' => $limits['max'] ?? self::FREE_LIMIT,
             'exceededLanguages' => $limits['exceededLanguages'] ?? [],

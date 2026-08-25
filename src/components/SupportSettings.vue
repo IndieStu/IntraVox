@@ -61,8 +61,8 @@
 				{{ t('intravox', 'Subscription active — thank you for supporting IntraVox!') }}
 			</NcNoteCard>
 
-			<NcNoteCard v-if="licenseStats && licenseStats.hasLicense && !licenseStats.licenseValid" type="warning">
-				{{ t('intravox', 'Subscription key is invalid or expired.') }}
+			<NcNoteCard v-if="licenseWarning" type="warning">
+				{{ licenseWarning }}
 			</NcNoteCard>
 		</div>
 
@@ -206,6 +206,49 @@ export default {
 			const lang = (window.document?.documentElement?.lang || '').split('-')[0]
 			return lang === 'nl' ? 'https://voxcloud.nl/pricing/#intravox' : 'https://voxcloud.nl/en/pricing/#intravox'
 		},
+
+		/**
+		 * The licence server distinguishes four refusals, and each needs a
+		 * different response from the admin: a renewal, a typo fix, a call with
+		 * us, or nothing at all. Collapsing them into "invalid or expired" sends
+		 * someone whose key merely moved instance chasing a subscription that is
+		 * perfectly fine.
+		 *
+		 * @return {string} message for the current refusal, or '' when licensed
+		 */
+		licenseWarning() {
+			const s = this.licenseStats
+			if (!s || !s.hasLicense || s.licenseValid) return ''
+
+			const reason = s.licenseReason || ''
+
+			if (reason === 'License has expired') {
+				const until = this.formatIsoDate(s.licenseValidUntil)
+				return until
+					? this.t('intravox', 'Your IntraVox subscription expired on {date}. Renew it to keep receiving support.', { date: until })
+					: this.t('intravox', 'Your IntraVox subscription has expired. Renew it to keep receiving support.')
+			}
+			if (reason === 'License not found') {
+				return this.t('intravox', 'This IntraVox subscription key is not known to the licence server. Check it for typos.')
+			}
+			if (reason.startsWith('License already in use')) {
+				return this.t('intravox', 'This IntraVox subscription key is already registered to another Nextcloud instance. Contact us if this server replaces that one.')
+			}
+			if (reason === 'License is inactive') {
+				return this.t('intravox', 'This IntraVox subscription key has been deactivated. Contact us to reactivate it.')
+			}
+			if (reason === 'License not yet valid') {
+				return this.t('intravox', 'This IntraVox subscription key is not valid yet.')
+			}
+			if (reason === 'Could not connect to license server') {
+				return this.t('intravox', 'Could not reach the licence server, so the IntraVox subscription status could not be confirmed.')
+			}
+			// An unrecognised reason still beats the dateless generic line, but
+			// only if the server actually sent one.
+			return reason
+				? this.t('intravox', 'IntraVox subscription key was refused: {reason}', { reason })
+				: this.t('intravox', 'Subscription key is invalid or expired.')
+		},
 	},
 
 	mounted() {
@@ -213,6 +256,17 @@ export default {
 	},
 
 	methods: {
+		formatIsoDate(iso) {
+			if (!iso) return ''
+			const date = new Date(iso)
+			if (Number.isNaN(date.getTime())) return ''
+			return date.toLocaleDateString(undefined, {
+				year: 'numeric',
+				month: 'long',
+				day: 'numeric',
+			})
+		},
+
 		async loadLicenseStats() {
 			try {
 				const response = await axios.get(generateUrl('/apps/intravox/api/license/stats'))
