@@ -1591,10 +1591,10 @@ class ApiController extends Controller {
 
     /**
      * Health check endpoint for monitoring and orchestration.
-     *
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function health(): DataResponse {
         return new DataResponse([
             'status' => 'ok',

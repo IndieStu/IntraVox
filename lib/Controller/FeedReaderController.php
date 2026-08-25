@@ -77,7 +77,6 @@ class FeedReaderController extends Controller {
      */
     #[UserRateLimit(limit: 30, period: 60)]
     #[NoAdminRequired]
-    #[NoCSRFRequired]
     public function getPreview(): DataResponse {
         if ($this->userId === null) {
             return new DataResponse(
