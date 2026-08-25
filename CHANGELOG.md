@@ -6,6 +6,8 @@ IntraVox is a Nextcloud intranet page builder.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-08-25 — A refused subscription key says why
+
 ### Fixed
 
 - **A refused subscription key now says *why* it was refused.** The licence server distinguishes four cases — expired, unknown key, already registered to another instance, and deactivated — and each needs a different response from the administrator. All four surfaced as "Subscription key is invalid or expired", so an administrator whose key was refused because the instance identifier moved would read that as a renewal problem and renew a subscription that was never the issue. The support settings now name the actual reason, including the date an expired subscription lapsed.
