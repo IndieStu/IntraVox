@@ -1819,7 +1819,7 @@
                                         "tree": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/PageTreeItem"
+                                                "$ref": "#/components/schemas/PageTreeNode"
                                             }
                                         }
                                     }
@@ -2295,9 +2295,11 @@
                                             "type": "string"
                                         },
                                         "last_accessed": {
-                                            "type": "string",
-                                            "format": "date-time",
-                                            "nullable": true
+                                            "type": [
+                                                "string",
+                                                "null"
+                                            ],
+                                            "format": "date-time"
                                         },
                                         "config": {
                                             "type": "object",
@@ -4171,9 +4173,11 @@
                         "description": "Column count — links / news / photo-story."
                     },
                     "backgroundColor": {
-                        "type": "string",
-                        "description": "Whitelisted CSS variable or 'transparent' — links / news / people / calendar / feed.",
-                        "nullable": true
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Whitelisted CSS variable or 'transparent' — links / news / people / calendar / feed."
                     },
                     "title": {
                         "type": "string",
@@ -4239,8 +4243,10 @@
                         "description": "Folder path — news source."
                     },
                     "sourcePageId": {
-                        "type": "string",
-                        "nullable": true,
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Page UUID — news source via PageTreeSelect."
                     },
                     "config": {
@@ -4612,12 +4618,16 @@
                         "type": "string"
                     },
                     "image": {
-                        "type": "string",
-                        "nullable": true
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "imagePath": {
-                        "type": "string",
-                        "nullable": true
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "modified": {
                         "type": "integer"
@@ -4714,8 +4724,10 @@
                         "type": "integer"
                     },
                     "parentId": {
-                        "type": "integer",
-                        "nullable": true
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "reactions": {
                         "$ref": "#/components/schemas/Reactions"
@@ -4784,8 +4796,10 @@
                         "description": "Template display name"
                     },
                     "description": {
-                        "type": "string",
-                        "nullable": true
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "created": {
                         "type": "integer",
@@ -4841,8 +4855,10 @@
                         "description": "Title for the new page"
                     },
                     "parentPath": {
-                        "type": "string",
-                        "nullable": true,
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Optional parent folder path (e.g., '/teams')"
                     }
                 }
@@ -4863,8 +4879,10 @@
                         "description": "Template name"
                     },
                     "description": {
-                        "type": "string",
-                        "nullable": true,
+                        "type": [
+                            "string",
+                            "null"
+                        ],
                         "description": "Optional template description"
                     }
                 }
