@@ -1342,7 +1342,7 @@ OC.L10N.register(
     "Panel position" : "Posição do painel",
     "Beside the results" : "Ao lado dos resultados",
     "Above the results" : "Acima dos resultados",
-    "A side panel suits a full-width page; place it above the results in a narrow column." : "Um painel lateral é adequado para uma página de largura total; posicione-o acima dos resultados, em uma coluna estreita.",
+    "A side panel suits a full-width page; place it above the results in a narrow column." : "Um painel lateral é adequado para uma página de largura total; em uma coluna estreita, posicione-o acima dos resultados.",
     "Filters are not shown on public share links, because the filter values would list your organisation structure to anyone with the link." : "Os filtros não são exibidos nos links de compartilhamento público, pois os valores dos filtros revelariam a estrutura da sua organização a qualquer pessoa que tivesse acesso ao link.",
     "News carousel" : "Carrossel de notícias",
     "Previous slide" : "Slide anterior",

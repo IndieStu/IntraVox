@@ -23,7 +23,7 @@ OC.L10N.register(
     "Cancel editing" : "Annullér redigering",
     "Cancel" : "Annullér",
     "Save changes" : "Gem ændringer",
-    "Save" : "Save",
+    "Save" : "Gem",
     "Loading …" : "Indlæser …",
     "Details" : "Detaljer",
     "Learn more" : "Lær mere",
