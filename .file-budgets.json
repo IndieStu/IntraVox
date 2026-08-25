@@ -89,7 +89,7 @@
     "lib/Service/People/PeopleQuery.php": 113,
     "lib/Service/People/PublicSharePeopleGuard.php": 115,
     "lib/Service/People/ScopeReport.php": 127,
-    "lib/Service/PermissionService.php": 877,
+    "lib/Service/PermissionService.php": 895,
     "lib/Service/PhotoStory/ExifReader.php": 373,
     "lib/Service/PhotoStory/GeocodeCache.php": 462,
     "lib/Service/PhotoStory/NCFilesMetadataReader.php": 163,
