@@ -586,7 +586,7 @@ pipeline.
 - [ ] PHP requirement: `<php min-version="8.2"/>` (matches composer.json; NC34 requires PHP `>=8.2 <8.6`)
 - [ ] Test on target Nextcloud version (3dev: NC33; hetzner nc-dev: NC33)
 - [ ] **Bundled lib parity** with NC34: `@nextcloud/vue` ≥ 9.8 (NC34 ships 9.8.x); Vue ≥ 3.5 (NC34 ships 3.5.x). See §1b.
-- [ ] **Enterprise detection** (when relevant): IntraVox uses `OCP\Util::hasExtendedSupport` for Enterprise gating, not config-fallback (anti-spoofing). Verify behaviour on a non-Enterprise instance after each NC major bump — the API surface can shift.
+- [ ] **Enterprise detection** (when relevant): since 2.4.1 IntraVox asks `IRegistry::delegateHasValidSubscription()` (public since NC 17) whether the instance has an Enterprise subscription, and reports `Util::hasExtendedSupport` separately as the narrower add-on signal. `hasExtendedSupport` alone answers a different question and falls back to the `extendedSupport` system setting, so an admin could set it by hand — do not reintroduce it as the subscription check. Verify behaviour on a non-Enterprise instance after each NC major bump — the API surface can shift.
 - [ ] **OC.* globals** (legacy front-end): IntraVox still references `OC.dialogs.filepicker`, `OC.MimeType.getIconUrl`, `OC.L10N.translate`, `OC.requestToken`, `OC.webroot`. All five remain functional in NC34 stable (deprecated, not removed). Migration to `@nextcloud/*` equivalents is a 1.7+ task — not blocking for NC34 support.
 
 ---
