@@ -1668,7 +1668,52 @@ All path parameters are validated against:
 
 ## Rate Limiting
 
-The API uses Nextcloud's built-in brute force protection. For heavy integrations, consider implementing client-side throttling to avoid triggering rate limits.
+Five write-heavy endpoints carry a per-user limit. Exceeding one returns **429
+Too Many Requests**; the limit is counted per user, per endpoint, over a rolling
+window.
+
+| Endpoint | Handler | Limit |
+|---|---|---|
+| `POST /api/pages` | `createPage` | 10 / minute |
+| `DELETE /api/pages/{id}` | `deletePage` | 10 / minute |
+| `POST /api/pages/reorder` | `reorderPages` | 20 / minute |
+| `POST /api/pages/move` | `movePage` | 20 / minute |
+| `GET /api/search` | `searchPages` | 30 / minute |
+
+Everything else relies on Nextcloud's brute-force protection rather than a
+per-endpoint limit.
+
+### Bulk provisioning and migrations
+
+`createPage` at 10 per minute is the binding constraint on any migration: two
+thousand pages is roughly three and a half hours of waiting, and none of it is
+work. Plan for it rather than discovering it.
+
+Nextcloud already provides the way out, and it needs no change to IntraVox. When
+`apply_allowlist_to_ratelimit` is enabled, an IP range on the brute-force
+allow-list bypasses rate limiting entirely:
+
+```bash
+# The host the migration runs from — a range, in CIDR notation.
+occ config:app:set bruteForce whitelist_0 --value='10.0.0.0/24'
+occ config:app:set bruteforcesettings apply_allowlist_to_ratelimit --value='yes'
+```
+
+Two things worth being blunt about. This exempts **every** rate limit for that
+range, not just page creation, so scope it to the migration host and nothing
+wider. And turn it off afterwards — an allow-list entry that outlives the
+migration is a permanent hole that nothing will remind you about:
+
+```bash
+occ config:app:delete bruteforcesettings apply_allowlist_to_ratelimit
+occ config:app:delete bruteForce whitelist_0
+```
+
+If that is not acceptable in a given environment, the alternative is to pace the
+import at ten pages per minute and let it run. There is deliberately no
+IntraVox-specific bypass: a second mechanism next to the one Nextcloud already
+has would be one more thing to get wrong, and it would live in application code
+where an administrator cannot see it.
 
 ## Migration Tool Integration
 
