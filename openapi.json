@@ -57,6 +57,10 @@
       "description": "Page comments and reactions"
     },
     {
+      "name": "Demo Data",
+      "description": "Bundled demo content: install it per language, or wipe a language and start fresh."
+    },
+    {
       "name": "Export",
       "description": "Content export"
     },
@@ -95,6 +99,10 @@
     {
       "name": "News",
       "description": "News widget data"
+    },
+    {
+      "name": "Orphaned Data",
+      "description": "Administrator tooling for GroupFolder directories left on disk without a database row. Reads and writes the raw data directory."
     },
     {
       "name": "Page Locks",
@@ -6702,6 +6710,496 @@
           }
         }
       }
+    },
+    "/api/demo-data/status": {
+      "get": {
+        "operationId": "get-demo-data-status",
+        "summary": "Demo content status per language",
+        "description": "Reports whether demo content is installed, for every enabled language.\n\nReadable by any user with IntraVox access — not just administrators — because the setup wizard shows this before an admin decides anything.",
+        "tags": [
+          "Demo Data"
+        ],
+        "responses": {
+          "200": {
+            "description": "Status per language",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDataStatus"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No IntraVox access."
+          },
+          "500": {
+            "description": "Status could not be determined."
+          }
+        }
+      }
+    },
+    "/api/demo-data/languages": {
+      "get": {
+        "operationId": "get-demo-data-languages",
+        "summary": "Languages available for demo content",
+        "description": "The enabled content languages. This is the same list as available_languages in GET /api/demo-data/status, without the per-language install state — prefer the status endpoint if you need both.\n\nReadable by any user with IntraVox access.",
+        "tags": [
+          "Demo Data"
+        ],
+        "responses": {
+          "200": {
+            "description": "Enabled languages",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "languages": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "languages"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No IntraVox access."
+          },
+          "500": {
+            "description": "Languages could not be read."
+          }
+        }
+      }
+    },
+    "/api/demo-data/import": {
+      "post": {
+        "operationId": "import-demo-data",
+        "summary": "Install demo content for a language",
+        "description": "Installs the bundled demo pages for one language. Administrators only.\n\nThe source is chosen automatically: bundled demo data if this build ships it for the language, otherwise a remote download. The two paths do not honour the same options — mode is applied only on the bundled path; a remote import always behaves as overwrite.\n\nAn unrecognised mode is silently coerced to 'overwrite' rather than rejected. Given that overwrite is the destructive one, a typo in this field costs content.",
+        "tags": [
+          "Demo Data"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "default": "nl",
+                    "description": "Content language code. Must be enabled, or the call fails with success:false."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "default": "overwrite",
+                    "enum": [
+                      "overwrite",
+                      "skip_existing"
+                    ],
+                    "description": "overwrite deletes the language folder first. skip_existing leaves existing pages untouched. Applied on the bundled path only."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDataOperationResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Import failed, OR was refused for an ordinary reason such as the language not being enabled. Read success and message rather than the status code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDataOperationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/demo-data/clean-start": {
+      "post": {
+        "operationId": "demo-data-clean-start",
+        "summary": "Delete all content for a language and start fresh",
+        "description": "DESTRUCTIVE AND IRREVERSIBLE. Deletes every page, the navigation and the footer for one language, then creates a fresh homepage with a NEW uniqueId. Comments are deleted too.\n\nThere is no dry run, no confirmation parameter and no undo. The new homepage id differs from the old one, so any external deep link into the old homepage breaks.\n\nAdministrators only. Scoped to a single language: other languages are untouched.",
+        "tags": [
+          "Demo Data"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "default": "nl",
+                    "description": "The language to wipe. Must be enabled."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Language wiped and a fresh homepage created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDataOperationResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Failed, or refused (for example the language is not enabled). Read success and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDataOperationResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orphaned/scan": {
+      "get": {
+        "operationId": "scan-orphaned-data",
+        "summary": "Find orphaned GroupFolder directories",
+        "description": "Compares the directories physically present under __groupfolders/ against the GroupFolders registered in the database, and reports the ones with no owner.\n\nThis walks the data directory and sizes each candidate, so it is proportional to what is on disk rather than to the number of orphans found.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
+        "tags": [
+          "Orphaned Data"
+        ],
+        "responses": {
+          "200": {
+            "description": "Orphans found (possibly none).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "folders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/OrphanedFolder"
+                      }
+                    },
+                    "count": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "folders",
+                    "count"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Scan failed."
+          }
+        }
+      }
+    },
+    "/api/orphaned/{id}/details": {
+      "get": {
+        "operationId": "get-orphaned-details",
+        "summary": "Inspect one orphaned folder",
+        "description": "Everything the scan returns for this folder, plus a per-language breakdown in languageDetails.\n\n404 means the id is not orphaned — which includes the case of a folder that is perfectly healthy and still registered. It is a refusal to operate on live data, not only a 'not found'.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
+        "tags": [
+          "Orphaned Data"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Folder details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "folder": {
+                      "$ref": "#/components/schemas/OrphanedFolder"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "folder"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "id must be a positive integer."
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "404": {
+            "description": "Not orphaned, or not accessible. A registered, in-use folder also lands here."
+          },
+          "500": {
+            "description": "Lookup failed."
+          }
+        }
+      }
+    },
+    "/api/orphaned/{id}": {
+      "delete": {
+        "operationId": "cleanup-orphaned-folder",
+        "summary": "Delete an orphaned folder and everything in it",
+        "description": "DESTRUCTIVE AND IRREVERSIBLE. Recursively deletes the directory and its contents from disk. There is no trash, no dry run and no undo.\n\nThe one safety net is that the service re-checks the folder is genuinely orphaned before deleting; a registered folder is refused with success:false rather than removed. Inspect with GET /api/orphaned/{id}/details first — that is the only way to see what you are about to destroy.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
+        "tags": [
+          "Orphaned Data"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "deletedItems": {
+                      "type": "integer"
+                    },
+                    "freedSpace": {
+                      "type": "integer",
+                      "description": "Bytes."
+                    },
+                    "freedSpaceFormatted": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "id must be a positive integer."
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Deletion failed, or was refused because the folder is not orphaned. Read success and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/orphaned/{id}/migrate": {
+      "post": {
+        "operationId": "migrate-orphaned-folder",
+        "summary": "Copy content out of an orphaned folder into the live one",
+        "description": "Copies one language's content from an orphaned folder into the active IntraVox GroupFolder. The source is left in place, so this is a recovery step rather than a move — run the cleanup endpoint afterwards if you want the orphan gone.\n\nLANGUAGE RANGE IS NARROWER THAN THE REST OF THE APP. This endpoint accepts only nl, en, de and fr — a hardcoded list in the controller. The service behind it accepts any known content language, so a site running a fifth language cannot recover into it here even though the language is otherwise fully supported.\n\nsuccess:false with errors > 0 means a partial copy: some files landed, some did not. Nothing is rolled back.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
+        "tags": [
+          "Orphaned Data"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "The orphaned source folder."
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "language": {
+                    "type": "string",
+                    "default": "nl",
+                    "enum": [
+                      "nl",
+                      "en",
+                      "de",
+                      "fr"
+                    ],
+                    "description": "Which language folder to copy. Anything outside this list is a 400, regardless of what the site has enabled."
+                  },
+                  "mode": {
+                    "type": "string",
+                    "default": "merge",
+                    "enum": [
+                      "merge",
+                      "replace"
+                    ],
+                    "description": "merge skips files that already exist in the target. replace overwrites them."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Copied",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "migratedFiles": {
+                      "type": "integer"
+                    },
+                    "skippedExisting": {
+                      "type": "integer"
+                    },
+                    "errors": {
+                      "type": "integer",
+                      "description": "success is true only when this is 0."
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid id, unsupported language, or invalid mode."
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Migration failed or completed with errors. Read success, errors and message.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "errors": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "success"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8818,6 +9316,223 @@
           "failed",
           "results",
           "errors"
+        ]
+      },
+      "DemoDataStatus": {
+        "type": "object",
+        "description": "Whether demo content is installed, per language.",
+        "properties": {
+          "imported": {
+            "type": "boolean"
+          },
+          "available_languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Enabled content languages. Note the snake_case keys here — this response mixes conventions with the camelCase setupComplete below."
+          },
+          "default_language": {
+            "type": "string"
+          },
+          "setupComplete": {
+            "type": "boolean",
+            "description": "Whether the IntraVox GroupFolder exists yet. When false every language reports status 'setup_required'."
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "flag": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "setup_required",
+                    "unavailable",
+                    "not_installed",
+                    "installed",
+                    "empty"
+                  ],
+                  "description": "setup_required: the GroupFolder does not exist. unavailable: no bundled demo data ships for this language. not_installed: nothing there yet. empty: a folder exists but holds no content. installed: content present."
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "status"
+              ]
+            }
+          }
+        },
+        "required": [
+          "imported",
+          "available_languages",
+          "default_language",
+          "languages",
+          "setupComplete"
+        ]
+      },
+      "DemoDataOperationResult": {
+        "type": "object",
+        "description": "Result of an import or clean start.\n\nMIND THE KEY: on this envelope the human-readable text is 'message', both on success and on failure. That differs from the 'error' key returned when the controller itself catches an exception — so a client reading only one of the two will silently show nothing for half the failure modes.\n\nAlso note that success:false arrives with HTTP 500, including for ordinary refusals such as 'language not enabled'. That is not a server fault, but it is not distinguishable from one by status code alone.",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          },
+          "imported": {
+            "type": "integer",
+            "description": "Pages imported. Import only."
+          },
+          "skipped": {
+            "type": "integer",
+            "description": "Pages left alone because they already existed. Import only, and only meaningful in skip_existing mode."
+          },
+          "errors": {
+            "type": "integer",
+            "description": "Per-page failures. success is true only when this is 0. Import only."
+          },
+          "uniqueId": {
+            "type": "string",
+            "description": "Unique id of the freshly created homepage. Clean start only."
+          },
+          "commentsDeleted": {
+            "type": "integer",
+            "description": "Clean start only."
+          }
+        },
+        "required": [
+          "success",
+          "message"
+        ]
+      },
+      "OrphanedFolder": {
+        "type": "object",
+        "description": "A directory under __groupfolders/ with no matching GroupFolder row — content left behind when a GroupFolder was removed while its files stayed on disk.",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "The numeric folder id, which is also the directory name."
+          },
+          "path": {
+            "type": "string",
+            "description": "Absolute server path. Administrator-only information by nature."
+          },
+          "size": {
+            "type": "integer",
+            "description": "Bytes."
+          },
+          "sizeFormatted": {
+            "type": "string"
+          },
+          "hasIntraVoxContent": {
+            "type": "boolean",
+            "description": "Whether language folders with a home.json were found. False means this orphan is probably not IntraVox's."
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "lastModified": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Unix timestamp."
+          },
+          "lastModifiedFormatted": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pageCount": {
+            "type": "integer"
+          },
+          "sampleContents": {
+            "type": "object",
+            "description": "A capped sample of top-level entries, with totalEntries giving the true count.",
+            "properties": {
+              "totalEntries": {
+                "type": "integer"
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "dir",
+                        "file"
+                      ]
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "sizeFormatted": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "languageDetails": {
+            "type": "object",
+            "description": "Per-language breakdown. Returned by the details endpoint only.",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "pageCount": {
+                  "type": "integer"
+                },
+                "hasHome": {
+                  "type": "boolean"
+                },
+                "hasNavigation": {
+                  "type": "boolean"
+                },
+                "hasFooter": {
+                  "type": "boolean"
+                },
+                "mediaCount": {
+                  "type": "integer"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "sizeFormatted": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "id",
+          "path",
+          "size",
+          "hasIntraVoxContent",
+          "languages",
+          "pageCount"
         ]
       }
     },
