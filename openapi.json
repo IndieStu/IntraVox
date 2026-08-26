@@ -72,28 +72,79 @@
             "get": {
                 "operationId": "list-pages",
                 "summary": "List all pages",
-                "description": "Returns a list of all pages the current user has access to",
+                "description": "Returns the pages the current user may read, ordered by title then uniqueId.\n\n**Response shape depends on the request.** Without `limit` or `cursor` the response is a bare array — unchanged from earlier versions — capped at 2000 entries. Send either parameter and the response becomes a paged envelope instead.\n\n**Pagination is keyset, not offset.** The cursor encodes the sort key of the last row served, so a page created or deleted mid-walk cannot make the caller skip or repeat a row. There is deliberately no `offset` parameter.",
                 "tags": [
                     "Pages"
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of pages",
+                        "description": "A bare array by default, or a paged envelope when limit or cursor is sent.",
+                        "headers": {
+                            "X-IntraVox-Cap": {
+                                "description": "The ceiling applied to an unpaginated response.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-IntraVox-Truncated": {
+                                "description": "`true` when the listing was cut off at the cap. Sent on unpaginated responses so a truncated answer can say so without changing shape.",
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "true",
+                                        "false"
+                                    ]
+                                }
+                            }
+                        },
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "type": "array",
-                                    "items": {
-                                        "$ref": "#/components/schemas/PageSummary"
-                                    }
+                                    "oneOf": [
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PageSummary"
+                                            }
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/PagedPageSummaries"
+                                        }
+                                    ]
                                 }
                             }
                         }
                     },
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
                     }
-                }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "description": "Page size. Sending this switches the response to the paged envelope. Values above 500 are clamped, so paging cannot be used to exceed the listing cap.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 100
+                        }
+                    },
+                    {
+                        "name": "cursor",
+                        "in": "query",
+                        "required": false,
+                        "description": "Opaque cursor from a previous response's `nextCursor`. Also switches the response to the paged envelope. A cursor this server did not issue is rejected with 400.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
             },
             "post": {
                 "operationId": "create-page",
@@ -550,7 +601,7 @@
             "get": {
                 "operationId": "list-media",
                 "summary": "List media files",
-                "description": "Returns a list of media files for a page",
+                "description": "Lists the media in a page's `_media` folder, or in the shared resources folder.\n\nThe response is capped at 1000 entries; the headers say which ceiling applied and whether it was reached.",
                 "tags": [
                     "Media"
                 ],
@@ -562,17 +613,61 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "folder",
+                        "in": "query",
+                        "required": false,
+                        "description": "`page` (default) lists the page's own `_media` folder; `resources` lists the instance-wide resources folder, which grows with the instance rather than the page.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "page",
+                                "resources"
+                            ],
+                            "default": "page"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": false,
+                        "description": "Subfolder within the resources folder. Path traversal is rejected with 400.",
+                        "schema": {
+                            "type": "string"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "Media file list",
+                        "description": "The media entries, capped.",
+                        "headers": {
+                            "X-IntraVox-Cap": {
+                                "description": "The ceiling applied.",
+                                "schema": {
+                                    "type": "integer"
+                                }
+                            },
+                            "X-IntraVox-Truncated": {
+                                "description": "`true` when entries were cut off at the cap.",
+                                "schema": {
+                                    "type": "string",
+                                    "enum": [
+                                        "true",
+                                        "false"
+                                    ]
+                                }
+                            }
+                        },
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
+                                    "required": [
+                                        "media"
+                                    ],
                                     "properties": {
-                                        "files": {
+                                        "media": {
                                             "type": "array",
                                             "items": {
                                                 "$ref": "#/components/schemas/MediaFile"
@@ -3935,8 +4030,20 @@
                     },
                     "permissions": {
                         "$ref": "#/components/schemas/Permissions"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "Publication status. Draft, scheduled and expired pages are only returned to callers with write permission."
                     }
-                }
+                },
+                "required": [
+                    "uniqueId",
+                    "title",
+                    "modified",
+                    "status",
+                    "permissions"
+                ],
+                "description": "One row of the page listing. Every field here is always present; the full page body (layout, widgets) comes from GET /api/pages/{id}."
             },
             "Page": {
                 "type": "object",
@@ -4970,6 +5077,34 @@
                             "published",
                             "draft"
                         ]
+                    }
+                }
+            },
+            "PagedPageSummaries": {
+                "type": "object",
+                "description": "Returned ONLY when the caller paginates explicitly. Without a limit or cursor the endpoint answers with a bare array, unchanged.",
+                "required": [
+                    "items",
+                    "hasMore",
+                    "nextCursor"
+                ],
+                "properties": {
+                    "items": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PageSummary"
+                        }
+                    },
+                    "hasMore": {
+                        "type": "boolean",
+                        "description": "Whether another page follows."
+                    },
+                    "nextCursor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Opaque cursor for the next page, or null when the walk is finished — so a loop on `while nextCursor` terminates without a special case. Do not construct or do arithmetic on this value: it encodes the sort key and may change."
                     }
                 }
             }
