@@ -103,6 +103,40 @@ final class PageShapeSanitizer {
             $sanitized['translationGroup'] = $data['translationGroup'];
         }
 
+        // Provenance: where this page came from when it was migrated in.
+        //
+        // Same reason as translationGroup above — the whitelist is strict, so
+        // without these two lines the first edit after a migration silently
+        // erases the link back to the source, and with it any hope of a delta
+        // run or of verifying what was imported.
+        //
+        // sourceUniqueId is the id in the system the page came from. The name is
+        // fixed by plan-multisite-uitvoering.md P3, which mints fresh page ids on
+        // import and carries this alongside; a second name for the same idea is
+        // exactly the kind of thing that is cheap to avoid now and expensive
+        // later. Length-capped and character-checked rather than escaped: it is
+        // an identifier, never prose.
+        if (isset($data['sourceUniqueId'])
+            && is_string($data['sourceUniqueId'])
+            && $data['sourceUniqueId'] !== ''
+            && mb_strlen($data['sourceUniqueId']) <= 255
+            && preg_match('/^[\w.:@\/-]+$/u', $data['sourceUniqueId'])
+        ) {
+            $sanitized['sourceUniqueId'] = $data['sourceUniqueId'];
+        }
+
+        // sourceUrl is where a human can go and look at the original. Validated as
+        // a URL and restricted to http(s) so a migration cannot park a javascript:
+        // or data: URI in page metadata that some later view renders as a link.
+        if (isset($data['sourceUrl'])
+            && is_string($data['sourceUrl'])
+            && mb_strlen($data['sourceUrl']) <= 2048
+            && filter_var($data['sourceUrl'], FILTER_VALIDATE_URL) !== false
+            && in_array(parse_url($data['sourceUrl'], PHP_URL_SCHEME), ['http', 'https'], true)
+        ) {
+            $sanitized['sourceUrl'] = $data['sourceUrl'];
+        }
+
         // Preserve settings object (engagement settings for comments/reactions)
         if (isset($data['settings']) && is_array($data['settings'])) {
             $sanitized['settings'] = [
