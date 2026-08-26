@@ -19,6 +19,16 @@
                     "description": "Nextcloud server hostname"
                 }
             }
+        },
+        {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API. Same handlers as the internal routes and the same bare JSON — despite the /ocs/ path there is no {ocs:{meta,data}} envelope, because no IntraVox controller extends OCSController. Verified against a running instance.",
+            "variables": {
+                "nextcloud_host": {
+                    "default": "localhost",
+                    "description": "Nextcloud server hostname"
+                }
+            }
         }
     ],
     "security": [
@@ -45,6 +55,10 @@
         {
             "name": "Export",
             "description": "Content export"
+        },
+        {
+            "name": "External API",
+            "description": "The /ocs/v2.php entry points, for tools outside the browser session."
         },
         {
             "name": "File Story",
@@ -5246,6 +5260,451 @@
                     }
                 }
             }
+        },
+        "/api/v1/pages": {
+            "get": {
+                "operationId": "ocs-list-pages",
+                "summary": "List pages",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe listing, with the same cap, headers and opt-in cursor paging as the internal route.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The pages the caller may read.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "array",
+                                    "items": {
+                                        "$ref": "#/components/schemas/PageSummary"
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "ocs-create-page",
+                "summary": "Create a page",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe primary ingest endpoint for a migration. Rate limited to 10 per minute per user; see the Rate Limiting section of the API reference for the documented way around that during a bulk import.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Page"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "412": {
+                        "description": "The OCS-APIRequest header was missing."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded."
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PageCreate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pages/{id}": {
+            "get": {
+                "operationId": "ocs-get-page",
+                "summary": "Read one page",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nReturns the full page including layout and widgets.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The page.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Page"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
+            },
+            "put": {
+                "operationId": "ocs-update-page",
+                "summary": "Replace a page",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nWrites the whole page; fields absent from the body are dropped by the sanitizer.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The page as stored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Page"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "description": "The OCS-APIRequest header was missing."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PageUpdate"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "ocs-delete-page",
+                "summary": "Delete a page",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nDeleting an already deleted page is not an error for the bulk endpoints, but here it answers 404.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Deleted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessAck"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "412": {
+                        "description": "The OCS-APIRequest header was missing."
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
+            }
+        },
+        "/api/v1/pages/{pageId}/media": {
+            "get": {
+                "operationId": "ocs-list-media",
+                "summary": "List a page's media",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nCapped, with the same truncation headers as the internal route.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The media entries.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "media"
+                                    ],
+                                    "properties": {
+                                        "media": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MediaFile"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
+            },
+            "post": {
+                "operationId": "ocs-upload-media",
+                "summary": "Upload media to a page",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nmultipart/form-data. Large files are better sent over WebDAV; see the migration section of the API reference.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Uploaded.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MediaFile"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "412": {
+                        "description": "The OCS-APIRequest header was missing."
+                    },
+                    "413": {
+                        "description": "File exceeds the configured maximum."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "multipart/form-data": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "media": {
+                                        "type": "string",
+                                        "format": "binary"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/pages/{pageId}/media/{filename}": {
+            "get": {
+                "operationId": "ocs-get-media",
+                "summary": "Download one media file",
+                "tags": [
+                    "External API"
+                ],
+                "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nStreams the file itself, not JSON.",
+                "security": [
+                    {
+                        "basic_auth": [],
+                        "ocs_request_header": []
+                    },
+                    {
+                        "bearer_auth": [],
+                        "ocs_request_header": []
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The file.",
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "filename",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -5257,6 +5716,12 @@
             "bearer_auth": {
                 "type": "http",
                 "scheme": "bearer"
+            },
+            "ocs_request_header": {
+                "type": "apiKey",
+                "in": "header",
+                "name": "OCS-APIRequest",
+                "description": "Required on writes. Nextcloud's CSRF check passes as soon as this header is present and non-empty, and without it a POST/PUT/DELETE is refused with 412 'CSRF check failed' — measured, not assumed. Harmless on reads; send it always."
             }
         },
         "responses": {
