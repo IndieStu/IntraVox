@@ -1773,18 +1773,13 @@
         ],
         "responses": {
           "200": {
-            "description": "Available languages",
+            "description": "Exportable languages, as a BARE ARRAY — not wrapped in an object.",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "languages": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    }
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ExportableLanguage"
                   }
                 }
               }
@@ -3055,7 +3050,8 @@
                         "type": "object",
                         "properties": {
                           "id": {
-                            "type": "integer"
+                            "type": "string",
+                            "description": "Nextcloud calendar id. A STRING on the wire even though it is numeric."
                           },
                           "uri": {
                             "type": "string"
@@ -12964,6 +12960,35 @@
           "success",
           "error",
           "errorId"
+        ]
+      },
+      "ExportableLanguage": {
+        "type": "object",
+        "description": "A content language that can be exported, with enough context to choose one.",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string",
+            "description": "Native display name."
+          },
+          "flag": {
+            "type": "string",
+            "description": "Emoji flag; may be empty."
+          },
+          "hasContent": {
+            "type": "boolean"
+          },
+          "pageCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "hasContent",
+          "pageCount"
         ]
       }
     },
