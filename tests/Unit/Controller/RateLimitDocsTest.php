@@ -16,38 +16,128 @@ use PHPUnit\Framework\TestCase;
  * This checks the direction that actually hurts: a limit in code that the docs do
  * not mention, or mention with the wrong number. An integrator pacing at the
  * documented rate then walks into a 429 it was told would not come.
+ *
+ * It scans EVERY controller, not just ApiController. The first version looked at
+ * one file and consequently missed createComment's 20/minute for as long as it
+ * existed — a guard that covers one of eight controllers reports green while
+ * seven of them drift.
  */
 class RateLimitDocsTest extends TestCase {
     private const DOCS = __DIR__ . '/../../../docs/architecture/api-reference.md';
-    private const CONTROLLER = __DIR__ . '/../../../lib/Controller/ApiController.php';
+    private const CONTROLLER_DIR = __DIR__ . '/../../../lib/Controller';
 
-    public function testEveryRateLimitInCodeIsDocumentedWithItsRealNumber(): void {
-        $source = file_get_contents(self::CONTROLLER);
-        $docs = file_get_contents(self::DOCS);
+    /**
+     * Every #[UserRateLimit] in every controller, as handler => limit.
+     *
+     * Anonymous limits are excluded on purpose: AnonRateLimit is counted per
+     * client rather than per user and the share endpoints carry a uniform
+     * 30–60, which the docs describe as a range rather than per handler.
+     */
+    private function userRateLimits(): array {
+        $found = [];
 
-        preg_match_all(
-            '/#\[UserRateLimit\(limit:\s*(\d+),\s*period:\s*(\d+)\)\].*?public function (\w+)/s',
-            $source,
-            $matches,
-            PREG_SET_ORDER
-        );
+        foreach (glob(self::CONTROLLER_DIR . '/*.php') as $file) {
+            preg_match_all(
+                '/#\[UserRateLimit\(limit:\s*(\d+),\s*period:\s*(\d+)\)\][^;{]*?public function (\w+)/s',
+                file_get_contents($file),
+                $matches,
+                PREG_SET_ORDER
+            );
 
-        $this->assertNotEmpty($matches, 'No rate limits found — the pattern went stale');
+            // routes.php identifies a handler as controller#method, and so must
+            // this: two controllers can and do share a method name.
+            $controller = lcfirst(preg_replace('/Controller$/', '', basename($file, '.php')));
 
-        $undocumented = [];
-        foreach ($matches as [, $limit, $period, $method]) {
-            $this->assertSame('60', $period, "{$method} uses a non-minute window; the docs table says 'per minute'");
-
-            // The handler name and its number must both appear in the docs.
-            if (!str_contains($docs, $method) || !str_contains($docs, "| {$limit} / minute |")) {
-                $undocumented[] = "{$method} ({$limit}/{$period}s)";
+            foreach ($matches as [, $limit, $period, $method]) {
+                $found[] = [
+                    'handler' => $controller . '#' . $method,
+                    'method' => $method,
+                    'limit' => $limit,
+                    'period' => $period,
+                    'file' => basename($file),
+                ];
             }
         }
+
+        return $found;
+    }
+
+    public function testEveryRateLimitInCodeIsDocumentedWithItsRealNumber(): void {
+        $docs = file_get_contents(self::DOCS);
+        $limits = $this->userRateLimits();
+
+        $this->assertNotEmpty($limits, 'No rate limits found — the pattern went stale');
+        $this->assertGreaterThanOrEqual(
+            10,
+            count($limits),
+            'Far fewer than expected; the attribute pattern probably stopped matching'
+        );
+
+        $undocumented = [];
+        foreach ($limits as $hit) {
+            $this->assertSame(
+                '60',
+                $hit['period'],
+                "{$hit['method']} uses a non-minute window; the docs table says 'per minute'"
+            );
+
+            // The handler name and its number must both appear in the docs.
+            if (!str_contains($docs, $hit['method']) || !str_contains($docs, "| {$hit['limit']} / minute |")) {
+                $undocumented[] = "{$hit['file']}::{$hit['method']} ({$hit['limit']}/minute)";
+            }
+        }
+
+        sort($undocumented);
 
         $this->assertSame(
             [],
             $undocumented,
-            "Rate limits changed in code but not in api-reference.md:\n  " . implode("\n  ", $undocumented)
+            "Rate limits in code that api-reference.md does not name:\n  " . implode("\n  ", $undocumented)
+        );
+    }
+
+    /**
+     * And the spec says so too.
+     *
+     * A limit documented in prose but missing from openapi.json means a generated
+     * client has no 429 branch at all — it sees an undeclared status and treats a
+     * routine throttle as a protocol error.
+     */
+    public function testEveryRateLimitedHandlerDeclares429InTheSpec(): void {
+        $spec = json_decode(
+            file_get_contents(__DIR__ . '/../../../openapi.json'),
+            true
+        );
+
+        $routes = json_decode(shell_exec(
+            'cd ' . escapeshellarg(__DIR__ . '/../../../')
+            . " && node -e \"const p=require('./scripts/lib/route-parser.js');console.log(JSON.stringify(p.parseRoutes()))\""
+        ), true);
+
+        $byHandler = [];
+        foreach ($routes as $route) {
+            $byHandler[$route['name']][] = [$route['verb'], $route['url']];
+        }
+
+        $missing = [];
+        foreach ($this->userRateLimits() as $hit) {
+            foreach ($byHandler[$hit['handler']] ?? [] as [$verb, $url]) {
+                $op = $spec['paths'][$url][strtolower($verb)] ?? null;
+                if ($op === null) {
+                    continue;
+                }
+                if (!isset($op['responses']['429'])) {
+                    $missing[] = "{$verb} {$url} ({$hit['method']}, {$hit['limit']}/minute)";
+                }
+            }
+        }
+
+        sort($missing);
+
+        $this->assertSame(
+            [],
+            $missing,
+            "Rate-limited operations with no documented 429:\n  " . implode("\n  ", $missing)
         );
     }
 

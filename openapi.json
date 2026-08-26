@@ -250,6 +250,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 per minute per user)."
           }
         }
       }
@@ -412,6 +415,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "Rate limit exceeded (10 per minute per user)."
           }
         }
       }
@@ -871,6 +877,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per minute per user)."
           }
         }
       }
@@ -1169,7 +1178,7 @@
       "post": {
         "operationId": "create-comment",
         "summary": "Create comment",
-        "description": "Creates a new comment on a page",
+        "description": "Creates a new comment on a page\n\nRate limited to 20 per minute per user.",
         "tags": [
           "Comments"
         ],
@@ -1226,6 +1235,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Rate limit exceeded (20 per minute per user)."
           }
         }
       }

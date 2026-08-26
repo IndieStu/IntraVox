@@ -75,6 +75,59 @@ Noteer bij een genegeerde hit kort *waarom* in de PR/commit.
 
 Referentie: <https://owasp.org/Top10/2025/> · Cheat Sheets: <https://cheatsheetseries.owasp.org/>
 
+### Uitslag van de 2.5-ronde (26-08-2026)
+
+Twee hits die echte fixes werden, en één bevinding die bewust blijft staan.
+
+- **A02 — footer werd opgeslagen zoals aangeleverd.** `saveFooter()` bewaarde de
+  inhoud ongefilterd onder de opmerking "already sanitized by DOMPurify in the
+  frontend". Dat klopt voor de editor en is irrelevant voor security: `POST
+  /api/footer` is een gewoon endpoint en een handmatig verzoek draait die
+  JavaScript niet. De footer rendert via `v-html` op elke pagina. Gefixt met de
+  sanitizer die tekstwidgets al jaren gebruikt — dezelfde renderer, dezelfde
+  auteurs, dezelfde behandeling. Niet anoniem bereikbaar (de footer gaat niet mee
+  in public shares), dus begrensd tot ingelogde gebruikers.
+- **A02 — tien lekken in CommentController** gaven `$e->getMessage()` terug aan de
+  client. Gefixt via `ApiErrorTrait::safeErrorResponse()`.
+
+**Bewust NIET gefixt in 2.5, wél opgeschreven:** er staan nog **42
+`catch (\Exception)`-blokken die `$e->getMessage()` in een response zetten**,
+waarvan 38 in `ApiController`. Geteld met:
+
+```bash
+python3 - <<'EOF'
+import re,glob,os
+tot=0
+for f in sorted(glob.glob('lib/Controller/*.php')):
+    src=open(f,newline='').read(); hits=0
+    for m in re.finditer(r'catch \(\\?Exception \$e\) \{(.*?)(?=\n        \}|\n    \}|catch \()', src, re.S):
+        body=re.sub(r'\$this->logger->\w+\([^;]*?\);','',m.group(1),flags=re.S)
+        if re.search(r"'error'\s*=>\s*\$e->getMessage\(\)", body): hits+=1
+    if hits: print(f"{os.path.basename(f):<34} {hits}")
+    tot+=hits
+print('TOTAAL:',tot)
+EOF
+```
+
+Waarom uitgesteld: dit is 42 losse beslissingen over wat een client *wel* mag
+weten, elk met een eigen publieke boodschap, in een release die al een groot
+gedragsoppervlak raakt. Ze in één sweep genericeren is precies hoe je de twee
+contract-sites in `CommentController` sloopt (zie `CommentErrorLeakTest`).
+Vervolgstap voor 2.6, per controller, met dezelfde aanpak als hier.
+
+Let op de meetfout die makkelijk is: een kale `grep getMessage()` telt er 122.
+Daar zitten `logger->error()`-aanroepen bij (geen lek) en `catch`-blokken op
+app-eigen types als `InvalidArgumentException` en `PageNotFoundException`, waarvan
+de boodschap door deze app zelf geschreven is (geen lek). Alleen generieke
+`\Exception`-vangsten tellen.
+
+- **A03** — `npm audit`: 0 vulnerabilities.
+- **A04** — geen `rand()`/`uniqid()` op security-paden; de vier hits zijn
+  bestandsnamen en nav-ids. Alle drie de signature-vergelijkingen gebruiken
+  `hash_equals()`.
+- **A05** — één `v-html` zonder zichtbare sanitizer (`Footer.vue:15`); dat was de
+  A02-bevinding hierboven en is nu server-side afgedekt.
+
 ### A01 — Broken Access Control
 
 - [ ] Elke nieuwe/gewijzigde controller-methode heeft een bewuste access-attribute.
@@ -472,7 +525,7 @@ or changes UI.
 
 - [ ] Determine new version number (semantic versioning: MAJOR.MINOR.PATCH)
 - [ ] Run `node scripts/sync-version.js X.Y.Z` to update both `package.json` and `appinfo/info.xml` in one go
-- [ ] Manually update `openapi.json` `"version": "X.Y.Z"` — `sync-version.js` does NOT touch it yet (current `openapi.json` is at 1.5.5 while app is at 1.6.0; fix on next release)
+- [x] ~~Manually update `openapi.json` version~~ — `sync-version.js` now writes all three files (package.json, appinfo/info.xml, openapi.json) and `--check` fails the prebuild when they disagree. Nothing to do by hand.
 - [ ] Verify all four locations match:
   ```bash
   grep '"version"' package.json | head -1
@@ -503,8 +556,12 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 - [ ] Update `openapi.json` with any new/changed API **endpoints** (paths + verbs). Cross-check `appinfo/routes.php` — every route a release touched should have a documented path (1.9.0 caught `/api/pages/{pageId}/metadata` GET+PUT missing entirely).
 - [ ] Update `openapi.json` **shared schemas** for any new config/response fields (notably `WidgetConfig` for new widget settings, `PageTreeNode`/`Permissions` for tree/permission changes).
 - [ ] Update descriptions when a field's meaning changed (e.g. `limit` going from "max rows" to "total cap in both pagination modes").
-- [ ] Validate JSON syntax: `python3 -c "import json; json.load(open('openapi.json')); print('Valid')"`
-- [ ] Bump `openapi.json` `"version"` to match (see §3 — `sync-version.js` does not touch it).
+- [ ] Validate the spec: `npx @redocly/cli lint openapi.json` (JSON syntax alone no longer says much)
+- [ ] `npm run lint:openapi` — coverage ratchet: every route documented, no phantom paths, no quality debt
+- [ ] `npm run test:contract` — Tier A contract test against a running dev instance. Needs
+      `INTRAVOX_CONTRACT_USER` and an **app password** in `INTRAVOX_CONTRACT_TOKEN`; revoke it afterwards.
+      This is the only check that compares a real response body against the published schema.
+- [x] ~~Bump `openapi.json` `"version"` to match~~ — handled by `sync-version.js`; the prebuild gate catches drift.
 - [ ] Verify all public share endpoints are documented
 - [ ] Update response schemas if changed
 
@@ -607,7 +664,12 @@ Required files in tarball:
 | `demo-data/` | Demo content for setup wizard     |
 | Root files   | CHANGELOG.md, LICENSE, README.md  |
 
-**Exclude from tarball:** `src/`, `node_modules/`, `screenshots/`, `docs/`, `.git/`, `*.key`, `deploy.sh`, `openapi.json`, `scripts/`, `.tx/`, `.l10nignore`, `translationfiles/`, `examples/`, `showcases/`, `testdata/`
+**Exclude from tarball:** `src/`, `node_modules/`, `screenshots/`, `docs/`, `.git/`, `*.key`, `deploy.sh`, `scripts/`, `.tx/`, `.l10nignore`, `translationfiles/`, `examples/`, `showcases/`, `testdata/`
+
+> ⚠️ **`openapi.json` IS shipped** (`create-release.sh:139`) — this line used to claim the
+> opposite. It means the spec lands on every installation, so a wrong or stale spec is
+> published rather than kept in-repo. That is why its version is now synced and why the
+> coverage ratchet runs in the prebuild.
 
 > ⚠️ **`cp -r l10n …` copies dev-only l10n files too.** `l10n/en.json`, `l10n/en.js` and
 > `l10n/.source-count.js` are gitignored build artefacts; `l10n/.source-strings.json` is

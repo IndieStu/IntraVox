@@ -1668,9 +1668,11 @@ All path parameters are validated against:
 
 ## Rate Limiting
 
-Five write-heavy endpoints carry a per-user limit. Exceeding one returns **429
-Too Many Requests**; the limit is counted per user, per endpoint, over a rolling
-window.
+Some endpoints carry a per-user limit. Exceeding one returns **429 Too Many
+Requests**; the limit is counted per user, per endpoint, over a rolling window.
+
+This table is guarded: `RateLimitDocsTest` walks every controller and fails when
+a `#[UserRateLimit]` in code is missing here or carries a different number.
 
 | Endpoint | Handler | Limit |
 |---|---|---|
@@ -1679,9 +1681,36 @@ window.
 | `POST /api/pages/reorder` | `reorderPages` | 20 / minute |
 | `POST /api/pages/move` | `movePage` | 20 / minute |
 | `GET /api/search` | `searchPages` | 30 / minute |
+| `POST /api/bulk/delete` | `deletePages` | 5 / minute |
+| `POST /api/bulk/move` | `movePages` | 5 / minute |
+| `POST /api/bulk/update` | `updatePages` | 5 / minute |
+| `POST /api/bulk/validate` | `validateOperation` | 20 / minute |
+| `GET /api/feed/external` | `getFeed` | 30 / minute |
+| `GET /api/feed/preview` | `getPreview` | 30 / minute |
+| `POST /api/analytics/track/{pageId}` | `trackView` | 60 / minute |
+| `GET /api/preview` | `fetch` | 600 / minute |
+| `POST /api/preview/warmup` | `warmup` | 60 / minute |
+| `POST /api/pages/{pageId}/comments` | `createComment` | 20 / minute |
+| `POST /api/pages/{id}/reactions/{emoji}` | `addPageReaction` | 30 / minute |
+| `POST /api/comments/{id}/reactions/{emoji}` | `addCommentReaction` | 30 / minute |
+| `GET /api/health` | `health` | 60 / minute (anonymous) |
+| `GET /api/share/{token}/*` | `PublicShareController` | 30–60 / minute (anonymous) |
 
-Everything else relies on Nextcloud's brute-force protection rather than a
-per-endpoint limit.
+Withdrawing a reaction is deliberately not limited; adding one is.
+
+### 429 without a declared limit
+
+Everything else relies on Nextcloud's brute-force protection, and that is worth
+spelling out because it surprises automated clients:
+
+**Repeated failed authentication from one address returns 429 on _every_
+authenticated endpoint**, declared limit or not. Once tripped it keeps answering
+429 even for *correct* credentials until the window expires. A client that
+retries a bad token in a loop therefore locks itself out rather than eventually
+getting through.
+
+Treat 401 as terminal: fix the credential, do not retry. This was measured
+against a running instance, not inferred from the code.
 
 ### Bulk provisioning and migrations
 

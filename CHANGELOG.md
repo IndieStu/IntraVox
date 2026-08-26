@@ -6,6 +6,30 @@ IntraVox is a Nextcloud intranet page builder.
 
 ## [Unreleased]
 
+### Security
+
+- **A logged-in user could read internal server detail from a failing comment endpoint.** Ten error paths in the comments and reactions API returned the raw exception message to the browser. Those exceptions come from the filesystem and the Comments API, so the text could carry group folder paths, storage identifiers and internal comment ids. Failures now return a fixed message plus an error id that points to the full detail in the server log. Two error paths keep their specific text on purpose — "Comment not found" and "Not authorized to edit this comment" are messages IntraVox raises itself, clients depend on them to tell the two cases apart, and they describe nothing internal.
+- **A public share could be asked for people it did not publish.** The People widget on a shared page accepted a hand-written list of users or a hand-written filter and answered from the whole directory, rather than from the set the shared page actually exposes. A share token proves a visitor may read a page; it was never meant to prove they may query the directory behind it. Requests are now intersected with what the page publishes. **This only affected instances with `public_share_allow_people` set to `yes`** — it is off by default, and instances that left it off were never exposed.
+- **Three endpoints returned the reason a server-side fetch failed.** The SharePoint, preview and MetaVox field endpoints passed the underlying error text back to any logged-in caller. Since those calls are made by the server using stored credentials, the text could name internal hosts and describe whether a credential still worked. They now return a generic failure.
+- **Footer content was stored exactly as submitted.** The footer is rendered as HTML on every page, and the server kept whatever it was sent — relying on the editor's own sanitising, which a direct request to the endpoint simply skips. Anyone able to edit the footer could therefore leave script behind that ran for every logged-in visitor of that language. It is now cleaned on the server before it is stored, by the same filter that has always been applied to text widgets. Public shares were not affected: the footer is not served through them.
+- **The feed reader could be pointed at the internal network.** Its safety check resolved a hostname and only inspected the answer when one came back. A name that failed to resolve, or one with only an IPv6 address, skipped the check entirely — so `http://[::1]/` reached the fetcher. The check now refuses anything it cannot positively confirm as external.
+
+### Fixed
+
+- **Importing an entire Confluence space crashed the server outright.** The importer was constructed with one of the two arguments it requires, which raises a PHP error rather than an exception — and the surrounding code only caught exceptions. Every call to that endpoint ended in an uncaught fatal. Nothing was importable through it.
+- **Orphaned content could not be recovered into a language beyond nl, en, de or fr.** Two different language lists were being checked, and the narrower one — hardcoded, four entries — ran first. A site running any other content language could create pages in it, serve them and export them, but not recover them out of an orphaned group folder. Both checks now use the same list, which follows what the site has actually enabled.
+- **Listing pages had no upper bound.** `GET /api/pages` returned every page in a language with no limit, so the largest customer decided the response size. It is now capped, and says so in a response header when a result was truncated. The body shape is unchanged.
+
+### Changed
+
+- **The OpenAPI specification now describes the whole API and is checked against the running server.** It covered 79 of 175 routes and several of those descriptions were wrong — a shared schema for reactions described fields no response has ever carried, poisoning six operations at once. All 171 in-scope routes are now documented; four browser routes that return HTML are listed as deliberately out of scope with a reason. A build gate keeps it that way: a new route without documentation fails the build, and the specification's version is now kept in step with the app's.
+- **`openapi.json` ships with the app.** It always did, while the release checklist claimed the opposite — which meant a wrong specification was published to every installation rather than kept in the repository. The file is on disk in the app directory; it is not served over HTTP.
+
+### Notes for API clients
+
+- **Comment and reaction errors changed shape.** A failing call now returns `{"success": false, "error": "…", "errorId": "…"}` instead of a bare message. No part of the IntraVox interface read that body, so nothing in the app changes; a script that parsed the old error text will now see a generic sentence and should log `errorId` instead.
+- **Repeated failed authentication returns 429 on any endpoint.** This is Nextcloud's brute-force protection rather than an IntraVox limit, and it applies whether or not an endpoint declares one of its own. Once triggered it keeps returning 429 even for correct credentials until the window passes — so a client retrying a bad token locks itself out instead of getting through. Treat 401 as final.
+
 ## [2.4.1] - 2026-08-25 — A refused subscription key says why
 
 ### Fixed

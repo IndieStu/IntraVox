@@ -14,7 +14,7 @@ Maak gebruik van IntraVox' OpenAPI-specificatie met moderne developer-tools.
 
 ## Wat is OpenAPI?
 
-OpenAPI (voorheen Swagger) is een industrie-standaard-specificatie om REST-API's te beschrijven. IntraVox levert een volledige OpenAPI-3.1-specificatie die het volgende mogelijk maakt:
+OpenAPI (voorheen Swagger) is een industrie-standaard-specificatie om REST-API's te beschrijven. IntraVox levert een OpenAPI-3.1-specificatie die het volgende mogelijk maakt:
 
 - **Interactieve API-exploration** — test endpoints direct in Swagger UI
 - **Geautomatiseerde client-generatie** — genereer type-safe clients in 50+ talen
@@ -36,10 +36,20 @@ De OpenAPI-spec is beschikbaar op:
 
 - **Bestand-pad:** `IntraVox/openapi.json` (in repository-root)
 - **GitHub-URL:** https://raw.githubusercontent.com/nextcloud/IntraVox/main/openapi.json
-- **Lokale server:** `https://your-nextcloud.com/apps/intravox/openapi.json` (vereist authenticatie)
+- **Geïnstalleerde app:** `<nextcloud>/custom_apps/intravox/openapi.json` op de server zelf —
+  het bestand zit in het release-pakket, maar wordt **niet via HTTP geserveerd**. Er is geen
+  route voor; `https://your-nextcloud.com/apps/intravox/openapi.json` geeft 404. Wie de spec
+  van een draaiende installatie wil, haalt hem van schijf of van GitHub.
 
-**Huidige versie:** 0.9.17
+**Versie:** gelijk aan de app-versie. `scripts/sync-version.js` schrijft `package.json`,
+`appinfo/info.xml` en `openapi.json` in één keer, en de prebuild-gate faalt als ze uiteenlopen —
+dus de spec kondigt nooit een andere versie aan dan de app die hem meelevert.
 **Formaat:** OpenAPI 3.1.0 (JSON)
+
+**Dekking:** alle 171 routes binnen scope zijn gedocumenteerd. Vier browser-routes staan
+expliciet buiten scope met reden in `.openapi-coverage.json` (de app-shell en de OAuth-callback:
+die geven HTML terug en hebben geen JSON-contract). `npm run lint:openapi` bewaakt dat: een
+nieuwe route zonder documentatie laat de build falen.
 
 **Snelle weergave:**
 
