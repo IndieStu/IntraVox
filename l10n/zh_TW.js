@@ -31,6 +31,7 @@ OC.L10N.register(
     "Configured" : "已設定",
     "Invalid URL" : "無效的網址",
     "Empty folder" : "空資料夾",
+    "Unavailable" : "無法使用",
     "Deletion failed" : "刪除失敗",
     "Languages" : "語言",
     "Sharing" : "分享",
