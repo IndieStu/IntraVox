@@ -1301,7 +1301,7 @@
     "/api/pages/{pageId}/reactions": {
       "get": {
         "operationId": "get-page-reactions",
-        "summary": "Get page reactions",
+        "summary": "Reactions on a page",
         "tags": [
           "Comments"
         ],
@@ -1317,7 +1317,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Reaction data",
+            "description": "The complete reaction state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1325,14 +1325,24 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such page, or no access."
+          },
+          "500": {
+            "description": "Reactions could not be read."
           }
-        }
+        },
+        "description": "The complete reaction state for one page.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable."
       }
     },
     "/api/pages/{pageId}/reactions/{emoji}": {
       "post": {
         "operationId": "add-page-reaction",
-        "summary": "Add page reaction",
+        "summary": "React to a page",
         "tags": [
           "Comments"
         ],
@@ -1351,12 +1361,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The emoji itself, URL-encoded. Stored verbatim as the reaction's message — there is no server-side allowlist, so what you send is what every reader sees."
           }
         ],
         "responses": {
           "200": {
-            "description": "Reaction counts after adding.",
+            "description": "The complete reaction state after adding.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1364,12 +1375,25 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such page, or no access."
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per minute per user)."
+          },
+          "500": {
+            "description": "The reaction could not be written."
           }
-        }
+        },
+        "description": "Adds the calling user's reaction and returns the complete new state.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable.\n\nRate limited to 30 per minute per user.\n\nONE REACTION PER USER, ALWAYS. Adding a reaction silently WITHDRAWS the user's previous one — this is not a configurable mode, it is unconditional. A client that treats this as purely additive will show a stale count for the emoji that was just removed, which is why every reaction endpoint returns the complete state instead of a delta: replace your local state, never increment it."
       },
       "delete": {
         "operationId": "remove-page-reaction",
-        "summary": "Remove page reaction",
+        "summary": "Withdraw a reaction from a page",
         "tags": [
           "Comments"
         ],
@@ -1388,12 +1412,13 @@
             "required": true,
             "schema": {
               "type": "string"
-            }
+            },
+            "description": "The emoji itself, URL-encoded. Stored verbatim as the reaction's message — there is no server-side allowlist, so what you send is what every reader sees."
           }
         ],
         "responses": {
           "200": {
-            "description": "Reaction counts after removing.",
+            "description": "The complete reaction state after removing.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1401,8 +1426,18 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such page, or no access."
+          },
+          "500": {
+            "description": "The reaction could not be removed."
           }
-        }
+        },
+        "description": "Removes the calling user's reaction and returns the complete new state.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable.\n\nNOT rate limited, unlike its POST counterpart."
       }
     },
     "/api/settings/video-domains": {
@@ -7396,6 +7431,151 @@
           }
         }
       }
+    },
+    "/api/comments/{commentId}/reactions": {
+      "get": {
+        "operationId": "get-comment-reactions",
+        "summary": "Reactions on a comment",
+        "description": "The complete reaction state for one comment.\n\nAccess is checked against the PAGE the comment belongs to, not the comment itself. A comment on a page the caller may not read answers 404 — the same response as a comment that does not exist, deliberately, so the endpoint cannot be used to probe which comment ids are real.",
+        "tags": [
+          "Comments"
+        ],
+        "parameters": [
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Numeric id of the comment, as a string."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete reaction state after the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reactions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. The two are indistinguishable by design."
+          },
+          "500": {
+            "description": "The reaction could not be read or written."
+          }
+        }
+      }
+    },
+    "/api/comments/{commentId}/reactions/{emoji}": {
+      "post": {
+        "operationId": "add-comment-reaction",
+        "summary": "React to a comment",
+        "description": "Adds the calling user's reaction and returns the complete new state.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\nAccess is checked against the PAGE the comment belongs to, not the comment itself. A comment on a page the caller may not read answers 404 — the same response as a comment that does not exist, deliberately, so the endpoint cannot be used to probe which comment ids are real.\n\nRate limited to 30 per minute per user.\n\nONE REACTION PER USER, ALWAYS. Adding a reaction silently WITHDRAWS the user's previous one — this is not a configurable mode, it is unconditional. A client that treats this as purely additive will show a stale count for the emoji that was just removed, which is why every reaction endpoint returns the complete state instead of a delta: replace your local state, never increment it.",
+        "tags": [
+          "Comments"
+        ],
+        "parameters": [
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Numeric id of the comment, as a string."
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The emoji itself, URL-encoded. Stored verbatim as the reaction's message — there is no server-side allowlist, so what you send is what every reader sees."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete reaction state after the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reactions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. The two are indistinguishable by design."
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per minute per user)."
+          },
+          "500": {
+            "description": "The reaction could not be read or written."
+          }
+        }
+      },
+      "delete": {
+        "operationId": "remove-comment-reaction",
+        "summary": "Withdraw a reaction from a comment",
+        "description": "Removes the calling user's reaction and returns the complete new state. Only ever affects the caller's own reaction.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\nAccess is checked against the PAGE the comment belongs to, not the comment itself. A comment on a page the caller may not read answers 404 — the same response as a comment that does not exist, deliberately, so the endpoint cannot be used to probe which comment ids are real.\n\nNOT rate limited, unlike its POST counterpart — withdrawing is always allowed.",
+        "tags": [
+          "Comments"
+        ],
+        "parameters": [
+          {
+            "name": "commentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Numeric id of the comment, as a string."
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The emoji itself, URL-encoded. Stored verbatim as the reaction's message — there is no server-side allowlist, so what you send is what every reader sees."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The complete reaction state after the call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reactions"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. The two are indistinguishable by design."
+          },
+          "500": {
+            "description": "The reaction could not be read or written."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8313,17 +8493,28 @@
       },
       "Reactions": {
         "type": "object",
-        "additionalProperties": {
-          "type": "object",
-          "properties": {
-            "count": {
-              "type": "integer"
-            },
-            "userReacted": {
-              "type": "boolean"
+        "description": "Reaction state for one page or comment.\n\nNote the shape: 'reactions' is a flat emoji -> count map, and which of them the CALLING USER picked is a separate flat list in 'userReactions'. There is no per-emoji object and no userReacted flag — to render 'you reacted' you intersect the two yourself.\n\nEvery reaction endpoint returns this same complete state after the change, so a client replaces its local state rather than applying a delta.",
+        "properties": {
+          "reactions": {
+            "type": "object",
+            "description": "Emoji to count. Emoji with no reactions are absent rather than zero.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1
             }
+          },
+          "userReactions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The emoji the calling user has picked. In practice this holds AT MOST ONE entry: one reaction per user is enforced unconditionally (EngagementSettingsService::getSingleReactionPerUser() returns a hardcoded true), so reacting replaces any previous reaction rather than adding to it. It is an array for forward compatibility, not because multiple reactions occur. Empty for an anonymous or unauthenticated reader."
           }
-        }
+        },
+        "required": [
+          "reactions",
+          "userReactions"
+        ]
       },
       "EngagementSettings": {
         "type": "object",

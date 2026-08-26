@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 138,
-    "undocumented": 33
+    "documented": 141,
+    "undocumented": 30
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -14,9 +14,7 @@
     "GET /api/lms/callback": "OAuth redirect target. Returns an HTML page that postMessages the opener; it is not callable by an API client and carries no JSON contract."
   },
   "undocumented": [
-    "DELETE /api/comments/{commentId}/reactions/{emoji}",
     "GET /api/admin/shares",
-    "GET /api/comments/{commentId}/reactions",
     "GET /api/export/language/{language}",
     "GET /api/export/page/{uniqueId}",
     "GET /api/health",
@@ -34,7 +32,6 @@
     "GET /api/users/fields",
     "GET /api/users/groups",
     "GET /api/users/search",
-    "POST /api/comments/{commentId}/reactions/{emoji}",
     "POST /api/homepage",
     "POST /api/import/confluence/html",
     "POST /api/import/zip",
