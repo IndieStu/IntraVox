@@ -53,9 +53,15 @@ class OrphanedDataService {
      * from a disabled-and-no-longer-translated language is still never
      * reported as orphaned.
      *
+     * Public because OrphanedDataController validates the migrate request against
+     * this same set. It used to carry its own hardcoded ['nl','en','de','fr'] and
+     * rejected first, so a site running any other content language could create,
+     * serve and export pages in it but never recover them out of an orphaned
+     * folder. Two lists meant the stricter one silently won; there is one now.
+     *
      * @return string[]
      */
-    private function getKnownLanguages(): array {
+    public function getKnownLanguages(): array {
         return array_values(array_unique(array_merge(
             $this->languageService->getDiscoveredLanguages(),
             $this->languageService->getEnabledLanguages(),

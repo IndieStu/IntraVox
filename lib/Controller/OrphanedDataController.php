@@ -155,9 +155,15 @@ class OrphanedDataController extends Controller {
                 );
             }
 
-            // Validate language
-            $supportedLanguages = ['nl', 'en', 'de', 'fr'];
-            if (!in_array($language, $supportedLanguages)) {
+            // Validate language against what this site actually runs, not a
+            // hardcoded list. Both this controller and the service used to
+            // validate, against DIFFERENT sets: ['nl','en','de','fr'] here versus
+            // getKnownLanguages() there. Since this one rejects first, the narrow
+            // list silently won, and a site with any other content language could
+            // create, serve and export pages in it but never recover them out of
+            // an orphaned folder. One list now, owned by the service.
+            $supportedLanguages = $this->orphanedDataService->getKnownLanguages();
+            if (!in_array($language, $supportedLanguages, true)) {
                 return new DataResponse(
                     ['success' => false, 'error' => "Unsupported language: {$language}"],
                     Http::STATUS_BAD_REQUEST

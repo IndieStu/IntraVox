@@ -3,91 +3,111 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Tests\Unit\Controller;
 
+use OCA\IntraVox\Service\OrphanedDataService;
 use PHPUnit\Framework\TestCase;
 
 /**
- * POST /api/orphaned/{id}/migrate accepts fewer languages than the app supports.
+ * POST /api/orphaned/{id}/migrate accepts every language the site actually runs.
  *
- * The controller validates against a hardcoded ['nl','en','de','fr']. The service
- * it calls validates against getKnownLanguages(), which merges the DISCOVERED and
- * ENABLED languages with a legacy default — so it accepts whatever the site
- * actually runs. The controller's narrower list wins, because it rejects first.
+ * It did not. The controller validated against a hardcoded ['nl','en','de','fr']
+ * while the service behind it validated against getKnownLanguages() — the union
+ * of discovered translations, admin-enabled languages and the legacy default.
+ * Two lists, and since the controller rejects first, the narrow one silently won.
  *
- * The consequence is specific and easy to miss: a site with a fifth content
- * language (say 'es') can create pages in it, serve them, export them — but
- * cannot recover them out of an orphaned GroupFolder, because this one endpoint
- * refuses the language with a 400. Content stays stranded on disk for a reason
- * that has nothing to do with the content.
+ * The consequence was specific and easy to miss: a site with a fifth content
+ * language could create pages in it, serve them and export them, but could not
+ * recover them out of an orphaned GroupFolder — a 400 on a language the site
+ * plainly supports, for a reason with nothing to do with the content. Data
+ * stranded on disk by a validation mismatch.
  *
- * This test does not assert that the mismatch is CORRECT. It pins that it exists
- * and is deliberate, so the spec's warning stays true and so widening the
- * controller list is a conscious act with a test to update. Widening it is the
- * real fix; it needs the same language resolution the service already does, and
- * that is a behaviour change rather than documentation.
- *
- * @see OrphanedDataService::getKnownLanguages()
+ * The fix is one list, owned by the service. What this test guards is that it
+ * STAYS one list: a second hardcoded array reappearing in the controller is the
+ * regression, and it would be invisible on any instance that happens to run only
+ * the four legacy languages.
  */
 class OrphanedMigrateLanguageRangeTest extends TestCase {
     private function controllerSource(): string {
         return file_get_contents(__DIR__ . '/../../../lib/Controller/OrphanedDataController.php');
     }
 
-    private function serviceSource(): string {
-        return file_get_contents(__DIR__ . '/../../../lib/Service/OrphanedDataService.php');
-    }
-
-    public function testTheControllerStillHardcodesItsLanguageList(): void {
-        $this->assertMatchesRegularExpression(
-            "/\\\$supportedLanguages\s*=\s*\['nl',\s*'en',\s*'de',\s*'fr'\]/",
+    public function testTheControllerAsksTheServiceRatherThanCarryingItsOwnList(): void {
+        $this->assertStringContainsString(
+            '$this->orphanedDataService->getKnownLanguages()',
             $this->controllerSource(),
-            'If this list became dynamic the spec must stop warning that migrate is narrower than the app'
-        );
-    }
-
-    public function testTheServiceBehindItResolvesLanguagesDynamically(): void {
-        $service = $this->serviceSource();
-
-        $this->assertStringContainsString(
-            'getKnownLanguages()',
-            $service,
-            'The asymmetry only matters while the service is the more permissive of the two'
-        );
-        $this->assertStringContainsString(
-            'getDiscoveredLanguages()',
-            $service,
-            'getKnownLanguages() must actually consult the site rather than a second hardcoded list'
+            'Language validation must come from the service, so there is only one set to keep correct'
         );
     }
 
     /**
-     * The spec tells integrators about it.
+     * No second hardcoded list, under any name.
      *
-     * A limitation this arbitrary is worse undocumented than unfixed: without the
-     * warning, a 400 on a language the site plainly supports reads as a bug in the
-     * caller.
+     * Matching the exact old literal would let the same bug return as
+     * ['nl','en','fr','de'] or with a different variable name. This looks for any
+     * inline array of language codes instead.
      */
-    public function testTheSpecDocumentsTheNarrowerRange(): void {
-        $spec = json_decode(
-            file_get_contents(__DIR__ . '/../../../openapi.json'),
-            true
-        );
-
-        $op = $spec['paths']['/api/orphaned/{id}/migrate']['post'] ?? null;
-        $this->assertNotNull($op, 'The migrate endpoint must stay documented');
-
-        $enum = $op['requestBody']['content']['application/json']['schema']
-            ['properties']['language']['enum'] ?? null;
+    public function testNoHardcodedLanguageArrayRemains(): void {
+        $source = preg_replace(['#/\*.*?\*/#s', '#//[^\n]*#'], '', $this->controllerSource());
 
         $this->assertSame(
-            ['nl', 'en', 'de', 'fr'],
-            $enum,
-            'The documented enum must match the hardcoded list the controller enforces'
+            0,
+            preg_match("/=\s*\[\s*'(?:nl|en|de|fr)'\s*,/", $source),
+            'A second inline language list is exactly the mismatch this fix removed'
         );
+    }
 
-        $this->assertStringContainsString(
+    /** The service's list is genuinely dynamic, or asking it buys nothing. */
+    public function testTheServiceListIsResolvedFromTheSite(): void {
+        $service = file_get_contents(__DIR__ . '/../../../lib/Service/OrphanedDataService.php');
+
+        $this->assertMatchesRegularExpression(
+            '/public function getKnownLanguages\(\)/',
+            $service,
+            'The controller cannot call it unless it is public'
+        );
+        $this->assertStringContainsString('getDiscoveredLanguages()', $service);
+        $this->assertStringContainsString('getEnabledLanguages()', $service);
+    }
+
+    /**
+     * A language beyond the legacy four is accepted.
+     *
+     * The three assertions above are structural — they prove the wiring, not the
+     * behaviour. This one drives the real method: a site that has enabled 'es'
+     * must see it in the set the controller validates against.
+     */
+    public function testAnEnabledLanguageOutsideTheLegacyFourIsIncluded(): void {
+        $languageService = $this->createMock(\OCA\IntraVox\Service\LanguageService::class);
+        $languageService->method('getDiscoveredLanguages')->willReturn([]);
+        $languageService->method('getEnabledLanguages')->willReturn(['nl', 'es']);
+
+        $service = (new \ReflectionClass(OrphanedDataService::class))->newInstanceWithoutConstructor();
+        $prop = new \ReflectionProperty(OrphanedDataService::class, 'languageService');
+        $prop->setValue($service, $languageService);
+
+        $known = $service->getKnownLanguages();
+
+        $this->assertContains('es', $known, 'An enabled language must be recoverable from an orphaned folder');
+        $this->assertContains('nl', $known, 'The legacy defaults stay in the union');
+        $this->assertContains('fr', $known, 'Even when no longer enabled — old content folders must stay recognisable');
+    }
+
+    /** The spec no longer advertises the narrow enum. */
+    public function testTheSpecNoLongerRestrictsTheLanguage(): void {
+        $spec = json_decode(file_get_contents(__DIR__ . '/../../../openapi.json'), true);
+        $op = $spec['paths']['/api/orphaned/{id}/migrate']['post'] ?? null;
+        $this->assertNotNull($op);
+
+        $language = $op['requestBody']['content']['application/json']['schema']['properties']['language'] ?? [];
+
+        $this->assertArrayNotHasKey(
+            'enum',
+            $language,
+            'A fixed enum would re-document the limitation that was just removed'
+        );
+        $this->assertStringNotContainsString(
             'NARROWER',
             $op['description'] ?? '',
-            'The description must flag the mismatch, not just list the four codes'
+            'The warning must go with the bug'
         );
     }
 }
