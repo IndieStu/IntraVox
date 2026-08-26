@@ -5439,7 +5439,51 @@
                   "items": {
                     "$ref": "#/components/schemas/PageSummary"
                   }
-                }
+                },
+                "example": [
+                  {
+                    "uniqueId": "page-9f2c14ab",
+                    "title": "Welkom",
+                    "modified": 1756123456,
+                    "status": "published",
+                    "permissions": {
+                      "canRead": true,
+                      "canWrite": true,
+                      "canCreate": true,
+                      "canDelete": true,
+                      "canShare": false,
+                      "raw": 27
+                    }
+                  },
+                  {
+                    "uniqueId": "page-3d81e07f",
+                    "title": "Personeelsgids",
+                    "modified": 1756039001,
+                    "status": "published",
+                    "permissions": {
+                      "canRead": true,
+                      "canWrite": true,
+                      "canCreate": true,
+                      "canDelete": true,
+                      "canShare": false,
+                      "raw": 27
+                    }
+                  },
+                  {
+                    "uniqueId": "page-c05b7712",
+                    "title": "Reisbeleid 2027",
+                    "modified": 1755998877,
+                    "status": "draft",
+                    "permissions": {
+                      "canRead": true,
+                      "canWrite": true,
+                      "canCreate": true,
+                      "canDelete": false,
+                      "canShare": false,
+                      "raw": 27
+                    }
+                  }
+                ]
               }
             }
           },
@@ -5497,6 +5541,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page"
+                },
+                "example": {
+                  "uniqueId": "page-c05b7712",
+                  "title": "Reisbeleid 2027",
+                  "language": "nl",
+                  "parentId": "page-3d81e07f",
+                  "status": "draft",
+                  "modified": 1756123456,
+                  "layout": {
+                    "columns": 2,
+                    "rows": []
+                  },
+                  "permissions": {
+                    "canRead": true,
+                    "canWrite": true,
+                    "canCreate": true,
+                    "canDelete": true,
+                    "canShare": false,
+                    "raw": 27
+                  }
                 }
               }
             }
@@ -5523,6 +5587,11 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PageCreate"
+              },
+              "example": {
+                "title": "Reisbeleid 2027",
+                "parentId": "page-3d81e07f",
+                "language": "nl"
               }
             }
           }
@@ -5576,6 +5645,50 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Page"
+                },
+                "example": {
+                  "uniqueId": "page-3d81e07f",
+                  "title": "Personeelsgids",
+                  "language": "nl",
+                  "status": "published",
+                  "modified": 1756039001,
+                  "parentId": null,
+                  "layout": {
+                    "columns": 2,
+                    "rows": [
+                      {
+                        "widgets": [
+                          {
+                            "type": "heading",
+                            "content": "Welkom bij het team",
+                            "level": 2,
+                            "column": 0,
+                            "order": 0
+                          },
+                          {
+                            "type": "text",
+                            "content": "<p>Alles wat je nodig hebt om te beginnen.</p>",
+                            "column": 0,
+                            "order": 1
+                          },
+                          {
+                            "type": "text",
+                            "content": "<p>Vragen? Mail HR.</p>",
+                            "column": 1,
+                            "order": 0
+                          }
+                        ]
+                      }
+                    ]
+                  },
+                  "permissions": {
+                    "canRead": true,
+                    "canWrite": true,
+                    "canCreate": true,
+                    "canDelete": true,
+                    "canShare": false,
+                    "raw": 27
+                  }
                 }
               }
             }
@@ -5686,6 +5799,37 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/PageUpdate"
+              },
+              "example": {
+                "title": "Personeelsgids (herzien)",
+                "layout": {
+                  "columns": 2,
+                  "rows": [
+                    {
+                      "widgets": [
+                        {
+                          "type": "heading",
+                          "content": "Welkom bij het team",
+                          "level": 2,
+                          "column": 0,
+                          "order": 0
+                        },
+                        {
+                          "type": "text",
+                          "content": "<p>Alles wat je nodig hebt om te beginnen.</p>",
+                          "column": 0,
+                          "order": 1
+                        },
+                        {
+                          "type": "text",
+                          "content": "<p>Vragen? Mail HR.</p>",
+                          "column": 1,
+                          "order": 0
+                        }
+                      ]
+                    }
+                  ]
+                }
               }
             }
           }
@@ -10034,7 +10178,8 @@
           "status",
           "permissions"
         ],
-        "description": "One row of the page listing. Every field here is always present; the full page body (layout, widgets) comes from GET /api/pages/{id}."
+        "description": "One row of the page listing. Every field here is always present; the full page body (layout, widgets) comes from GET /api/pages/{id}.",
+        "additionalProperties": false
       },
       "Page": {
         "type": "object",
@@ -10087,8 +10232,28 @@
           "publicationDateActive": {
             "type": "boolean",
             "description": "True when a publish or expiration date is set for this page, meaning that date governs publication and the manual draft/published status is ignored."
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Unique id of the parent page; null at the language root."
+          },
+          "modified": {
+            "type": "integer",
+            "description": "Unix timestamp of the last write."
           }
-        }
+        },
+        "additionalProperties": true,
+        "description": "A page as stored, plus fields computed at read time.\n\nThe properties below are the ones a client can rely on. The object is deliberately open: the body is the saved page document, so optional keys (parentId, modified, department, and anything a future widget adds) appear when present. Do not generate a strict model that discards unknown fields.",
+        "required": [
+          "uniqueId",
+          "title",
+          "language",
+          "layout",
+          "permissions"
+        ]
       },
       "PageCreate": {
         "type": "object",
