@@ -436,7 +436,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Page metadata"
+                        "description": "The stored MetaVox values.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageMetadata"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -479,7 +486,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Updated page metadata. When folderName was passed, includes folderRename: {status: renamed|skipped|failed, reason?, folderName?} with the folder name actually used (it may carry a collision suffix)."
+                        "description": "The values as stored after validation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageMetadata"
+                                }
+                            }
+                        }
                     },
                     "403": {
                         "description": "Permission denied"
@@ -555,7 +569,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Version restored successfully"
+                        "description": "The page as restored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Page"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -981,7 +1002,22 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Navigation saved"
+                        "description": "The stored navigation.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "navigation"
+                                    ],
+                                    "properties": {
+                                        "navigation": {
+                                            "$ref": "#/components/schemas/Navigation"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "403": {
                         "$ref": "#/components/responses/Forbidden"
@@ -1029,7 +1065,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Footer saved"
+                        "description": "The stored footer.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Footer"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1164,7 +1207,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Comment updated"
+                        "description": "The updated comment.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Comment"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1256,7 +1306,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Reaction added"
+                        "description": "Reaction counts after adding.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Reactions"
+                                }
+                            }
+                        }
                     }
                 }
             },
@@ -1286,7 +1343,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Reaction removed"
+                        "description": "Reaction counts after removing.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Reactions"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2096,7 +2160,29 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of news items within share scope"
+                        "description": "News items visible through this share.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "items",
+                                        "total"
+                                    ],
+                                    "properties": {
+                                        "items": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NewsItem"
+                                            }
+                                        },
+                                        "total": {
+                                            "type": "integer"
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "description": "Password required"
@@ -2613,7 +2699,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Token revoked"
+                        "description": "Token revoked; hasToken is now false.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FeedTokenState"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
@@ -3449,10 +3542,18 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Preview image bytes (image/png typically)"
+                        "description": "The preview image itself.",
+                        "content": {
+                            "image/png": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
                     },
                     "302": {
-                        "description": "Redirect to /core/preview (local files) or mime-icon (no preview available)"
+                        "description": "Redirect to Nextcloud's own preview or a mimetype icon when no thumbnail can be produced."
                     },
                     "400": {
                         "description": "file_id missing or invalid"
@@ -5642,6 +5743,39 @@
                         }
                     }
                 }
+            },
+            "FeedTokenState": {
+                "type": "object",
+                "required": [
+                    "hasToken"
+                ],
+                "description": "The RSS token state. `token` is only present right after issuing or regenerating one; a plain read never returns it again.",
+                "properties": {
+                    "hasToken": {
+                        "type": "boolean"
+                    },
+                    "token": {
+                        "type": "string"
+                    },
+                    "feedUrl": {
+                        "type": "string"
+                    },
+                    "scope": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "integer"
+                    },
+                    "config": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                }
+            },
+            "PageMetadata": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "MetaVox field values for one page. Keys are field ids configured on the instance, so the set is open by nature."
             }
         }
     }

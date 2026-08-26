@@ -108,18 +108,6 @@
     "missing_tags": [],
     "undeclared_tag": [],
     "duplicate_operation_id": [],
-    "response_without_schema": [
-      "DELETE /api/feed/token",
-      "DELETE /api/pages/{}/reactions/{}",
-      "GET /api/pages/{}/metadata",
-      "GET /api/preview",
-      "GET /api/share/{}/news",
-      "POST /api/footer",
-      "POST /api/navigation",
-      "POST /api/pages/{}/reactions/{}",
-      "POST /api/pages/{}/versions/{}",
-      "PUT /api/comments/{}",
-      "PUT /api/pages/{}/metadata"
-    ]
+    "response_without_schema": []
   }
 }
