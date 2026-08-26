@@ -294,7 +294,7 @@
       "get": {
         "operationId": "get-page",
         "summary": "Get a page",
-        "description": "Returns a single page by its unique ID",
+        "description": "Returns a single page by its unique ID\n\nThe response carries `baseVersion`; send it back on PUT to avoid overwriting a concurrent edit.",
         "tags": [
           "Pages"
         ],
@@ -331,7 +331,7 @@
       "put": {
         "operationId": "update-page",
         "summary": "Update a page",
-        "description": "Updates an existing page",
+        "description": "Updates an existing page\n\nCONCURRENCY. A read returns `baseVersion`, the file's modification time at that moment. Send it back in the PUT body and a write that started from an older copy is refused with 409 instead of silently overwriting the other edit.\n\nOmitting it is allowed and is NOT treated as a conflict — an importer or a script that never read the page has nothing to compare. That is a deliberate choice with a consequence worth knowing: a client that leaves `baseVersion` out gets last-write-wins. Interactive editors should always send it.\n\nThe value is never persisted; it is stripped from the payload before the page is written.",
         "tags": [
           "Pages"
         ],
@@ -375,6 +375,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: the submitted baseVersion predates the stored file, so someone else saved while this copy was being edited. Re-read the page and re-apply the change; retrying the same body will keep failing."
           }
         }
       },
@@ -5635,7 +5638,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nReturns the full page including layout and widgets.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nReturns the full page including layout and widgets.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.\n\nThe response carries `baseVersion`; send it back on PUT to avoid overwriting a concurrent edit.",
         "security": [
           {
             "basic_auth": [],
@@ -5758,7 +5761,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nWrites the whole page; fields absent from the body are dropped by the sanitizer.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nWrites the whole page; fields absent from the body are dropped by the sanitizer.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.\n\nCONCURRENCY. A read returns `baseVersion`, the file's modification time at that moment. Send it back in the PUT body and a write that started from an older copy is refused with 409 instead of silently overwriting the other edit.\n\nOmitting it is allowed and is NOT treated as a conflict — an importer or a script that never read the page has nothing to compare. That is a deliberate choice with a consequence worth knowing: a client that leaves `baseVersion` out gets last-write-wins. Interactive editors should always send it.\n\nThe value is never persisted; it is stripped from the payload before the page is written.",
         "security": [
           {
             "basic_auth": [],
@@ -5805,6 +5808,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "Conflict: the submitted baseVersion predates the stored file, so someone else saved while this copy was being edited. Re-read the page and re-apply the change; retrying the same body will keep failing."
           }
         },
         "parameters": [
@@ -10299,6 +10305,10 @@
           "modified": {
             "type": "integer",
             "description": "Unix timestamp of the last write."
+          },
+          "baseVersion": {
+            "type": "integer",
+            "description": "Optimistic-locking token: the file's mtime when this copy was read. Send it back on PUT and the write is refused with 409 if someone else saved in the meantime. TRANSPORT ONLY — it is never stored, and it is regenerated on every read."
           }
         },
         "additionalProperties": true,
@@ -10337,6 +10347,10 @@
           },
           "layout": {
             "$ref": "#/components/schemas/PageLayout"
+          },
+          "baseVersion": {
+            "type": "integer",
+            "description": "The value from the last read. Omit only when there was no read to compare against."
           }
         }
       },
