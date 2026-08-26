@@ -5491,7 +5491,15 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "servers": [
@@ -5700,7 +5708,15 @@
             "$ref": "#/components/responses/NotFound"
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -5780,7 +5796,15 @@
             "description": "The OCS-APIRequest header was missing."
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -5979,7 +6003,15 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -6059,7 +6091,15 @@
             "description": "File exceeds the configured maximum."
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -6149,7 +6189,15 @@
             "$ref": "#/components/responses/NotFound"
           },
           "429": {
-            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         },
         "parameters": [
@@ -6292,7 +6340,15 @@
             }
           },
           "429": {
-            "description": "Too many attempts; brute-force protection has kicked in."
+            "description": "Too many attempts; brute-force protection has kicked in.",
+            "content": {
+              "text/xml": {
+                "schema": {
+                  "type": "string",
+                  "description": "An OCS error envelope in XML. Produced by Nextcloud before the app is reached, so it does not follow this API's JSON error shape."
+                }
+              }
+            }
           }
         }
       }

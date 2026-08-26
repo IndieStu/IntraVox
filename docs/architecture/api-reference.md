@@ -1727,6 +1727,12 @@ getting through.
 Treat 401 as terminal: fix the credential, do not retry. This was measured
 against a running instance, not inferred from the code.
 
+One more measured detail that trips strict clients: **that 429 answers `text/xml`,
+not JSON**. It is produced by Nextcloud before the app is reached, so it carries an
+OCS error envelope rather than this API's error shape. A client that assumes every
+response is JSON will fail to parse it — and will fail on the throttle rather than
+on the request that caused it.
+
 ### Bulk provisioning and migrations
 
 `createPage` at 10 per minute is the binding constraint on any migration: two
