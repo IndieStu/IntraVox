@@ -81,7 +81,7 @@
     "lib/Service/OrphanedDataService.php": 807,
     "lib/Service/PageIndexService.php": 555,
     "lib/Service/PageLockService.php": 182,
-    "lib/Service/PageService.php": 6269,
+    "lib/Service/PageService.php": 6309,
     "lib/Service/Path/PagePathHelper.php": 196,
     "lib/Service/People/AccountBulkLoader.php": 175,
     "lib/Service/People/AccountScopePolicy.php": 106,
