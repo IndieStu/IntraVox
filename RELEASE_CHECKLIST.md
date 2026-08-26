@@ -579,7 +579,7 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 ## 4b. Quality gate — run what CI runs
 
 Since the F0–F7 refactor the repository has an automated gate, and it is the
-same one `.gitea/workflows/ci.yml` runs on every push. **Run all of it locally
+same one `.github/workflows/ci.yml` runs on every push. **Run all of it locally
 before tagging**, not a subset — a guard you have not heard of still fails the
 pipeline.
 
@@ -598,6 +598,18 @@ pipeline.
   | `lint:security` | a rate-limit/brute-force marker that cannot fire |
   | `lint:routes` | `docs/route-table.md` out of date vs the controllers |
 
+- [ ] PHP syntax check across every source — CI runs this before anything else,
+      and it catches a parse error that unit tests never reach because the file
+      is not loaded:
+  ```bash
+  find lib templates -name '*.php' -print0 | xargs -0 -n1 php -l | grep -v 'No syntax errors'
+  ```
+- [ ] Self-test the packaging guard. CI builds three deliberately broken packages
+      (no vendor, dev vendor, and a good one) and asserts the guard rejects the
+      first two. Worth running whenever the guard itself changed:
+  ```bash
+  # the step is inline in .github/workflows/ci.yml under "Self-test the packaging guard"
+  ```
 - [ ] PHP unit tests:
   ```bash
   ./vendor/bin/phpunit --testsuite Unit --no-coverage
@@ -650,7 +662,8 @@ pipeline.
 
 - [ ] Check `appinfo/info.xml`: `<nextcloud min-version="32" max-version="34"/>` (update max as new NC versions release; current confirmed range as of June 2026)
 - [ ] PHP requirement: `<php min-version="8.2"/>` (matches composer.json; NC34 requires PHP `>=8.2 <8.6`)
-- [ ] Test on target Nextcloud version (3dev: NC33; hetzner nc-dev: NC33)
+- [ ] Test on target Nextcloud version — hetzner `nc-dev` runs **NC34** (34.0.2.1, checked 26-08-2026).
+      Verify with: `ssh rik@178.63.205.103 "docker exec -u www-data nc-dev php occ config:system:get version"`
 - [ ] **Bundled lib parity** with NC34: `@nextcloud/vue` ≥ 9.8 (NC34 ships 9.8.x); Vue ≥ 3.5 (NC34 ships 3.5.x). See §1b.
 - [ ] **Enterprise detection** (when relevant): since 2.4.1 IntraVox asks `IRegistry::delegateHasValidSubscription()` (public since NC 17) whether the instance has an Enterprise subscription, and reports `Util::hasExtendedSupport` separately as the narrower add-on signal. `hasExtendedSupport` alone answers a different question and falls back to the `extendedSupport` system setting, so an admin could set it by hand — do not reintroduce it as the subscription check. Verify behaviour on a non-Enterprise instance after each NC major bump — the API surface can shift.
 - [ ] **OC.* globals** (legacy front-end): IntraVox still references `OC.dialogs.filepicker`, `OC.MimeType.getIconUrl`, `OC.L10N.translate`, `OC.requestToken`, `OC.webroot`. All five remain functional in NC34 stable (deprecated, not removed). Migration to `@nextcloud/*` equivalents is a 1.7+ task — not blocking for NC34 support.
