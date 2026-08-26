@@ -561,6 +561,15 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 - [ ] `npm run test:contract` — Tier A contract test against a running dev instance. Needs
       `INTRAVOX_CONTRACT_USER` and an **app password** in `INTRAVOX_CONTRACT_TOKEN`; revoke it afterwards.
       This is the only check that compares a real response body against the published schema.
+
+      > ⚠️ **Draai dit niet terwijl iemand in dev aan het werk is.** De run doet duizenden
+      > requests en Nextclouds brute-force-teller staat op het NETWERK, niet op de gebruiker —
+      > dus iedereen op hetzelfde adres krijgt "Te veel aanvragen" te zien. Het script wist de
+      > teller zelf bij het afsluiten (ook bij ctrl-C of een fout), maar tijdens de run kan het
+      > alsnog raken. Blijft er iets hangen:
+      > ```bash
+      > ssh rik@178.63.205.103 "docker exec -u www-data nc-dev php occ security:bruteforce:reset <ip>"
+      > ```
 - [x] ~~Bump `openapi.json` `"version"` to match~~ — handled by `sync-version.js`; the prebuild gate catches drift.
 - [ ] Verify all public share endpoints are documented
 - [ ] Update response schemas if changed

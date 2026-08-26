@@ -23,10 +23,15 @@
 #   scripts/run-contract-tests.sh                 # Tier A, blocking
 #   scripts/run-contract-tests.sh --report        # Tier B, never fails the build
 #   scripts/run-contract-tests.sh --setup         # (re)create the venv and exit
+#
+# The run clears its own address from Nextcloud's brute-force counter on exit.
+# Without that, thousands of requests lock out everyone on the same network --
+# the counter is per address, not per user.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSH_HOST="${INTRAVOX_DEV_SSH:-rik@178.63.205.103}"
+CONTAINER="${INTRAVOX_DEV_CONTAINER:-nc-dev}"
 BASE_URL="${INTRAVOX_DEV_URL:-https://dev.rikdekker.nl}"
 VENV="${INTRAVOX_CONTRACT_VENV:-$HOME/.cache/intravox-contract-venv}"
 
@@ -89,8 +94,34 @@ fi
 # one concrete base url, so resolve it here rather than committing a dev
 # hostname into openapi.json.
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Clear this address from Nextcloud's brute-force counter afterwards.
+#
+# A run makes thousands of requests, and the counter is keyed on the NETWORK the
+# request came from, not on the user. So a contract run locks out anyone sharing
+# that address — including whoever is working in the dev instance at the time,
+# who then sees "Te veel aanvragen" on a page they had nothing to do with. That
+# happened, which is why this exists.
+#
+# In a trap rather than at the end: an interrupted or failed run leaves the
+# counter at its highest, so that is exactly when the reset matters most.
+# Best-effort by design — no SSH, no reachable container, or a failed occ call
+# must not turn a green contract run red.
+reset_bruteforce() {
+    local ip
+    ip="$(curl -s --max-time 5 https://ifconfig.me 2>/dev/null || true)"
+    [ -n "$ip" ] || return 0
+
+    ssh -o ConnectTimeout=5 "$SSH_HOST" \
+        "docker exec -u www-data ${CONTAINER} php occ security:bruteforce:reset ${ip}" \
+        >/dev/null 2>&1 \
+        && echo "==> Cleared brute-force counter for ${ip}" \
+        || echo "⚠ Could not clear the brute-force counter for ${ip}. If dev starts answering 429, run:
+    ssh ${SSH_HOST} 'docker exec -u www-data ${CONTAINER} php occ security:bruteforce:reset ${ip}'"
+}
+
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK"; reset_bruteforce' EXIT
 SPEC="$WORK/openapi-resolved.json"
 
 URL_FILE="$WORK/target-url"
