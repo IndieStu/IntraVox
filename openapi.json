@@ -31,8 +31,24 @@
     ],
     "tags": [
         {
-            "name": "Pages",
-            "description": "Page management operations"
+            "name": "Calendar",
+            "description": "Calendar events surfaced by the calendar widget."
+        },
+        {
+            "name": "Comments",
+            "description": "Page comments and reactions"
+        },
+        {
+            "name": "Export",
+            "description": "Content export"
+        },
+        {
+            "name": "File Story",
+            "description": "Paginated document browsing with grouping."
+        },
+        {
+            "name": "Link Previews",
+            "description": "Server-side fetching of link preview metadata."
         },
         {
             "name": "Media",
@@ -43,28 +59,40 @@
             "description": "Navigation management"
         },
         {
-            "name": "Comments",
-            "description": "Page comments and reactions"
-        },
-        {
             "name": "News",
             "description": "News widget data"
         },
         {
-            "name": "Settings",
-            "description": "App settings (admin only)"
+            "name": "Pages",
+            "description": "Page management operations"
         },
         {
-            "name": "Export",
-            "description": "Content export"
+            "name": "People",
+            "description": "User directory queries behind the people widget."
+        },
+        {
+            "name": "Photo Story",
+            "description": "Paginated photo browsing, clustering and EXIF."
         },
         {
             "name": "Public Share",
             "description": "Anonymous access to shared content via Nextcloud share links. No authentication required — access is controlled by the share token. Password-protected shares require session-based authentication via the /s/{token}/authenticate endpoint."
         },
         {
+            "name": "RSS Feed",
+            "description": "Token-authenticated RSS output and its token management."
+        },
+        {
+            "name": "Settings",
+            "description": "App settings (admin only)"
+        },
+        {
             "name": "Templates",
             "description": "Page template management - create pages from templates, save custom templates, and manage template library"
+        },
+        {
+            "name": "Translations",
+            "description": "Linking pages as language versions of one another."
         }
     ],
     "paths": {
@@ -2981,7 +3009,11 @@
                     "500": {
                         "description": "Unable to load photos"
                     }
-                }
+                },
+                "operationId": "list-photos",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/photo-story/clusters": {
@@ -3007,7 +3039,11 @@
                     "500": {
                         "description": "Unable to load location clusters"
                     }
-                }
+                },
+                "operationId": "list-photo-clusters",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/photo-story/capabilities": {
@@ -3020,7 +3056,11 @@
                     "500": {
                         "description": "Unable to load capabilities"
                     }
-                }
+                },
+                "operationId": "photo-story-capabilities",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/photo-story/metavox-fields": {
@@ -3030,7 +3070,11 @@
                     "200": {
                         "description": "List of MetaVox field definitions (name, label, type)"
                     }
-                }
+                },
+                "operationId": "photo-story-metavox-fields",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/photo-story/photo-exif": {
@@ -3056,7 +3100,11 @@
                     "404": {
                         "description": "File not found or no EXIF data"
                     }
-                }
+                },
+                "operationId": "get-photo-exif",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/photo-story/video": {
@@ -3091,7 +3139,11 @@
                     "500": {
                         "description": "Unable to stream video"
                     }
-                }
+                },
+                "operationId": "get-photo-story-video",
+                "tags": [
+                    "Photo Story"
+                ]
             }
         },
         "/api/file-story/files": {
@@ -3206,7 +3258,11 @@
                     "500": {
                         "description": "Unable to load files"
                     }
-                }
+                },
+                "operationId": "list-story-files",
+                "tags": [
+                    "File Story"
+                ]
             }
         },
         "/api/file-story/capabilities": {
@@ -3229,7 +3285,11 @@
                     "500": {
                         "description": "Unable to load capabilities"
                     }
-                }
+                },
+                "operationId": "file-story-capabilities",
+                "tags": [
+                    "File Story"
+                ]
             }
         },
         "/api/file-story/metavox-fields": {
@@ -3239,7 +3299,11 @@
                     "200": {
                         "description": "List of MetaVox field definitions"
                     }
-                }
+                },
+                "operationId": "file-story-metavox-fields",
+                "tags": [
+                    "File Story"
+                ]
             }
         },
         "/api/preview": {
@@ -3296,7 +3360,11 @@
                     "429": {
                         "description": "Per-user rate limit exceeded (600/min)"
                     }
-                }
+                },
+                "operationId": "fetch-link-preview",
+                "tags": [
+                    "Link Previews"
+                ]
             }
         },
         "/api/preview/warmup": {
@@ -3350,7 +3418,11 @@
                     "429": {
                         "description": "Per-user rate limit exceeded (60/min)"
                     }
-                }
+                },
+                "operationId": "warm-link-previews",
+                "tags": [
+                    "Link Previews"
+                ]
             }
         },
         "/api/people": {

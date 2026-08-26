@@ -85,11 +85,19 @@ function analyse() {
 	const phantom = [...ops.keys()].filter((k) => !matched.has(k))
 
 	// Quality debt, per rule, over the operations that ARE documented.
-	const debt = { missing_operation_id: [], missing_tags: [], undeclared_tag: [], response_without_schema: [] }
+	const debt = { missing_operation_id: [], missing_tags: [], undeclared_tag: [], duplicate_operation_id: [], response_without_schema: [] }
+
+	// operationId must be unique across the whole document: a generator turns it
+	// into a function name, and two operations sharing one silently collide — the
+	// second overwrites the first and one endpoint vanishes from the client.
+	const seenIds = new Map()
 
 	for (const key of matched) {
 		const { op } = ops.get(key)
 		if (!op.operationId) debt.missing_operation_id.push(key)
+		else if (seenIds.has(op.operationId)) {
+			debt.duplicate_operation_id.push(`${key} (${op.operationId}, also ${seenIds.get(op.operationId)})`)
+		} else seenIds.set(op.operationId, key)
 		if (!Array.isArray(op.tags) || op.tags.length === 0) debt.missing_tags.push(key)
 		else for (const t of op.tags) if (!declaredTags.has(t)) debt.undeclared_tag.push(`${key} (${t})`)
 
@@ -179,6 +187,7 @@ function main() {
 	// Quality rules, each ratcheted independently.
 	const RULE_HINT = {
 		missing_operation_id: 'Add an operationId — client generators need it.',
+		duplicate_operation_id: 'Two operations share one operationId; a generated client loses one of them.',
 		missing_tags: 'Add tags — untagged operations vanish from grouped docs.',
 		undeclared_tag: 'Declare the tag in the top-level tags[] array.',
 		response_without_schema: 'Give the success response a content schema.',
