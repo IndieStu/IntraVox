@@ -1163,6 +1163,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         }
       },
@@ -1216,6 +1226,16 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         }
       }
@@ -1265,8 +1285,25 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. Message is specific and safe to display."
           }
-        }
+        },
+        "description": "\n\nOne deliberate exception to the generic-error rule: 404 and 403 here carry a specific message ('Comment not found', 'Not authorized to edit this comment'). Those are strings this app throws itself, never an underlying error, and clients route on them — so they stay verbatim while everything else is generic."
       },
       "delete": {
         "operationId": "delete-comment",
@@ -1294,8 +1331,25 @@
                 }
               }
             }
+          },
+          "500": {
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. Message is specific and safe to display."
           }
-        }
+        },
+        "description": "\n\nOne deliberate exception to the generic-error rule: 404 and 403 here carry a specific message ('Comment not found', 'Not authorized to edit this comment'). Those are strings this app throws itself, never an underlying error, and clients route on them — so they stay verbatim while everything else is generic."
       }
     },
     "/api/pages/{pageId}/reactions": {
@@ -1333,7 +1387,14 @@
             "description": "No such page, or no access."
           },
           "500": {
-            "description": "Reactions could not be read."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         },
         "description": "The complete reaction state for one page.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable."
@@ -1386,7 +1447,14 @@
             "description": "Rate limit exceeded (30 per minute per user)."
           },
           "500": {
-            "description": "The reaction could not be written."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         },
         "description": "Adds the calling user's reaction and returns the complete new state.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable.\n\nRate limited to 30 per minute per user.\n\nONE REACTION PER USER, ALWAYS. Adding a reaction silently WITHDRAWS the user's previous one — this is not a configurable mode, it is unconditional. A client that treats this as purely additive will show a stale count for the emoji that was just removed, which is why every reaction endpoint returns the complete state instead of a delta: replace your local state, never increment it."
@@ -1434,7 +1502,14 @@
             "description": "No such page, or no access."
           },
           "500": {
-            "description": "The reaction could not be removed."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         },
         "description": "Removes the calling user's reaction and returns the complete new state.\n\nIdempotent: adding a reaction the user already has, or removing one they never had, succeeds and returns the unchanged state. Safe to retry, and safe to fire from an optimistic UI.\n\n404 covers both 'no such page' and 'no access to it', deliberately indistinguishable.\n\nNOT rate limited, unlike its POST counterpart."
@@ -7145,7 +7220,7 @@
       "post": {
         "operationId": "migrate-orphaned-folder",
         "summary": "Copy content out of an orphaned folder into the live one",
-        "description": "Copies one language's content from an orphaned folder into the active IntraVox GroupFolder. The source is left in place, so this is a recovery step rather than a move — run the cleanup endpoint afterwards if you want the orphan gone.\n\nLANGUAGE RANGE IS NARROWER THAN THE REST OF THE APP. This endpoint accepts only nl, en, de and fr — a hardcoded list in the controller. The service behind it accepts any known content language, so a site running a fifth language cannot recover into it here even though the language is otherwise fully supported.\n\nsuccess:false with errors > 0 means a partial copy: some files landed, some did not. Nothing is rolled back.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
+        "description": "Copies one language's content from an orphaned folder into the active IntraVox GroupFolder. The source is left in place, so this is a recovery step rather than a move — run the cleanup endpoint afterwards if you want the orphan gone.\n\nAccepts any language this site treats as IntraVox content: the discovered translations, whatever an administrator has enabled, and the legacy nl/en/de/fr defaults. A language folder from a language that was later disabled stays recoverable, which is the point — otherwise content would be stranded on disk by a setting changed after the fact.\n\nsuccess:false with errors > 0 means a partial copy: some files landed, some did not. Nothing is rolled back.\n\nAdministrators only, and deliberately so: these endpoints read and write the raw data directory outside any GroupFolder permission model.",
         "tags": [
           "Orphaned Data"
         ],
@@ -7170,13 +7245,7 @@
                   "language": {
                     "type": "string",
                     "default": "nl",
-                    "enum": [
-                      "nl",
-                      "en",
-                      "de",
-                      "fr"
-                    ],
-                    "description": "Which language folder to copy. Anything outside this list is a 400, regardless of what the site has enabled."
+                    "description": "Which language folder to copy. Must be one this site recognises as IntraVox content — the enabled and discovered languages plus the nl/en/de/fr legacy set. Anything else is a 400."
                   },
                   "mode": {
                     "type": "string",
@@ -7226,7 +7295,7 @@
             }
           },
           "400": {
-            "description": "Invalid id, unsupported language, or invalid mode."
+            "description": "Invalid id, a language this site does not recognise, or invalid mode."
           },
           "403": {
             "description": "Administrator access required."
@@ -7487,7 +7556,14 @@
             "description": "No such comment, or no access to its page. The two are indistinguishable by design."
           },
           "500": {
-            "description": "The reaction could not be read or written."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         }
       }
@@ -7541,7 +7617,14 @@
             "description": "Rate limit exceeded (30 per minute per user)."
           },
           "500": {
-            "description": "The reaction could not be read or written."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         }
       },
@@ -7590,7 +7673,14 @@
             "description": "No such comment, or no access to its page. The two are indistinguishable by design."
           },
           "500": {
-            "description": "The reaction could not be read or written."
+            "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeError"
+                }
+              }
+            }
           }
         }
       }
@@ -12235,6 +12325,31 @@
           "pagesSkipped",
           "mediaFilesImported",
           "commentsImported"
+        ]
+      },
+      "SafeError": {
+        "type": "object",
+        "description": "The error shape used where a failure must not describe itself.\n\n'error' is a fixed generic sentence — it never carries the exception message, because these handlers touch file paths and comment ids that would disclose internal structure. The detail is logged server-side under 'errorId'; quote that in a support request rather than the message, which says the same thing every time.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              false
+            ]
+          },
+          "error": {
+            "type": "string",
+            "description": "Generic and stable. Not the cause."
+          },
+          "errorId": {
+            "type": "string",
+            "description": "Correlates this response with the server log entry holding the real cause."
+          }
+        },
+        "required": [
+          "success",
+          "error",
+          "errorId"
         ]
       }
     },
