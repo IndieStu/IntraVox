@@ -73,11 +73,20 @@ function analyse() {
 
 	const matched = new Set()
 	const undocumented = []
+	const excludedSeen = []
+
+	// Routes that deliberately have no operation, each with its reason. They are not
+	// gaps and must not read as debt — but they stay listed, because 'not documented'
+	// silently becoming 'forgotten' is the failure this whole guard exists to stop.
+	const excluded = (loadLedger() || {}).excluded || {}
 
 	for (const route of routes) {
+		const id = `${route.verb} ${route.url}`
+		if (excluded[id]) { excludedSeen.push(id); continue }
+
 		const hit = candidateKeys(route).find((k) => ops.has(k))
 		if (hit) matched.add(hit)
-		else undocumented.push(`${route.verb} ${route.url}`)
+		else undocumented.push(id)
 	}
 
 	// An operation the router does not serve. Always a hard failure: it is a
@@ -107,7 +116,7 @@ function analyse() {
 
 	for (const k of Object.keys(debt)) debt[k].sort()
 
-	return { routes, ops, undocumented: undocumented.sort(), phantom: phantom.sort(), debt }
+	return { routes, ops, undocumented: undocumented.sort(), phantom: phantom.sort(), debt, excluded, excludedSeen }
 }
 
 function loadLedger() {
@@ -124,9 +133,12 @@ function writeLedger(state) {
 			'after documenting one, and the ratchet clicks: the lower number can never be exceeded again.',
 		_totals: {
 			routes: state.routes.length,
-			documented: state.routes.length - state.undocumented.length,
+			excluded: state.excludedSeen.length,
+			in_scope: state.routes.length - state.excludedSeen.length,
+			documented: state.routes.length - state.excludedSeen.length - state.undocumented.length,
 			undocumented: state.undocumented.length,
 		},
+		excluded: state.excluded,
 		undocumented: state.undocumented,
 		quality_debt: state.debt,
 	}
@@ -146,9 +158,15 @@ function main() {
 	const state = analyse()
 	const ledger = loadLedger()
 
+	// Excluded routes are neither documented nor debt, so they come out of the
+	// denominator rather than quietly inflating the numerator. Counting a route we
+	// decided NOT to describe as "documented" would let the percentage rise by
+	// giving up, which is the one number this guard must never be able to fake.
 	const total = state.routes.length
-	const documented = total - state.undocumented.length
-	const pct = ((documented / total) * 100).toFixed(0)
+	const excludedCount = state.excludedSeen.length
+	const inScope = total - excludedCount
+	const documented = inScope - state.undocumented.length
+	const pct = ((documented / inScope) * 100).toFixed(0)
 
 	if (!ledger) {
 		writeLedger(state)
@@ -181,6 +199,18 @@ function main() {
 			title: 'Operation(s) in openapi.json with no matching route',
 			lines: state.phantom,
 			hint: 'Either the route was removed and the spec still promises it, or the path is misspelled.',
+		})
+	}
+
+	// An exclusion for a route that no longer exists is a stale excuse: it makes the
+	// list look considered while describing something gone. Cheap to catch here.
+	const liveRoutes = new Set(state.routes.map((r) => `${r.verb} ${r.url}`))
+	const staleExclusions = Object.keys(state.excluded).filter((id) => !liveRoutes.has(id))
+	if (staleExclusions.length) {
+		failures.push({
+			title: 'Exclusion(s) for route(s) that no longer exist',
+			lines: staleExclusions,
+			hint: 'Remove the entry from .openapi-coverage.json — the route it excuses is gone.',
 		})
 	}
 
@@ -220,7 +250,7 @@ function main() {
 		process.exit(1)
 	}
 
-	console.log(`✓ OpenAPI coverage: ${documented}/${total} routes documented (${pct}%), ${state.undocumented.length} on the ledger, 0 phantom`)
+	console.log(`✓ OpenAPI coverage: ${documented}/${inScope} in-scope routes documented (${pct}%), ${state.undocumented.length} on the ledger, ${excludedCount} excluded, 0 phantom`)
 }
 
 main()

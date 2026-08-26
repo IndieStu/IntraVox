@@ -5705,6 +5705,109 @@
                     }
                 ]
             }
+        },
+        "/s/{shareToken}": {
+            "get": {
+                "operationId": "open-share",
+                "summary": "Open a public share in the browser",
+                "tags": [
+                    "Public Share"
+                ],
+                "security": [
+                    {}
+                ],
+                "description": "A browser page, not a JSON resource — documented because it is the other half of a contract the API already refers to. GET /api/share/{token}/page/{uniqueId} can answer 401 with `passwordRequired: true`, and without this pair a client is told it needs a password and never told where to send it.\n\nPassword-protected shares serve a form here; unprotected ones serve the page directly.",
+                "responses": {
+                    "200": {
+                        "description": "The share page, or the password form.",
+                        "content": {
+                            "text/html": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "No such share, or the token does not point into IntraVox."
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "shareToken",
+                        "in": "path",
+                        "required": true,
+                        "description": "The public share token from the link.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ]
+            }
+        },
+        "/s/{shareToken}/authenticate": {
+            "post": {
+                "operationId": "authenticate-share",
+                "summary": "Submit a share password",
+                "tags": [
+                    "Public Share"
+                ],
+                "security": [
+                    {}
+                ],
+                "description": "Form POST, not JSON. On success the password is kept in the session, which is what makes the subsequent /api/share/{token}/... calls succeed — so an API client needs a cookie jar here, not a token.\n\nFailure is deliberately slow and throttled: the attempt is registered with brute-force protection and the response is delayed 100-300ms, so timing does not reveal whether a token exists.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/x-www-form-urlencoded": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "password"
+                                ],
+                                "properties": {
+                                    "password": {
+                                        "type": "string"
+                                    },
+                                    "returnQuery": {
+                                        "type": "string",
+                                        "description": "Query string to restore after the redirect."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "shareToken",
+                        "in": "path",
+                        "required": true,
+                        "description": "The public share token from the link.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "303": {
+                        "description": "Password accepted; redirect to the share."
+                    },
+                    "200": {
+                        "description": "Password rejected; the form is served again.",
+                        "content": {
+                            "text/html": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too many attempts; brute-force protection has kicked in."
+                    }
+                }
+            }
         }
     },
     "components": {
