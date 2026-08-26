@@ -31,6 +31,10 @@
     ],
     "tags": [
         {
+            "name": "Analytics",
+            "description": "Page view statistics and their collection settings."
+        },
+        {
             "name": "Calendar",
             "description": "Calendar events surfaced by the calendar widget."
         },
@@ -61,6 +65,10 @@
         {
             "name": "News",
             "description": "News widget data"
+        },
+        {
+            "name": "Page Locks",
+            "description": "Cooperative editing locks that stop two people overwriting each other."
         },
         {
             "name": "Pages",
@@ -4261,6 +4269,475 @@
                     }
                 }
             }
+        },
+        "/api/analytics/page/{pageId}": {
+            "get": {
+                "operationId": "get-page-stats",
+                "summary": "View statistics for one page",
+                "tags": [
+                    "Analytics"
+                ],
+                "description": "Per-page view counts over a window. Any logged-in user may read these.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": false,
+                        "description": "Window in days. Clamped to 1..365.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 365,
+                            "default": 30
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Statistics for the page.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsStats"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/analytics/top": {
+            "get": {
+                "operationId": "get-top-pages",
+                "summary": "Most-viewed pages",
+                "tags": [
+                    "Analytics"
+                ],
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "required": false,
+                        "description": "How many pages to return. Clamped to 1..50.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 50,
+                            "default": 10
+                        }
+                    },
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": false,
+                        "description": "Window in days. Clamped to 1..365.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 365,
+                            "default": 30
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The most-viewed pages in the window.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TopPages"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/analytics/dashboard": {
+            "get": {
+                "operationId": "get-analytics-dashboard",
+                "summary": "Instance-wide analytics",
+                "tags": [
+                    "Analytics"
+                ],
+                "description": "Aggregated figures across the instance. Admin only; a non-admin gets 403.",
+                "parameters": [
+                    {
+                        "name": "days",
+                        "in": "query",
+                        "required": false,
+                        "description": "Window in days. Clamped to 1..365.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 365,
+                            "default": 30
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Aggregated statistics.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsStats"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/analytics/settings": {
+            "get": {
+                "operationId": "get-analytics-settings",
+                "summary": "Read analytics settings",
+                "tags": [
+                    "Analytics"
+                ],
+                "description": "Admin only.",
+                "responses": {
+                    "200": {
+                        "description": "The current settings.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsSettings"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "set-analytics-settings",
+                "summary": "Update analytics settings",
+                "tags": [
+                    "Analytics"
+                ],
+                "description": "Admin only. Values outside the accepted range are clamped, not rejected.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "retentionDays": {
+                                        "type": "integer",
+                                        "minimum": 7,
+                                        "maximum": 365,
+                                        "default": 90
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The settings as stored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/AnalyticsSettings"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/analytics/track/{pageId}": {
+            "post": {
+                "operationId": "track-page-view",
+                "summary": "Record a page view",
+                "tags": [
+                    "Analytics"
+                ],
+                "description": "Rate limited to 60 per minute per user. Answers success even when collection is disabled, so a client need not branch on the setting.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Recorded, or accepted and ignored when analytics is off.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "success"
+                                    ],
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "429": {
+                        "description": "Rate limit exceeded."
+                    }
+                }
+            }
+        },
+        "/api/pages/{pageId}/lock": {
+            "get": {
+                "operationId": "get-page-lock",
+                "summary": "Who holds the lock",
+                "tags": [
+                    "Page Locks"
+                ],
+                "description": "Reading is free of side effects; the lock is not taken or extended.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The current lock, or null when the page is free.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": [
+                                        "lock"
+                                    ],
+                                    "properties": {
+                                        "lock": {
+                                            "$ref": "#/components/schemas/PageLock"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "acquire-page-lock",
+                "summary": "Take the lock before editing",
+                "tags": [
+                    "Page Locks"
+                ],
+                "description": "Answers 409 when another user already holds it. Taking a lock you already hold succeeds rather than conflicting.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lock acquired.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "description": "The page is locked by someone else. The body names the holder, so the caller can say who rather than just \"locked\".",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "operationId": "refresh-page-lock",
+                "summary": "Keep the lock alive",
+                "tags": [
+                    "Page Locks"
+                ],
+                "description": "The heartbeat. Without it a lock goes stale and another user may take over, so an editor that stops calling this releases the page by itself.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lock extended.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "description": "The page is locked by someone else. The body names the holder, so the caller can say who rather than just \"locked\".",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "release-page-lock",
+                "summary": "Release your own lock",
+                "tags": [
+                    "Page Locks"
+                ],
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Released.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/pages/{pageId}/lock/force-release": {
+            "post": {
+                "operationId": "force-release-page-lock",
+                "summary": "Break someone else's lock",
+                "tags": [
+                    "Page Locks"
+                ],
+                "description": "Admin only. For the case where an editor left a page open and went home; the action is logged with both accounts.",
+                "parameters": [
+                    {
+                        "name": "pageId",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Lock broken.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PageLockResult"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -5776,6 +6253,112 @@
                 "type": "object",
                 "additionalProperties": true,
                 "description": "MetaVox field values for one page. Keys are field ids configured on the instance, so the set is open by nature."
+            },
+            "AnalyticsSettings": {
+                "type": "object",
+                "required": [
+                    "success",
+                    "enabled",
+                    "retentionDays"
+                ],
+                "description": "Analytics collection settings. Admin only.",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "enabled": {
+                        "type": "boolean"
+                    },
+                    "retentionDays": {
+                        "type": "integer",
+                        "minimum": 7,
+                        "maximum": 365,
+                        "description": "Clamped to 7..365 by the handler; a value outside that range is silently brought inside it rather than rejected."
+                    }
+                }
+            },
+            "AnalyticsStats": {
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "additionalProperties": true,
+                "description": "View statistics. The metric keys come from the storage layer and vary with what has been collected, so the set is open.",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "TopPages": {
+                "type": "object",
+                "required": [
+                    "success",
+                    "pages",
+                    "period"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "pages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "period": {
+                        "type": "integer",
+                        "description": "The window in days that was actually applied, after clamping."
+                    }
+                }
+            },
+            "PageLock": {
+                "type": [
+                    "object",
+                    "null"
+                ],
+                "description": "Who holds the editing lock on a page, or null when it is free.",
+                "properties": {
+                    "pageUniqueId": {
+                        "type": "string"
+                    },
+                    "userId": {
+                        "type": "string",
+                        "description": "The account holding the lock."
+                    },
+                    "displayName": {
+                        "type": "string",
+                        "description": "Shown to the user who is blocked, so they know whom to ask."
+                    },
+                    "lockedSince": {
+                        "type": "integer",
+                        "description": "Unix timestamp the lock was taken."
+                    },
+                    "lastHeartbeat": {
+                        "type": "integer",
+                        "description": "Last refresh. A lock whose heartbeat has gone stale can be taken over."
+                    }
+                }
+            },
+            "PageLockResult": {
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "lock": {
+                        "$ref": "#/components/schemas/PageLock"
+                    },
+                    "error": {
+                        "type": "string",
+                        "description": "Present on a refusal, naming the reason."
+                    }
+                }
             }
         }
     }
