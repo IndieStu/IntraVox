@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 141,
-    "undocumented": 30
+    "documented": 146,
+    "undocumented": 25
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -15,8 +15,6 @@
   },
   "undocumented": [
     "GET /api/admin/shares",
-    "GET /api/export/language/{language}",
-    "GET /api/export/page/{uniqueId}",
     "GET /api/health",
     "GET /api/metavox/fields",
     "GET /api/page/{pageId}/cache-status",
@@ -26,9 +24,6 @@
     "GET /api/resources/media/{filename}",
     "GET /api/resources/media/{folder}/{filename}",
     "GET /api/settings/upload-limit",
-    "GET /api/share/{token}/feed/external",
-    "GET /api/share/{token}/feed/image",
-    "GET /api/share/{token}/people",
     "GET /api/users/fields",
     "GET /api/users/groups",
     "GET /api/users/search",

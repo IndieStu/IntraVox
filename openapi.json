@@ -2021,7 +2021,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2088,7 +2090,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2133,7 +2137,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2181,7 +2187,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2286,7 +2294,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2345,7 +2355,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2395,7 +2407,9 @@
         "tags": [
           "Public Share"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2523,7 +2537,9 @@
         "tags": [
           "RSS Feed"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -2599,7 +2615,9 @@
         "tags": [
           "RSS Feed"
         ],
-        "security": [],
+        "security": [
+          {}
+        ],
         "parameters": [
           {
             "name": "token",
@@ -7576,6 +7594,412 @@
           }
         }
       }
+    },
+    "/api/export/language/{language}": {
+      "get": {
+        "operationId": "export-language",
+        "summary": "Download a whole language as JSON",
+        "description": "Returns every page in one language, plus its navigation and footer, as a JSON file download.\n\nThis is a DOWNLOAD, not a JSON API response: the body arrives with Content-Disposition and a generated filename (intravox-export-<language>-<date>.json). A client wanting the data rather than a file should read the body and ignore the disposition.\n\nThere is no pagination, no cap and no streaming — the whole language is built in memory and serialised at once. On a large intranet this is the heaviest endpoint in the API, and there is no way to ask for part of it.\n\nACCESS MODEL, stated exactly because 'export everything' deserves it. These endpoints are available to any logged-in user, not just administrators. The content is read through the caller's OWN mounted view of the IntraVox group folder, so group membership gates what can be exported and a user outside the group gets nothing.\n\nWhat is NOT separately re-checked is per-page advanced ACLs: the walk lists directories through that mounted view and relies on the mount to hide what the user may not see. There is also a legacy fallback that resolves the folder by raw storage path when no mounted view is available, and that fallback does not carry the same guarantees. Treat an export as 'everything this user's mount exposes', not as 'everything this user may read page by page'.",
+        "tags": [
+          "Export"
+        ],
+        "parameters": [
+          {
+            "name": "language",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeComments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "1",
+              "enum": [
+                "0",
+                "1"
+              ]
+            },
+            "description": "Compared as the STRING '1' — send 1 or 0, not true/false. Anything other than '1' is treated as off, so a boolean true in JSON disables comments rather than enabling them."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The export, as a file download. A language that does not exist yields an envelope with an empty pages array rather than a 404.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LanguageExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/export/page/{uniqueId}": {
+      "get": {
+        "operationId": "export-page",
+        "summary": "Download one page as JSON",
+        "description": "Returns a single page with its comments and reactions, as a JSON file download named intravox-page-<id>-<date>.json.\n\nThe page is looked up across EVERY enabled language, so the caller does not need to know which language it lives in — and a uniqueId is expected to be unique across languages for that reason.\n\nNote the response-type switch: success is a file download, failure is an ordinary JSON error body. A client must branch on the status code, not on the content type.\n\nACCESS MODEL, stated exactly because 'export everything' deserves it. These endpoints are available to any logged-in user, not just administrators. The content is read through the caller's OWN mounted view of the IntraVox group folder, so group membership gates what can be exported and a user outside the group gets nothing.\n\nWhat is NOT separately re-checked is per-page advanced ACLs: the walk lists directories through that mounted view and relies on the mount to hide what the user may not see. There is also a legacy fallback that resolves the folder by raw storage path when no mounted view is available, and that fallback does not carry the same guarantees. Treat an export as 'everything this user's mount exposes', not as 'everything this user may read page by page'.",
+        "tags": [
+          "Export"
+        ],
+        "parameters": [
+          {
+            "name": "uniqueId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "includeComments",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "1",
+              "enum": [
+                "0",
+                "1"
+              ]
+            },
+            "description": "Compared as the STRING '1' — send 1 or 0, not true/false. Anything other than '1' is treated as off, so a boolean true in JSON disables comments rather than enabling them."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page, as a file download.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageExport"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No page with this uniqueId in any enabled language — which also covers a page the caller's mount does not expose."
+          }
+        }
+      }
+    },
+    "/api/share/{token}/people": {
+      "get": {
+        "operationId": "get-people-by-share",
+        "summary": "People on a shared page",
+        "description": "The People widget's data for a publicly shared page.\n\nAnonymous, but not unauthenticated: the share token IS the credential. A password-protected share additionally needs the session cookie from POST /s/{shareToken}/authenticate — without it this answers 403 like an invalid token, so a client must complete that handshake first.\n\nAn invalid, expired or unauthorised token yields 403 with {\"error\": \"Invalid or expired share token\"}. That is the same answer for 'never existed' as for 'expired', deliberately.\n\nA TOKEN PROVES THE VISITOR MAY READ A PAGE, NEVER THAT THEY MAY QUERY WHAT IS BEHIND IT. Every parameter that selects data is intersected with what the shared page actually publishes; anything beyond that set is dropped rather than honoured.\n\nConcretely: userIds is intersected with the users the widget publishes, and a request naming only unpublished users returns an empty result rather than an error. filters are objects and cannot be intersected element-wise, so the page must publish that EXACT filter set — anything else returns empty.\n\nThe viewer-facing facet parameters are not accepted at all. A facet panel on a public share would be a browsable directory of the organisation — roles, buildings, departments and their headcounts — handed to anyone with the link.\n\nThe whole endpoint can be switched off instance-wide; when it is, it returns an empty result rather than an error, so a widget degrades to empty instead of breaking the page.",
+        "tags": [
+          "People",
+          "Public Share"
+        ],
+        "security": [
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nextcloud share token."
+          },
+          {
+            "name": "userIds",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Comma-separated user ids. Intersected with the published set; unpublished ids are silently dropped."
+          },
+          {
+            "name": "filters",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "JSON array of {fieldName, operator, value}. Must match a filter set the page publishes exactly, or the result is empty."
+          },
+          {
+            "name": "filterOperator",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "AND",
+              "enum": [
+                "AND",
+                "OR"
+              ]
+            }
+          },
+          {
+            "name": "sortBy",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "displayName"
+            }
+          },
+          {
+            "name": "sortOrder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "asc",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching users. Also the answer when the request was refused for publishing reasons, or when public People is disabled instance-wide — an empty set, never an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Account properties, filtered by each user's own visibility scope. uid and displayName are always present; everything else depends on what that user published."
+                      }
+                    },
+                    "total": {
+                      "type": "integer"
+                    },
+                    "hasMore": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "users",
+                    "total",
+                    "hasMore"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid, expired or password-gated share token."
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per minute per client)."
+          },
+          "500": {
+            "description": "The query failed."
+          }
+        }
+      }
+    },
+    "/api/share/{token}/feed/external": {
+      "get": {
+        "operationId": "get-feed-by-share",
+        "summary": "Feed items on a shared page",
+        "description": "The public-share twin of GET /api/feed/external, returning the same normalised FeedResult.\n\nAnonymous, but not unauthenticated: the share token IS the credential. A password-protected share additionally needs the session cookie from POST /s/{shareToken}/authenticate — without it this answers 403 like an invalid token, so a client must complete that handshake first.\n\nAn invalid, expired or unauthorised token yields 403 with {\"error\": \"Invalid or expired share token\"}. That is the same answer for 'never existed' as for 'expired', deliberately.\n\nA TOKEN PROVES THE VISITOR MAY READ A PAGE, NEVER THAT THEY MAY QUERY WHAT IS BEHIND IT. Every parameter that selects data is intersected with what the shared page actually publishes; anything beyond that set is dropped rather than honoured.\n\nThis matters more here than anywhere else, because connectionId selects a STORED connection — credentials and all — and the fetch runs server-side with them. A connectionId the page does not publish is refused with 403 rather than fetched; without that, any share token would drive any configured connection.\n\nThe same applies to the RSS url. Note the key asymmetry if you are reading the stored widget: the request parameter is 'url', the published value is stored under 'feedUrl'.\n\nUnlike the authenticated endpoint there is no per-user token resolution, so connections needing a personal LMS token return nothing useful on a share.",
+        "tags": [
+          "Feeds",
+          "Public Share"
+        ],
+        "security": [
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nextcloud share token."
+          },
+          {
+            "$ref": "#/components/parameters/FeedSourceType"
+          },
+          {
+            "$ref": "#/components/parameters/FeedUrl"
+          },
+          {
+            "$ref": "#/components/parameters/FeedConnectionIdQuery"
+          },
+          {
+            "$ref": "#/components/parameters/FeedCourseId"
+          },
+          {
+            "$ref": "#/components/parameters/FeedContentType"
+          },
+          {
+            "$ref": "#/components/parameters/FeedJiraProject"
+          },
+          {
+            "$ref": "#/components/parameters/FeedMoodleForumId"
+          },
+          {
+            "$ref": "#/components/parameters/FeedListId"
+          },
+          {
+            "$ref": "#/components/parameters/FeedSortBy"
+          },
+          {
+            "$ref": "#/components/parameters/FeedSortOrder"
+          },
+          {
+            "$ref": "#/components/parameters/FeedFilterKeyword"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 5,
+              "minimum": 1,
+              "maximum": 50
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Normalised feed items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResult"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Invalid share token, or a connection or feed URL this page does not publish.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResult"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Fetch failed. Empty items array with a generic error string.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/share/{token}/feed/image": {
+      "get": {
+        "operationId": "proxy-feed-image-by-share",
+        "summary": "Serve a signed external image on a shared page",
+        "description": "The public-share twin of GET /api/feed/image, with identical signature handling: both url and sig are required, the HMAC is bound to the url, and an unsigned URL is refused before any outbound request.\n\nThe share token gates access to the endpoint; the signature is what keeps it from being an open proxy. Both apply — a valid token does not make an unsigned URL fetchable.\n\nAnonymous, but not unauthenticated: the share token IS the credential. A password-protected share additionally needs the session cookie from POST /s/{shareToken}/authenticate — without it this answers 403 like an invalid token, so a client must complete that handshake first.\n\nAn invalid, expired or unauthorised token yields 403 with {\"error\": \"Invalid or expired share token\"}. That is the same answer for 'never existed' as for 'expired', deliberately.",
+        "tags": [
+          "Feeds",
+          "Public Share"
+        ],
+        "security": [
+          {}
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Nextcloud share token."
+          },
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "The image URL, exactly as it appeared in the signed link."
+          },
+          {
+            "name": "sig",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "HMAC produced by this backend. Bound to the url; not transferable."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The image, served inline with a one-day immutable cache.",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "url or sig missing."
+          },
+          "403": {
+            "description": "Invalid share token, or a signature that is absent or does not match."
+          },
+          "502": {
+            "description": "The upstream host could not be reached."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9967,6 +10391,94 @@
           "type",
           "authMode",
           "connected"
+        ]
+      },
+      "PageExport": {
+        "type": "object",
+        "description": "One exported page. Wrapped rather than flat: the page's own document sits under 'content', with comments and reactions alongside it.",
+        "properties": {
+          "uniqueId": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "The complete page document as stored."
+          },
+          "comments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Present only when includeComments is 1."
+          },
+          "pageReactions": {
+            "$ref": "#/components/schemas/Reactions",
+            "description": "Present only when includeComments is 1 — reactions ride along with comments, they are not separately selectable."
+          }
+        },
+        "required": [
+          "uniqueId",
+          "title",
+          "content"
+        ]
+      },
+      "LanguageExport": {
+        "type": "object",
+        "description": "A complete language export: every page the caller's mount exposes, plus the navigation and footer.\n\nThe version fields matter for round-tripping. exportVersion/schemaVersion identify the payload format, and requiresMinVersion states the oldest IntraVox that can import it — an older instance should refuse rather than import partially.",
+        "properties": {
+          "exportVersion": {
+            "type": "string",
+            "description": "Payload format version, e.g. '1.3'."
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "exportDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "language": {
+            "type": "string"
+          },
+          "exportedBy": {
+            "type": "string",
+            "description": "'IntraVox/<app version>'."
+          },
+          "requiresMinVersion": {
+            "type": "string",
+            "description": "Oldest IntraVox version able to import this payload."
+          },
+          "navigation": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "footer": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "pages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            },
+            "description": "Each entry carries the page document plus _exportPath and _fileId helpers used on import."
+          },
+          "metaVox": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "MetaVox field definitions, when that app is present."
+          }
+        },
+        "required": [
+          "exportVersion",
+          "language",
+          "pages"
         ]
       }
     },
