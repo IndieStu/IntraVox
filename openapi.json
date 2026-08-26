@@ -164,7 +164,7 @@
                     }
                 },
                 "responses": {
-                    "200": {
+                    "201": {
                         "description": "Page created successfully",
                         "content": {
                             "application/json": {
@@ -564,8 +564,8 @@
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "File uploaded successfully",
+                    "201": {
+                        "description": "File uploaded successfully (201 Created)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -853,6 +853,29 @@
                             ],
                             "default": "desc"
                         }
+                    },
+                    {
+                        "name": "sourcePageId",
+                        "in": "query",
+                        "required": false,
+                        "description": "uniqueId of the page whose subtree supplies the news items. Takes precedence over sourcePath.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "filterPublished",
+                        "in": "query",
+                        "required": false,
+                        "description": "When \"true\", only published items are returned regardless of the caller's write permission.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false"
+                            ],
+                            "default": "false"
+                        }
                     }
                 ],
                 "responses": {
@@ -1056,7 +1079,7 @@
                     }
                 },
                 "responses": {
-                    "200": {
+                    "201": {
                         "description": "Comment created",
                         "content": {
                             "application/json": {
@@ -1538,8 +1561,8 @@
                     }
                 },
                 "responses": {
-                    "200": {
-                        "description": "Template saved successfully",
+                    "201": {
+                        "description": "Template saved successfully (201 Created)",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -1968,16 +1991,37 @@
                         "description": "Maximum number of news items"
                     },
                     {
-                        "name": "sort",
+                        "name": "sourcePath",
                         "in": "query",
+                        "required": false,
+                        "description": "Path within the share whose pages supply the news items.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sortBy",
+                        "in": "query",
+                        "required": false,
+                        "description": "Field to sort on.",
+                        "schema": {
+                            "type": "string",
+                            "default": "modified"
+                        }
+                    },
+                    {
+                        "name": "sortOrder",
+                        "in": "query",
+                        "required": false,
+                        "description": "Sort direction.",
                         "schema": {
                             "type": "string",
                             "enum": [
-                                "date",
-                                "title"
-                            ]
-                        },
-                        "description": "Sort order for news items"
+                                "asc",
+                                "desc"
+                            ],
+                            "default": "desc"
+                        }
                     }
                 ],
                 "responses": {
@@ -4972,25 +5016,23 @@
             },
             "TemplateSaveRequest": {
                 "type": "object",
+                "description": "Body for POST /api/templates. The field names are the ones the handler reads; an earlier version of this schema named pageId/name/description, which the endpoint rejects with 400.",
                 "required": [
-                    "pageId",
-                    "name"
+                    "pageUniqueId",
+                    "templateTitle"
                 ],
                 "properties": {
-                    "pageId": {
+                    "pageUniqueId": {
                         "type": "string",
-                        "description": "Unique ID of page to save as template"
+                        "description": "uniqueId of the page to save as a template."
                     },
-                    "name": {
+                    "templateTitle": {
                         "type": "string",
-                        "description": "Template name"
+                        "description": "Name of the new template."
                     },
-                    "description": {
-                        "type": [
-                            "string",
-                            "null"
-                        ],
-                        "description": "Optional template description"
+                    "templateDescription": {
+                        "type": "string",
+                        "description": "Optional description."
                     }
                 }
             },
