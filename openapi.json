@@ -355,7 +355,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Page deleted successfully"
+                        "description": "Deleted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessAck"
+                                }
+                            }
+                        }
                     },
                     "401": {
                         "$ref": "#/components/responses/Unauthorized"
@@ -1179,7 +1186,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Comment deleted"
+                        "description": "Deleted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessAck"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1332,7 +1346,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Domains updated"
+                        "description": "The stored allow-list, with any rejected entries named.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/VideoDomainsSaveResult"
+                                }
+                            }
+                        }
                     },
                     "403": {
                         "$ref": "#/components/responses/Forbidden"
@@ -1379,7 +1400,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Settings updated"
+                        "description": "The stored engagement settings.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SettingsSaveResult"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1423,7 +1451,14 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "Settings updated"
+                        "description": "The stored publication settings.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SettingsSaveResult"
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1682,7 +1717,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Template deleted successfully"
+                        "description": "Deleted.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SuccessAck"
+                                }
+                            }
+                        }
                     },
                     "400": {
                         "description": "Cannot delete built-in template",
@@ -2995,7 +3037,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paged photo list with capabilities + map settings"
+                        "description": "Photos, shaped by the requested mode.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PhotoStoryListing"
+                                }
+                            }
+                        }
                     },
                     "304": {
                         "description": "Not Modified (matches If-None-Match)"
@@ -3031,7 +3080,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Cluster list + capabilities + map settings"
+                        "description": "Geographic clusters.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PhotoClusterListing"
+                                }
+                            }
+                        }
                     },
                     "400": {
                         "description": "Missing folder parameter"
@@ -3051,7 +3107,14 @@
                 "summary": "Server-side capabilities for the Photo Story widget",
                 "responses": {
                     "200": {
-                        "description": "MetaVox availability + map settings + (admin) global toggles"
+                        "description": "What the server can do for this source.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StoryCapabilitiesResponse"
+                                }
+                            }
+                        }
                     },
                     "500": {
                         "description": "Unable to load capabilities"
@@ -3068,7 +3131,14 @@
                 "summary": "MetaVox field discovery for filter-builder / sort / group-by",
                 "responses": {
                     "200": {
-                        "description": "List of MetaVox field definitions (name, label, type)"
+                        "description": "MetaVox fields, or an empty list when MetaVox is absent.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaVoxFieldList"
+                                }
+                            }
+                        }
                     }
                 },
                 "operationId": "photo-story-metavox-fields",
@@ -3092,7 +3162,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "EXIF dictionary"
+                        "description": "EXIF metadata for one photo.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/PhotoExif"
+                                }
+                            }
+                        }
                     },
                     "400": {
                         "description": "Missing or invalid file_id"
@@ -3122,7 +3199,15 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Video stream (full)"
+                        "description": "The video itself, streamed. Supports HTTP range requests, so a player can seek without downloading the whole file. This is not a JSON endpoint.",
+                        "content": {
+                            "video/*": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
                     },
                     "206": {
                         "description": "Video stream (partial content)"
@@ -3244,7 +3329,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Paged document list + pagination + capabilities"
+                        "description": "One page of documents, with the mode-specific extras.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FileStoryListing"
+                                }
+                            }
+                        }
                     },
                     "304": {
                         "description": "Not Modified"
@@ -3280,7 +3372,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "MetaVox availability + federated-source info"
+                        "description": "What the server can do for this source.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/StoryCapabilitiesResponse"
+                                }
+                            }
+                        }
                     },
                     "500": {
                         "description": "Unable to load capabilities"
@@ -3297,7 +3396,14 @@
                 "summary": "MetaVox field discovery for File Story filter-builder / sort / group-by",
                 "responses": {
                     "200": {
-                        "description": "List of MetaVox field definitions"
+                        "description": "MetaVox fields, or an empty list when MetaVox is absent.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/MetaVoxFieldList"
+                                }
+                            }
+                        }
                     }
                 },
                 "operationId": "file-story-metavox-fields",
@@ -5219,6 +5325,321 @@
                             "null"
                         ],
                         "description": "Opaque cursor for the next page, or null when the walk is finished — so a loop on `while nextCursor` terminates without a special case. Do not construct or do arithmetic on this value: it encodes the sort key and may change."
+                    }
+                }
+            },
+            "StoryPagination": {
+                "type": "object",
+                "description": "Offset paging, as the story widgets use it. Unlike the page listing this one does count rows, because a gallery scrolls a stable snapshot rather than walking a mutating tree.",
+                "required": [
+                    "offset",
+                    "pageSize",
+                    "total",
+                    "hasMore",
+                    "sortOrder",
+                    "truncated"
+                ],
+                "properties": {
+                    "offset": {
+                        "type": "integer"
+                    },
+                    "pageSize": {
+                        "type": "integer",
+                        "description": "Clamped to 500 by the handler."
+                    },
+                    "total": {
+                        "type": "integer",
+                        "description": "Total matching rows, or the configured display limit when one caps the set."
+                    },
+                    "hasMore": {
+                        "type": "boolean"
+                    },
+                    "sortOrder": {
+                        "type": "string",
+                        "enum": [
+                            "asc",
+                            "desc"
+                        ]
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "True when a scan cap stopped the count short, so `total` is a lower bound."
+                    }
+                }
+            },
+            "StoryCapabilities": {
+                "type": "object",
+                "description": "What the server can do for this source: which optional backends are present.",
+                "additionalProperties": true
+            },
+            "MetaVoxFieldList": {
+                "type": "object",
+                "description": "MetaVox is optional. When it is absent the endpoint answers 200 with an empty list and available=false rather than an error, so a widget can render without it.",
+                "required": [
+                    "fields",
+                    "available"
+                ],
+                "properties": {
+                    "fields": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "available": {
+                        "type": "boolean"
+                    }
+                }
+            },
+            "FileStoryListing": {
+                "type": "object",
+                "description": "Documents for the file-story widget. `timeline`+`granularity` appear only when mode=timeline; `groups` only when mode=grouped with a groupBy.",
+                "required": [
+                    "files",
+                    "capabilities",
+                    "mode",
+                    "pagination"
+                ],
+                "properties": {
+                    "files": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "capabilities": {
+                        "$ref": "#/components/schemas/StoryCapabilities"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "enum": [
+                            "flat",
+                            "timeline",
+                            "grouped"
+                        ]
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/StoryPagination"
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "granularity": {
+                        "type": "string"
+                    },
+                    "groups": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "required": [
+                                "key",
+                                "label",
+                                "count",
+                                "files"
+                            ],
+                            "properties": {
+                                "key": {
+                                    "type": "string"
+                                },
+                                "label": {
+                                    "type": "string"
+                                },
+                                "count": {
+                                    "type": "integer"
+                                },
+                                "files": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "object",
+                                        "additionalProperties": true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "StoryCapabilitiesResponse": {
+                "type": "object",
+                "required": [
+                    "capabilities",
+                    "metaVoxAvailable"
+                ],
+                "properties": {
+                    "capabilities": {
+                        "$ref": "#/components/schemas/StoryCapabilities"
+                    },
+                    "metaVoxAvailable": {
+                        "type": "boolean"
+                    },
+                    "sourceIsFederated": {
+                        "type": "boolean",
+                        "description": "Whether the source folder lives on a federated share."
+                    },
+                    "sourceFederatedInfo": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": true
+                    }
+                }
+            },
+            "PhotoStoryListing": {
+                "type": "object",
+                "description": "Photos for the photo-story widget. The shape varies with `mode`: on-this-day returns photos+title without pagination, while timeline, grid and highlights go through the paged path and add `pagination`. Mode-specific extras (timeline groups, clusters) appear only for their mode.",
+                "required": [
+                    "photos",
+                    "capabilities",
+                    "mode"
+                ],
+                "properties": {
+                    "photos": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "capabilities": {
+                        "$ref": "#/components/schemas/StoryCapabilities"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "A suggested heading derived from the set."
+                    },
+                    "map": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": true,
+                        "description": "Map display settings, when geodata is available."
+                    },
+                    "pagination": {
+                        "$ref": "#/components/schemas/StoryPagination"
+                    },
+                    "timeline": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "granularity": {
+                        "type": "string"
+                    }
+                }
+            },
+            "PhotoClusterListing": {
+                "type": "object",
+                "description": "Geographic clusters for the map view.",
+                "required": [
+                    "clusters",
+                    "capabilities"
+                ],
+                "properties": {
+                    "clusters": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "capabilities": {
+                        "$ref": "#/components/schemas/StoryCapabilities"
+                    },
+                    "folder": {
+                        "type": "string"
+                    },
+                    "map": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": true
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "True when the scan cap stopped short of the whole set."
+                    }
+                }
+            },
+            "PhotoExif": {
+                "type": "object",
+                "description": "EXIF for one photo. Keys depend on what the file carries, so the set is open.",
+                "required": [
+                    "file_id"
+                ],
+                "properties": {
+                    "file_id": {
+                        "type": "integer"
+                    }
+                },
+                "additionalProperties": true
+            },
+            "SuccessAck": {
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "description": "A bare acknowledgement. Failures arrive as a 4xx with an error body, never as success:false here.",
+                "properties": {
+                    "success": {
+                        "type": "boolean",
+                        "enum": [
+                            true
+                        ]
+                    }
+                }
+            },
+            "SettingsSaveResult": {
+                "type": "object",
+                "required": [
+                    "success",
+                    "settings"
+                ],
+                "description": "Settings write. Returns the stored settings, so a client does not need a follow-up GET to learn what was actually persisted after validation.",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "settings": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                }
+            },
+            "VideoDomainsSaveResult": {
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "description": "Video-domain allow-list write. Entries that failed validation are named rather than silently dropped.",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "message": {
+                        "type": "string"
+                    },
+                    "invalidDomains": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 }
             }
