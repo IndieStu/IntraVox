@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "schemathesis_version": "4.25.2",
+  "schema_location": "/var/folders/06/_3b24z_j72143pgtt4c510vc0000gn/T/tmp.ZbquYqCgLo/openapi-resolved.json",
+  "base_url": "https://dev.rikdekker.nl/ocs/v2.php/apps/intravox",
+  "created_at": "2026-08-26T08:42:25.953478+00:00"
+}

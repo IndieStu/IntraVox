@@ -3,7 +3,7 @@
   "info": {
     "title": "IntraVox API",
     "version": "2.4.1",
-    "description": "IntraVox is a modern intranet page builder for Nextcloud. This API provides endpoints for managing pages, media, navigation, comments, reactions, the Photo Story widget (galleries with EXIF, maps and lightbox) and the File Story widget (document libraries with MetaVox-aware filtering and federated-share awareness).",
+    "description": "IntraVox is a modern intranet page builder for Nextcloud. This API provides endpoints for managing pages, media, navigation, comments, reactions, the Photo Story widget (galleries with EXIF, maps and lightbox) and the File Story widget (document libraries with MetaVox-aware filtering and federated-share awareness).\n\n## Authentication failures and 429\n\nNextcloud applies brute-force protection to failed authentication at the platform level. Any authenticated endpoint here can therefore answer 429 Too Many Requests after repeated bad credentials from one address, whether or not that operation documents its own rate limit — and once tripped it keeps answering 429 even for correct credentials until the window expires.\n\nThis surprises automated clients most: a retry loop on a wrong token does not eventually succeed, it locks the address out. Treat 401 as terminal and fix the credentials rather than retrying.",
     "license": {
       "name": "AGPL-3.0",
       "url": "https://www.gnu.org/licenses/agpl-3.0.html"
@@ -12,17 +12,7 @@
   "servers": [
     {
       "url": "https://{nextcloud_host}/apps/intravox",
-      "description": "IntraVox API",
-      "variables": {
-        "nextcloud_host": {
-          "default": "localhost",
-          "description": "Nextcloud server hostname"
-        }
-      }
-    },
-    {
-      "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
-      "description": "External API. Same handlers as the internal routes and the same bare JSON — despite the /ocs/ path there is no {ocs:{meta,data}} envelope, because no IntraVox controller extends OCSController. Verified against a running instance.",
+      "description": "The app mount. Every path in this document answers here. Browser-session routes require the Nextcloud session cookie plus a requesttoken; the rest accept an app password over Basic auth.",
       "variables": {
         "nextcloud_host": {
           "default": "localhost",
@@ -5416,7 +5406,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe listing, with the same cap, headers and opt-in cursor paging as the internal route.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe listing, with the same cap, headers and opt-in cursor paging as the internal route.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5443,8 +5433,33 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
+        ]
       },
       "post": {
         "operationId": "ocs-create-page",
@@ -5452,7 +5467,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe primary ingest endpoint for a migration. Rate limited to 10 per minute per user; see the Rate Limiting section of the API reference for the documented way around that during a bulk import.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nThe primary ingest endpoint for a migration. Rate limited to 10 per minute per user; see the Rate Limiting section of the API reference for the documented way around that during a bulk import.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5499,7 +5514,29 @@
               }
             }
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
+        ]
       }
     },
     "/api/v1/pages/{id}": {
@@ -5509,7 +5546,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nReturns the full page including layout and widgets.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nReturns the full page including layout and widgets.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5536,6 +5573,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
         },
         "parameters": [
@@ -5547,6 +5587,28 @@
               "type": "string"
             }
           }
+        ],
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
         ]
       },
       "put": {
@@ -5555,7 +5617,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nWrites the whole page; fields absent from the body are dropped by the sanitizer.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nWrites the whole page; fields absent from the body are dropped by the sanitizer.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5591,6 +5653,9 @@
           },
           "412": {
             "description": "The OCS-APIRequest header was missing."
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
         },
         "parameters": [
@@ -5612,7 +5677,29 @@
               }
             }
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
+        ]
       },
       "delete": {
         "operationId": "ocs-delete-page",
@@ -5620,7 +5707,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nDeleting an already deleted page is not an error for the bulk endpoints, but here it answers 404.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nDeleting an already deleted page is not an error for the bulk endpoints, but here it answers 404.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5667,6 +5754,28 @@
               "type": "string"
             }
           }
+        ],
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
         ]
       }
     },
@@ -5677,7 +5786,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nCapped, with the same truncation headers as the internal route.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nCapped, with the same truncation headers as the internal route.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5712,6 +5821,9 @@
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
         },
         "parameters": [
@@ -5723,6 +5835,28 @@
               "type": "string"
             }
           }
+        ],
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
         ]
       },
       "post": {
@@ -5731,7 +5865,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nmultipart/form-data. Large files are better sent over WebDAV; see the migration section of the API reference.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nmultipart/form-data. Large files are better sent over WebDAV; see the migration section of the API reference.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5767,6 +5901,9 @@
           },
           "413": {
             "description": "File exceeds the configured maximum."
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
         },
         "parameters": [
@@ -5794,7 +5931,29 @@
               }
             }
           }
-        }
+        },
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          }
+        ]
       }
     },
     "/api/v1/pages/{pageId}/media/{filename}": {
@@ -5804,7 +5963,7 @@
         "tags": [
           "External API"
         ],
-        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nStreams the file itself, not JSON.",
+        "description": "External entry point, mounted under /ocs/v2.php/apps/intravox. It reaches the same handler as the internal route and returns the same bare JSON — no OCS envelope, no ?format=xml. Writes require the `OCS-APIRequest: true` header or answer 412.\n\nStreams the file itself, not JSON.\n\nALSO AVAILABLE ON THE OCS MOUNT at /ocs/v2.php/apps/intravox, which is the base an external integrator should use. Only the /api/v1/* operations are mounted there — every other path in this document 404s on the OCS prefix, /api/health included. Despite the /ocs/ path there is no {ocs:{meta,data}} envelope: no IntraVox controller extends OCSController, so the body is the same bare JSON as on the app mount. Verified against a running instance.",
         "security": [
           {
             "basic_auth": [],
@@ -5832,6 +5991,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "429": {
+            "description": "Too Many Requests. Nextcloud's own brute-force protection, triggered by repeated FAILED AUTHENTICATION from one address — not an IntraVox rate limit, and it applies to every authenticated endpoint in this document regardless of whether one is declared. Once tripped it keeps answering 429 even for correct credentials until the window expires, so a client that retries a bad token in a loop locks itself out. Fix the credentials and wait rather than retrying."
           }
         },
         "parameters": [
@@ -5849,6 +6011,28 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          }
+        ],
+        "servers": [
+          {
+            "url": "https://{nextcloud_host}/ocs/v2.php/apps/intravox",
+            "description": "External API mount. Same handler, same bare JSON — no OCS envelope.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
+            }
+          },
+          {
+            "url": "https://{nextcloud_host}/apps/intravox",
+            "description": "App mount. Also serves these operations.",
+            "variables": {
+              "nextcloud_host": {
+                "default": "localhost",
+                "description": "Nextcloud server hostname"
+              }
             }
           }
         ]
@@ -8323,9 +8507,9 @@
       "get": {
         "operationId": "health",
         "summary": "Liveness probe",
-        "description": "Confirms the app is installed and responding, and reports its version. The only unauthenticated JSON endpoint in the API that is not gated by a share token.\n\nDeliberately minimal: it reports nothing about the database, the group folder or configuration, so it cannot be used to fingerprint an instance beyond the app version. Rate limited to 60 per minute per client.",
+        "description": "Confirms the app is installed and responding, and reports its version. The only unauthenticated JSON endpoint in the API that is not gated by a share token.\n\nAPP MOUNT ONLY. This route is not in the OCS block, so /ocs/v2.php/apps/intravox/api/health returns 404 with an OCS error envelope. Probe https://{host}/apps/intravox/api/health instead.\n\nDeliberately minimal: it reports nothing about the database, the group folder or configuration, so it cannot be used to fingerprint an instance beyond the app version. Rate limited to 60 per minute per client.",
         "tags": [
-          "External API"
+          "Settings"
         ],
         "security": [
           {}
