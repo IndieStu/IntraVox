@@ -45,6 +45,10 @@
       "description": "Page view statistics and their collection settings."
     },
     {
+      "name": "Bulk",
+      "description": "Administrator-only batch operations over pages, capped at 100 ids per call. Each item is convergent so a partial batch can be retried whole."
+    },
+    {
       "name": "Calendar",
       "description": "Calendar events surfaced by the calendar widget."
     },
@@ -6371,6 +6375,333 @@
           }
         }
       }
+    },
+    "/api/bulk/validate": {
+      "post": {
+        "operationId": "bulk-validate",
+        "summary": "Dry-run a bulk operation",
+        "description": "Reports which of the submitted pages the caller may operate on, without changing anything. This IS the dry run — there is no separate mode; validate and execute are different endpoints.\n\nAt most 100 page ids per call; more returns 400. This is a hard service limit, not a page size — there is no continuation token. A migration splits its own work into batches.\n\nAdministrators only.\n\nRate limited to 20 per minute, deliberately looser than the mutating endpoints (5 per minute): checking before acting is behaviour worth keeping cheap.",
+        "tags": [
+          "Bulk"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100
+                  },
+                  "operation": {
+                    "type": "string",
+                    "enum": [
+                      "delete",
+                      "move",
+                      "update"
+                    ],
+                    "description": "Which permission to test: delete checks canDelete, move and update check canWrite."
+                  }
+                },
+                "required": [
+                  "pageIds",
+                  "operation"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkValidation"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "429": {
+            "description": "Rate limit exceeded (20 per minute per user)."
+          },
+          "500": {
+            "description": "Validation failed."
+          }
+        }
+      }
+    },
+    "/api/bulk/delete": {
+      "post": {
+        "operationId": "bulk-delete",
+        "summary": "Delete pages in bulk",
+        "description": "Deletes up to 100 pages. Deleting a page that is already gone counts as success, which is what makes a retry safe.\n\nRETRY SAFETY. Each item is convergent, so re-sending the same request after a partial failure is safe: a page already deleted counts as deleted, and a page already under the target parent counts as moved. A client that retries the whole batch therefore converges rather than double-counting or erroring. There is no server-side ledger of what a previous call did — the guarantee comes from each item being idempotent, not from request de-duplication.\n\nAt most 100 page ids per call; more returns 400. This is a hard service limit, not a page size — there is no continuation token. A migration splits its own work into batches.\n\nAdministrators only.\n\nEvery call is written to the audit log with the caller, the ids and the counts.",
+        "tags": [
+          "Bulk"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "Page unique ids. Must be non-empty."
+                  },
+                  "deleteChildren": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether to remove child pages along with each parent. Defaults to TRUE — omitting it deletes subtrees."
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true nothing is changed and the response is a BulkValidation envelope instead of a BulkResult. Equivalent to calling /api/bulk/validate with the same ids."
+                  }
+                },
+                "required": [
+                  "pageIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every page succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BulkResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BulkValidation"
+                    }
+                  ],
+                  "description": "BulkValidation when dryRun was true, BulkResult otherwise."
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Multi-Status: at least one page failed and at least the attempt was made. Read results[] for the per-page outcome. The overall HTTP call succeeded — do not treat this as an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "429": {
+            "description": "Rate limit exceeded (5 per minute per user)."
+          },
+          "500": {
+            "description": "The operation failed as a whole. Nothing partial is reported."
+          }
+        }
+      }
+    },
+    "/api/bulk/move": {
+      "post": {
+        "operationId": "bulk-move",
+        "summary": "Move pages under a new parent",
+        "description": "Re-parents up to 100 pages. A page already under the target counts as moved.\n\nRETRY SAFETY. Each item is convergent, so re-sending the same request after a partial failure is safe: a page already deleted counts as deleted, and a page already under the target parent counts as moved. A client that retries the whole batch therefore converges rather than double-counting or erroring. There is no server-side ledger of what a previous call did — the guarantee comes from each item being idempotent, not from request de-duplication.\n\nAt most 100 page ids per call; more returns 400. This is a hard service limit, not a page size — there is no continuation token. A migration splits its own work into batches.\n\nAdministrators only.\n\nEvery call is written to the audit log.\n\nThree moves are refused per page and reported as that page's failure, not as a request error:\n- into itself or one of its own descendants (it would detach the subtree),\n- across languages — language folders are independent content trees, so this would be a relocation between intranets rather than a translation,\n- the homepage, which is protected.\n\nIf the target parent itself is missing or not writable, EVERY page in the batch fails with that reason and nothing is attempted.\n\nAn empty targetParentId is rejected as a 400 here. Note that the underlying move treats an empty target as 'the root of the page's own language', but this endpoint requires an explicit parent.",
+        "tags": [
+          "Bulk"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "Page unique ids. Must be non-empty."
+                  },
+                  "targetParentId": {
+                    "type": "string",
+                    "description": "Unique id of the new parent. Required and non-empty."
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true nothing is changed and the response is a BulkValidation envelope instead of a BulkResult. Equivalent to calling /api/bulk/validate with the same ids."
+                  }
+                },
+                "required": [
+                  "pageIds",
+                  "targetParentId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every page succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BulkResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BulkValidation"
+                    }
+                  ],
+                  "description": "BulkValidation when dryRun was true, BulkResult otherwise."
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Multi-Status: at least one page failed and at least the attempt was made. Read results[] for the per-page outcome. The overall HTTP call succeeded — do not treat this as an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "429": {
+            "description": "Rate limit exceeded (5 per minute per user)."
+          },
+          "500": {
+            "description": "The operation failed as a whole. Nothing partial is reported."
+          }
+        }
+      }
+    },
+    "/api/bulk/update": {
+      "post": {
+        "operationId": "bulk-update",
+        "summary": "Update page properties in bulk",
+        "description": "Applies the same property changes to up to 100 pages.\n\nAt most 100 page ids per call; more returns 400. This is a hard service limit, not a page size — there is no continuation token. A migration splits its own work into batches.\n\nAdministrators only.\n\nUnlike delete and move this is not inherently convergent — re-sending applies the same values again, which is harmless for the absolute updates supported here but is not a general guarantee.\n\nEvery call is written to the audit log, including which fields were touched.",
+        "tags": [
+          "Bulk"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "description": "Page unique ids. Must be non-empty."
+                  },
+                  "updates": {
+                    "type": "object",
+                    "additionalProperties": true,
+                    "minProperties": 1,
+                    "description": "Properties to set on every listed page, e.g. {\"metadata\": {\"category\": \"news\"}}. Must be a non-empty object."
+                  },
+                  "dryRun": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true nothing is changed and the response is a BulkValidation envelope instead of a BulkResult. Equivalent to calling /api/bulk/validate with the same ids."
+                  }
+                },
+                "required": [
+                  "pageIds",
+                  "updates"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Every page succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/BulkResult"
+                    },
+                    {
+                      "$ref": "#/components/schemas/BulkValidation"
+                    }
+                  ],
+                  "description": "BulkValidation when dryRun was true, BulkResult otherwise."
+                }
+              }
+            }
+          },
+          "207": {
+            "description": "Multi-Status: at least one page failed and at least the attempt was made. Read results[] for the per-page outcome. The overall HTTP call succeeded — do not treat this as an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "429": {
+            "description": "Rate limit exceeded (5 per minute per user)."
+          },
+          "500": {
+            "description": "The operation failed as a whole. Nothing partial is reported."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8325,6 +8656,169 @@
             ]
           }
         }
+      },
+      "BulkValidation": {
+        "type": "object",
+        "description": "Outcome of a dry run. This is also what a mutating endpoint returns when dryRun is true — note that the envelope then differs from the one you get for the real call, so a client must branch on which it asked for.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "enum": [
+              true
+            ],
+            "description": "Always true: this reports on the validation itself, not on whether every page passed. Read canProceed and willFail for that."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "delete",
+              "move",
+              "update"
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Number of ids submitted."
+          },
+          "canProceed": {
+            "type": "integer"
+          },
+          "willFail": {
+            "type": "integer"
+          },
+          "valid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pageId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "pageId",
+                "title"
+              ]
+            }
+          },
+          "invalid": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pageId": {
+                  "type": "string"
+                },
+                "reason": {
+                  "type": "string",
+                  "description": "'Permission denied' or 'Page not found'. Deliberately coarse — it must not confirm the existence of a page the caller may not see."
+                }
+              },
+              "required": [
+                "pageId",
+                "reason"
+              ]
+            }
+          }
+        },
+        "required": [
+          "success",
+          "operation",
+          "total",
+          "canProceed",
+          "willFail",
+          "valid",
+          "invalid"
+        ]
+      },
+      "BulkResult": {
+        "type": "object",
+        "description": "Outcome of an executed bulk operation.\n\nWATCH THE SUCCESS-COUNT KEY. It is named after the operation, not fixed: 'deleted' for delete, 'moved' for move, 'updated' for update. There is no single key holding the number that succeeded, so a client must look up the one matching the operation it requested. The failure count is always 'failed'.\n\n'failed' is therefore an INTEGER at the top level while results[] entries carry a status string — the two are unrelated despite the shared word.",
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "description": "True only when nothing failed. A partial result is false and arrives with status 207."
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "delete",
+              "move",
+              "update"
+            ]
+          },
+          "total": {
+            "type": "integer",
+            "description": "Attempted = succeeded + failed."
+          },
+          "deleted": {
+            "type": "integer",
+            "description": "Present only when operation is delete."
+          },
+          "moved": {
+            "type": "integer",
+            "description": "Present only when operation is move."
+          },
+          "updated": {
+            "type": "integer",
+            "description": "Present only when operation is update."
+          },
+          "failed": {
+            "type": "integer",
+            "description": "How many failed."
+          },
+          "results": {
+            "type": "array",
+            "description": "Per-page outcome, successes first then failures.",
+            "items": {
+              "type": "object",
+              "properties": {
+                "pageId": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string",
+                  "description": "Present on success only."
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "deleted",
+                    "moved",
+                    "updated",
+                    "failed"
+                  ]
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Present on failure only."
+                }
+              },
+              "required": [
+                "pageId",
+                "status"
+              ]
+            }
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Flat 'pageId: reason' strings, the same failures as in results[]. Redundant, kept for existing callers."
+          }
+        },
+        "required": [
+          "success",
+          "operation",
+          "total",
+          "failed",
+          "results",
+          "errors"
+        ]
       }
     },
     "parameters": {

@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 122,
-    "undocumented": 49
+    "documented": 126,
+    "undocumented": 45
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -41,10 +41,6 @@
     "GET /api/users/fields",
     "GET /api/users/groups",
     "GET /api/users/search",
-    "POST /api/bulk/delete",
-    "POST /api/bulk/move",
-    "POST /api/bulk/update",
-    "POST /api/bulk/validate",
     "POST /api/comments/{commentId}/reactions/{emoji}",
     "POST /api/demo-data/clean-start",
     "POST /api/demo-data/import",
