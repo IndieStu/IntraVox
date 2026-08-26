@@ -4,19 +4,40 @@ All notable changes to IntraVox will be documented in this file.
 
 IntraVox is a Nextcloud intranet page builder.
 
-## [Unreleased]
+## [2.5.0] - 2026-08-26 — The API describes itself, and the description is checked
 
 ### Security
 
-- **A logged-in user could read internal server detail from a failing comment endpoint.** Ten error paths in the comments and reactions API returned the raw exception message to the browser. Those exceptions come from the filesystem and the Comments API, so the text could carry group folder paths, storage identifiers and internal comment ids. Failures now return a fixed message plus an error id that points to the full detail in the server log. Two error paths keep their specific text on purpose — "Comment not found" and "Not authorized to edit this comment" are messages IntraVox raises itself, clients depend on them to tell the two cases apart, and they describe nothing internal.
-- **A public share could be asked for people it did not publish.** The People widget on a shared page accepted a hand-written list of users or a hand-written filter and answered from the whole directory, rather than from the set the shared page actually exposes. A share token proves a visitor may read a page; it was never meant to prove they may query the directory behind it. Requests are now intersected with what the page publishes. **This only affected instances with `public_share_allow_people` set to `yes`** — it is off by default, and instances that left it off were never exposed.
-- **Three endpoints returned the reason a server-side fetch failed.** The SharePoint, preview and MetaVox field endpoints passed the underlying error text back to any logged-in caller. Since those calls are made by the server using stored credentials, the text could name internal hosts and describe whether a credential still worked. They now return a generic failure.
-- **Footer content was stored exactly as submitted.** The footer is rendered as HTML on every page, and the server kept whatever it was sent — relying on the editor's own sanitising, which a direct request to the endpoint simply skips. Anyone able to edit the footer could therefore leave script behind that ran for every logged-in visitor of that language. It is now cleaned on the server before it is stored, by the same filter that has always been applied to text widgets. Public shares were not affected: the footer is not served through them.
-- **The feed reader could be pointed at the internal network.** Its safety check resolved a hostname and only inspected the answer when one came back. A name that failed to resolve, or one with only an IPv6 address, skipped the check entirely — so `http://[::1]/` reached the fetcher. The check now refuses anything it cannot positively confirm as external.
+This release fixes several issues found during a security review of the API. The
+entries below say what was affected and who was exposed — enough to judge how
+urgently to upgrade — without the detail needed to reproduce them.
+
+- **Footer content is now sanitised on the server.** It previously relied on the
+  editor to do that, which a direct API call does not go through. Anyone able to
+  edit the footer could leave active content behind that ran for other signed-in
+  visitors of that language. Public share links were not affected. Nothing to do
+  after upgrading; if you want certainty, open and re-save the footer per
+  language.
+- **Error responses no longer disclose internal server detail.** Several failure
+  paths returned the underlying error text, which could include server paths and
+  the state of stored credentials. They now return a generic message plus an
+  error id that points to the full detail in the server log.
+- **The People widget on a public share now answers only from what that page
+  publishes.** It previously accepted a caller-supplied selection and answered
+  from the whole directory. **This affected only instances with
+  `public_share_allow_people` set to `yes`**, which is off by default. If you
+  have it enabled, upgrading promptly is worthwhile.
+- **The feed reader's protection against internal addresses now fails closed.**
+  Some hosts skipped the check. It now refuses anything it cannot positively
+  confirm as external, which may reject a source on an unusual internal DNS
+  setup — configure those through a reachable public hostname.
+
+If you operate IntraVox and need specifics for your own assessment, contact us
+rather than working from this file.
 
 ### Fixed
 
-- **Importing an entire Confluence space crashed the server outright.** The importer was constructed with one of the two arguments it requires, which raises a PHP error rather than an exception — and the surrounding code only caught exceptions. Every call to that endpoint ended in an uncaught fatal. Nothing was importable through it.
+- **Importing a Confluence space did not work at all.** The import endpoint failed on every call because of a wiring error, so nothing could be imported through it. It works now, and a test covers the case that was missed.
 - **Orphaned content could not be recovered into a language beyond nl, en, de or fr.** Two different language lists were being checked, and the narrower one — hardcoded, four entries — ran first. A site running any other content language could create pages in it, serve them and export them, but not recover them out of an orphaned group folder. Both checks now use the same list, which follows what the site has actually enabled.
 - **Listing pages had no upper bound.** `GET /api/pages` returned every page in a language with no limit, so the largest customer decided the response size. It is now capped, and says so in a response header when a result was truncated. The body shape is unchanged.
 
@@ -29,6 +50,37 @@ IntraVox is a Nextcloud intranet page builder.
 
 - **Comment and reaction errors changed shape.** A failing call now returns `{"success": false, "error": "…", "errorId": "…"}` instead of a bare message. No part of the IntraVox interface read that body, so nothing in the app changes; a script that parsed the old error text will now see a generic sentence and should log `errorId` instead.
 - **Repeated failed authentication returns 429 on any endpoint.** This is Nextcloud's brute-force protection rather than an IntraVox limit, and it applies whether or not an endpoint declares one of its own. Once triggered it keeps returning 429 even for correct credentials until the window passes — so a client retrying a bad token locks itself out instead of getting through. Treat 401 as final.
+
+### Follow-up work
+
+Planned for later releases, listed so the scope of this one is clear.
+
+- **Migration provenance is partly built.** A page can carry the identifier and
+  URL of the system it came from, and those survive editing. The lookup that
+  finds a page by its source identifier still needs a schema change, deliberately
+  coordinated with the multi-site work so it happens once rather than twice. The
+  API makes no promises about provenance yet.
+- **Delta imports and link rewriting are not built.** Both depend on that lookup.
+  An import today is a full import; re-running one is governed by the overwrite
+  option, which the admin guide describes.
+- **Bulk operations report per item, not per site.** A partial batch tells you
+  which pages failed and why, without a per-site summary.
+- **Nextcloud 35 is not yet declared supported.** This release stays on 32–34.
+  The compatibility update is a separate, smaller release, so the fixes above did
+  not have to wait for it.
+- **Error handling is being tightened across the remaining endpoints,**
+  continuing the work described under Security.
+
+### Notes for administrators
+
+- **`openapi.json` ships with the app** and always did, though the release
+  checklist said otherwise. It sits in the app directory and is not served over
+  HTTP. Its version is now kept in step with the app automatically.
+- **The contract test needs a running instance and makes many requests.**
+  Nextcloud counts those against the network address rather than the user, so
+  running it while someone is working in that instance can lock them out
+  temporarily. The script clears the counter afterwards, including when
+  interrupted.
 
 ## [2.4.1] - 2026-08-25 — A refused subscription key says why
 
