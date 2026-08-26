@@ -106,7 +106,10 @@ The ZIP export writes pages incrementally to disk instead of accumulating the en
 
 ### Rate limiting
 
-All mutating and user-facing API endpoints are rate-limited:
+Rate limits are applied per endpoint category, not across the board — 14 of the 73
+mutating operations carry an explicit limit. The rest rely on Nextcloud's
+brute-force protection, which is a different mechanism: it triggers on repeated
+*failed authentication* from one address, not on request volume.
 
 | Endpoint category | Limit | Period |
 |-------------------|-------|--------|

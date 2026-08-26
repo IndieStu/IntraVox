@@ -22,6 +22,7 @@ use Psr\Log\LoggerInterface;
  * REST API wrapper around Nextcloud's Comments API
  */
 class CommentController extends Controller {
+    use ApiErrorTrait;
     public function __construct(
         string $appName,
         IRequest $request,
@@ -32,6 +33,11 @@ class CommentController extends Controller {
         private LoggerInterface $logger
     ) {
         parent::__construct($appName, $request);
+    }
+
+    /** Required by ApiErrorTrait. */
+    protected function getLogger(): LoggerInterface {
+        return $this->logger;
     }
 
     /**
@@ -92,13 +98,13 @@ class CommentController extends Controller {
                 'total' => $count
             ]);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error getting comments', [
-                'pageId' => $pageId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not load comments.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'pageId' => $pageId,
+                ]
             );
         }
     }
@@ -129,13 +135,13 @@ class CommentController extends Controller {
 
             return new DataResponse($comment, Http::STATUS_CREATED);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error creating comment', [
-                'pageId' => $pageId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not post that comment.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'pageId' => $pageId,
+                ]
             );
         }
     }
@@ -166,20 +172,37 @@ class CommentController extends Controller {
 
             return new DataResponse($comment);
         } catch (\RuntimeException $e) {
+            // Only these two strings are contract: this app throws them and
+            // clients route on them, so they stay verbatim. Anything else
+            // reaching here is an unrecognised failure and gets the same
+            // generic treatment as the catch below -- the default branch used
+            // to return its message, which was the leak with a status code.
             $status = match ($e->getMessage()) {
                 'Comment not found' => Http::STATUS_NOT_FOUND,
                 'Not authorized to edit this comment' => Http::STATUS_FORBIDDEN,
-                default => Http::STATUS_INTERNAL_SERVER_ERROR
+                default => null
             };
+
+            if ($status === null) {
+                return $this->safeErrorResponse(
+                    $e,
+                    'Could not edit that comment.',
+                    Http::STATUS_INTERNAL_SERVER_ERROR,
+                    [
+                        'commentId' => $commentId,
+                    ]
+                );
+            }
+
             return new DataResponse(['error' => $e->getMessage()], $status);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error updating comment', [
-                'commentId' => $commentId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not update that comment.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'commentId' => $commentId,
+                ]
             );
         }
     }
@@ -203,20 +226,37 @@ class CommentController extends Controller {
 
             return new DataResponse(['success' => true]);
         } catch (\RuntimeException $e) {
+            // Only these two strings are contract: this app throws them and
+            // clients route on them, so they stay verbatim. Anything else
+            // reaching here is an unrecognised failure and gets the same
+            // generic treatment as the catch below -- the default branch used
+            // to return its message, which was the leak with a status code.
             $status = match ($e->getMessage()) {
                 'Comment not found' => Http::STATUS_NOT_FOUND,
                 'Not authorized to delete this comment' => Http::STATUS_FORBIDDEN,
-                default => Http::STATUS_INTERNAL_SERVER_ERROR
+                default => null
             };
+
+            if ($status === null) {
+                return $this->safeErrorResponse(
+                    $e,
+                    'Could not delete that comment.',
+                    Http::STATUS_INTERNAL_SERVER_ERROR,
+                    [
+                        'commentId' => $commentId,
+                    ]
+                );
+            }
+
             return new DataResponse(['error' => $e->getMessage()], $status);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error deleting comment', [
-                'commentId' => $commentId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not delete that comment.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'commentId' => $commentId,
+                ]
             );
         }
     }
@@ -242,13 +282,13 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error getting page reactions', [
-                'pageId' => $pageId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not load reactions.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'pageId' => $pageId,
+                ]
             );
         }
     }
@@ -272,14 +312,14 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error adding page reaction', [
-                'pageId' => $pageId,
-                'emoji' => $emoji,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not add that reaction.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'pageId' => $pageId,
+                    'emoji' => $emoji,
+                ]
             );
         }
     }
@@ -302,14 +342,14 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error removing page reaction', [
-                'pageId' => $pageId,
-                'emoji' => $emoji,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not remove that reaction.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'pageId' => $pageId,
+                    'emoji' => $emoji,
+                ]
             );
         }
     }
@@ -336,13 +376,13 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error getting comment reactions', [
-                'commentId' => $commentId,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not load reactions.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'commentId' => $commentId,
+                ]
             );
         }
     }
@@ -367,14 +407,14 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error adding comment reaction', [
-                'commentId' => $commentId,
-                'emoji' => $emoji,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not add that reaction.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'commentId' => $commentId,
+                    'emoji' => $emoji,
+                ]
             );
         }
     }
@@ -398,14 +438,14 @@ class CommentController extends Controller {
 
             return new DataResponse($reactions);
         } catch (\Exception $e) {
-            $this->logger->error('IntraVox: Error removing comment reaction', [
-                'commentId' => $commentId,
-                'emoji' => $emoji,
-                'error' => $e->getMessage()
-            ]);
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
+            return $this->safeErrorResponse(
+                $e,
+                'Could not remove that reaction.',
+                Http::STATUS_INTERNAL_SERVER_ERROR,
+                [
+                    'commentId' => $commentId,
+                    'emoji' => $emoji,
+                ]
             );
         }
     }

@@ -2317,15 +2317,34 @@ class FeedReaderService {
         // Note: Nextcloud's IClientService also enforces allow_local_address config,
         // providing a second layer of protection against DNS rebinding attacks.
         $host = parse_url($url, PHP_URL_HOST);
-        if ($host !== null) {
-            // Check all resolved IPs (not just the first) to prevent DNS rebinding
-            $ips = gethostbynamel($host);
-            if (is_array($ips)) {
-                foreach ($ips as $ip) {
-                    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
-                        throw new \InvalidArgumentException('URLs pointing to private or reserved IP addresses are not allowed');
-                    }
+        if ($host === null || $host === '') {
+            throw new \InvalidArgumentException('Invalid URL');
+        }
+
+        // Fail closed. gethostbynamel() returns only A records, and false both
+        // when a name does not resolve and when it has AAAA records only — so the
+        // old `if (is_array($ips))` skipped the whole check for exactly the hosts
+        // most worth checking. http://[::1]/ reached the fetcher untouched.
+        $literal = trim($host, '[]');
+        if (filter_var($literal, FILTER_VALIDATE_IP) !== false) {
+            $ips = [$literal];
+        } else {
+            $ips = gethostbynamel($host) ?: [];
+            foreach (@dns_get_record($host, DNS_AAAA) ?: [] as $record) {
+                if (isset($record['ipv6'])) {
+                    $ips[] = $record['ipv6'];
                 }
+            }
+            if ($ips === []) {
+                throw new \InvalidArgumentException('Could not resolve the host for this URL');
+            }
+        }
+
+        // Every resolved address, not just the first, so a rebinding answer that
+        // mixes a public and a private address is refused on the private one.
+        foreach ($ips as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                throw new \InvalidArgumentException('URLs pointing to private or reserved IP addresses are not allowed');
             }
         }
     }

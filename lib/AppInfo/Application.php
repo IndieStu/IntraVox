@@ -143,6 +143,7 @@ class Application extends App implements IBootstrap {
                 $c->get(\OCA\IntraVox\Service\SystemFileService::class),
                 $c->get(\OCP\IConfig::class),
                 $c->get(\OCA\IntraVox\Service\LanguageService::class),
+                $c->get(\OCA\IntraVox\Service\Sanitize\HtmlSanitizer::class),
                 $c->get(\OCP\IUserSession::class)->getUser()?->getUID()
             );
         });

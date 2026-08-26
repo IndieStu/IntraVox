@@ -141,3 +141,6 @@ jobs:
 
       - name: Route table is current
         run: node scripts/generate-route-table.js --check
+
+      - name: OpenAPI coverage ratchet
+        run: node scripts/check-openapi.js

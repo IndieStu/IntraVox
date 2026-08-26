@@ -342,6 +342,25 @@ Response: {
 - Overwrites entire page structure, widgets, and settings
 - Media files are always copied (no overwrite of existing media)
 
+### If an import fails halfway
+
+There is no rollback, no resume and no idempotency key. An import that fails
+partway leaves whatever it already wrote, and re-running it is governed entirely
+by `overwrite`:
+
+- **`overwrite: false`** — pages already written are skipped and counted under
+  `pagesSkipped`. Safe to re-run; it finishes what is missing.
+- **`overwrite: true`** — everything is written again, including pages that
+  succeeded the first time. Also safe, but it discards any edits made in between.
+
+Read the `stats` object rather than the HTTP status to see what actually
+happened: a run that skipped everything and a run that imported everything both
+return 200.
+
+For planning a large migration, note that the counters are totals — there is no
+per-page list, so a skipped page is counted but not named. To know *which* pages
+already existed, compare the export against the target before importing.
+
 ### Import Validation
 
 Before importing, the system validates:

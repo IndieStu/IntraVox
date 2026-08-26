@@ -106,6 +106,27 @@ forbid_prefix "vendor/phpunit/"  "phpunit"
 forbid_prefix "vendor/mockery/"  "mockery"
 forbid_prefix "vendor/bin/"      "vendor binaries"
 
+echo "Build tooling (must be absent):"
+# scripts/ is build-time only -- nothing under lib/, appinfo/ or templates/
+# references it at runtime. It matters beyond tidiness: run-contract-tests.sh and
+# run-integration-tests.sh carry the dev server's hostname, IP and SSH user as
+# defaults, and this tarball goes to the public App Store.
+forbid_prefix "scripts/" "build scripts"
+
+echo "Infrastructure details (must be absent):"
+# Belt and braces: even if something else drags a file in, the dev host must
+# never appear in a published package. Stream the whole archive through grep in
+# one pass -- passing a file list to tar breaks on long argument lists and, worse,
+# fails silently when a name does not match.
+LEAKED="$(tar -xzOf "$TARBALL" 2>/dev/null \
+    | grep -aohE 'dev\.rikdekker\.nl|178\.63\.205\.[0-9]{1,3}' | sort -u | head -3 || true)"
+if [ -n "$LEAKED" ]; then
+    fail "internal host/IP present in tarball"
+    printf '%s\n' "$LEAKED" | sed 's/^/      /' >&2
+else
+    pass "no internal hostnames or IPs"
+fi
+
 echo "Secrets (must be absent):"
 if printf '%s\n' "$LISTING" | grep -qE "\.(key|pem|csr|crt)$"; then
     fail "key/certificate material present in tarball"

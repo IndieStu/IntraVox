@@ -211,7 +211,7 @@ API tokens and OAuth2 client secrets are encrypted at rest using Nextcloud's `IC
 
 ## Rate Limiting
 
-All mutating API endpoints are rate-limited using Nextcloud's built-in throttle attributes. See [Scalability & Enterprise Readiness](scalability.md#rate-limiting) for the full rate limit table.
+Selected endpoints carry an explicit rate limit using Nextcloud's throttle attributes — 14 of the 73 mutating operations. Everything else relies on brute-force protection, which triggers on repeated failed authentication rather than on request volume. See [Scalability & Enterprise Readiness](scalability.md#rate-limiting) for the full rate limit table.
 
 ## GDPR User Deletion
 

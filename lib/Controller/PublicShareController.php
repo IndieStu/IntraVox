@@ -906,6 +906,47 @@ class PublicShareController extends Controller {
             // That matters because a facet panel on a public share is a
             // browsable directory of the organisation — roles, buildings,
             // departments and their headcounts — handed to anyone with the link.
+            //
+            // The same reasoning applies to what the caller may ask FOR, and that
+            // half was missing. Calendar and feed intersect the request with what
+            // the page publishes (see getEventsByShare, getFeedByShare); people did
+            // not, so a hand-written filter reached accounts the shared page never
+            // shows. A token proves the visitor may read a page, never that they
+            // may query the directory behind it.
+            if ($userIds !== null && $userIds !== '') {
+                $requested = array_values(array_filter(array_map('trim', explode(',', $userIds))));
+                $published = $this->publicShareService->allowedWidgetValues($share, 'people', 'selectedUsers');
+                $allowed = array_values(array_intersect($requested, $published));
+
+                if (count($allowed) < count($requested)) {
+                    $this->logger->warning('IntraVox: share requested people it does not publish', [
+                        'token' => substr($token, 0, 8) . '...',
+                        'requested' => count($requested),
+                        'allowed' => count($allowed),
+                    ]);
+                }
+
+                if ($allowed === []) {
+                    return new DataResponse(['users' => [], 'total' => 0, 'hasMore' => false]);
+                }
+
+                $userIds = implode(',', $allowed);
+            }
+
+            // Filters are objects, so they cannot be intersected the way calendar
+            // ids are. The page either publishes this exact set or it does not.
+            if ($filters !== null && $filters !== '') {
+                $decoded = json_decode($filters, true);
+
+                if (!$this->publicShareService->publishesWidgetValueSet($share, 'people', 'filters', $decoded)) {
+                    $this->logger->warning('IntraVox: share requested a people filter it does not publish', [
+                        'token' => substr($token, 0, 8) . '...',
+                    ]);
+
+                    return new DataResponse(['users' => [], 'total' => 0, 'hasMore' => false]);
+                }
+            }
+
             return $this->peopleQuery->forPublicShare(
                 $userIds,
                 $filters,

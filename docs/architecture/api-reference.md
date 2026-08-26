@@ -64,6 +64,21 @@ https://your-nextcloud.com/ocs/v2.php/apps/intravox/api/v1/
 
 The OCS API properly handles HTTP methods (GET, POST, PUT, DELETE) and is the recommended interface for programmatic access.
 
+Two things to know before building on it — both measured against a running server,
+not inferred from the `/ocs/` path:
+
+- **There is no OCS envelope.** You get the same bare JSON as on the app mount, not
+  `{ocs: {meta, data}}`. No IntraVox controller extends `OCSController`. A client
+  written against the envelope will fail to parse every response. `?format=xml` does
+  not work here either.
+- **Only the eight `/api/v1/*` routes are mounted here.** Every other path returns 404
+  with an OCS error envelope — including `/api/health`. For a liveness probe use
+  `https://your-nextcloud.com/apps/intravox/api/health` on the app mount.
+
+The `OCS-APIRequest: true` header is required on writes: without it Nextcloud refuses
+a POST/PUT/DELETE with 412 (`CSRF check failed`). It is harmless on reads, so send it
+on every request.
+
 ### Standard API (Internal use)
 
 The standard API is used internally by the IntraVox frontend with session authentication:
@@ -1668,7 +1683,87 @@ All path parameters are validated against:
 
 ## Rate Limiting
 
-The API uses Nextcloud's built-in brute force protection. For heavy integrations, consider implementing client-side throttling to avoid triggering rate limits.
+Some endpoints carry a per-user limit. Exceeding one returns **429 Too Many
+Requests**; the limit is counted per user, per endpoint, over a rolling window.
+
+This table is guarded: `RateLimitDocsTest` walks every controller and fails when
+a `#[UserRateLimit]` in code is missing here or carries a different number.
+
+| Endpoint | Handler | Limit |
+|---|---|---|
+| `POST /api/pages` | `createPage` | 10 / minute |
+| `DELETE /api/pages/{id}` | `deletePage` | 10 / minute |
+| `POST /api/pages/reorder` | `reorderPages` | 20 / minute |
+| `POST /api/pages/move` | `movePage` | 20 / minute |
+| `GET /api/search` | `searchPages` | 30 / minute |
+| `POST /api/bulk/delete` | `deletePages` | 5 / minute |
+| `POST /api/bulk/move` | `movePages` | 5 / minute |
+| `POST /api/bulk/update` | `updatePages` | 5 / minute |
+| `POST /api/bulk/validate` | `validateOperation` | 20 / minute |
+| `GET /api/feed/external` | `getFeed` | 30 / minute |
+| `GET /api/feed/preview` | `getPreview` | 30 / minute |
+| `POST /api/analytics/track/{pageId}` | `trackView` | 60 / minute |
+| `GET /api/preview` | `fetch` | 600 / minute |
+| `POST /api/preview/warmup` | `warmup` | 60 / minute |
+| `POST /api/pages/{pageId}/comments` | `createComment` | 20 / minute |
+| `POST /api/pages/{id}/reactions/{emoji}` | `addPageReaction` | 30 / minute |
+| `POST /api/comments/{id}/reactions/{emoji}` | `addCommentReaction` | 30 / minute |
+| `GET /api/health` | `health` | 60 / minute (anonymous) |
+| `GET /api/share/{token}/*` | `PublicShareController` | 30–60 / minute (anonymous) |
+
+Withdrawing a reaction is deliberately not limited; adding one is.
+
+### 429 without a declared limit
+
+Everything else relies on Nextcloud's brute-force protection, and that is worth
+spelling out because it surprises automated clients:
+
+**Repeated failed authentication from one address returns 429 on _every_
+authenticated endpoint**, declared limit or not. Once tripped it keeps answering
+429 even for *correct* credentials until the window expires. A client that
+retries a bad token in a loop therefore locks itself out rather than eventually
+getting through.
+
+Treat 401 as terminal: fix the credential, do not retry. This was measured
+against a running instance, not inferred from the code.
+
+One more measured detail that trips strict clients: **that 429 answers `text/xml`,
+not JSON**. It is produced by Nextcloud before the app is reached, so it carries an
+OCS error envelope rather than this API's error shape. A client that assumes every
+response is JSON will fail to parse it — and will fail on the throttle rather than
+on the request that caused it.
+
+### Bulk provisioning and migrations
+
+`createPage` at 10 per minute is the binding constraint on any migration: two
+thousand pages is roughly three and a half hours of waiting, and none of it is
+work. Plan for it rather than discovering it.
+
+Nextcloud already provides the way out, and it needs no change to IntraVox. When
+`apply_allowlist_to_ratelimit` is enabled, an IP range on the brute-force
+allow-list bypasses rate limiting entirely:
+
+```bash
+# The host the migration runs from — a range, in CIDR notation.
+occ config:app:set bruteForce whitelist_0 --value='10.0.0.0/24'
+occ config:app:set bruteforcesettings apply_allowlist_to_ratelimit --value='yes'
+```
+
+Two things worth being blunt about. This exempts **every** rate limit for that
+range, not just page creation, so scope it to the migration host and nothing
+wider. And turn it off afterwards — an allow-list entry that outlives the
+migration is a permanent hole that nothing will remind you about:
+
+```bash
+occ config:app:delete bruteforcesettings apply_allowlist_to_ratelimit
+occ config:app:delete bruteForce whitelist_0
+```
+
+If that is not acceptable in a given environment, the alternative is to pace the
+import at ten pages per minute and let it run. There is deliberately no
+IntraVox-specific bypass: a second mechanism next to the one Nextcloud already
+has would be one more thing to get wrong, and it would live in application code
+where an administrator cannot see it.
 
 ## Migration Tool Integration
 

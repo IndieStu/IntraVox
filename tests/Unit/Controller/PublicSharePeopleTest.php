@@ -157,6 +157,8 @@ class PublicSharePeopleTest extends TestCase {
 			'users' => [['uid' => 'u1', 'displayName' => 'Anne']],
 			'total' => 1,
 		]);
+		// The page publishes exactly this filter, so the request is in scope.
+		$this->publicShareService->method('publishesWidgetValueSet')->willReturn(true);
 
 		$response = $this->controller(null, 'yes')->getPeopleByShare(
 			$token,
@@ -169,6 +171,48 @@ class PublicSharePeopleTest extends TestCase {
 		$this->assertCount(1, $data['users']);
 		// Even when allowed, viewer filtering stays off on a share.
 		$this->assertArrayNotHasKey('facets', $data);
+	}
+
+	/**
+	 * The hole this closes: opting in published the WIDGET, not the directory.
+	 *
+	 * Calendar and feed already intersected the request with what the page
+	 * configures; people did not. So with public_share_allow_people = yes, anyone
+	 * holding any IntraVox share token could hand this endpoint a filter of their
+	 * own and read accounts the shared page never displays. The opt-in was doing
+	 * the work of an authorisation check, which it was never able to be.
+	 */
+	public function testAdminOptInDoesNotOpenFiltersThePageDoesNotPublish(): void {
+		$token = $this->openableToken();
+		$this->userService->expects($this->never())->method('getUsersByFilters');
+		// The page publishes some people widget, but not THIS filter.
+		$this->publicShareService->method('publishesWidgetValueSet')->willReturn(false);
+
+		$response = $this->controller(null, 'yes')->getPeopleByShare(
+			$token,
+			null,
+			'[{"fieldName":"salaris","operator":"gt","value":"0"}]'
+		);
+
+		$data = $response->getData();
+		$this->assertSame(0, $data['total']);
+		$this->assertSame([], $data['users']);
+	}
+
+	/** Manual mode is scoped too: only the uids the widget actually lists. */
+	public function testManualSelectionIsLimitedToThePublishedUsers(): void {
+		$token = $this->openableToken();
+		// Manual mode resolves uids through getUserProfiles(); asserting it is
+		// never reached is what makes this test discriminate — without the scope
+		// check 'bob' travels all the way into the profile lookup.
+		$this->userService->expects($this->never())->method('getUserProfiles');
+		$this->publicShareService->method('allowedWidgetValues')->willReturn(['anne']);
+
+		$response = $this->controller(null, 'yes')->getPeopleByShare($token, 'bob');
+
+		$data = $response->getData();
+		$this->assertSame(0, $data['total'], 'bob is not published by the widget');
+		$this->assertSame([], $data['users']);
 	}
 
 	/**

@@ -207,6 +207,23 @@ De export/import-interface gebruikt tabbed-navigatie met drie tabs:
 - Ontbrekende velden: log waarschuwing, ga door met andere pagina's
 - Permissie-fouten: stop import, toon welke pagina faalde
 
+### Als een import halverwege afbreekt
+
+Er is geen rollback, geen resume en geen idempotentiesleutel. Wat al geschreven
+is blijft staan, en opnieuw draaien wordt volledig bepaald door `overwrite`:
+
+- **`overwrite` uit** — al geschreven pagina's worden overgeslagen en geteld
+  onder `pagesSkipped`. Veilig om opnieuw te draaien; hij maakt af wat ontbreekt.
+- **`overwrite` aan** — alles wordt opnieuw geschreven, ook wat de eerste keer
+  wél lukte. Ook veilig, maar dat gooit bewerkingen weg die er tussendoor zijn
+  gemaakt.
+
+Lees het `stats`-object en niet de HTTP-status om te zien wat er gebeurd is: een
+run die alles oversloeg en een run die alles importeerde geven allebei 200.
+
+De tellers zijn totalen — er is geen lijst per pagina, dus een overgeslagen
+pagina wordt geteld maar niet benoemd.
+
 ---
 
 ## MetaVox-integratie

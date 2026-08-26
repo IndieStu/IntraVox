@@ -66,6 +66,10 @@ class BulkController extends Controller {
      * @param string $operation Operation type: 'delete', 'move', 'update'
      * @return DataResponse
      */
+    // The dry run: same 100-page resolution as the real thing, so it deserves a
+    // limit too. Looser than the mutating pair, because a migration checks before
+    // it acts and that is behaviour worth keeping cheap.
+    #[UserRateLimit(limit: 20, period: 60)]
     public function validateOperation(array $pageIds, string $operation): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required for bulk operations');
@@ -242,6 +246,9 @@ class BulkController extends Controller {
      *
      * @return DataResponse
      */
+    // Was the only mutating bulk endpoint without a limit, next to delete and
+    // move which both carry 5/60. Nothing about update makes it cheaper.
+    #[UserRateLimit(limit: 5, period: 60)]
     public function updatePages(): DataResponse {
         if (!$this->isAdmin()) {
             return $this->forbiddenResponse('Admin access required for bulk operations');

@@ -55,6 +55,25 @@ use Psr\Log\LoggerInterface;
  * which automatically respect GroupFolder ACL rules.
  */
 class ApiController extends Controller {
+    /**
+     * Ceiling on GET /api/pages.
+     *
+     * Far above any real instance on purpose: the paid tiers stop at 1000 pages
+     * per language, so this bounds a worst case without shaping ordinary use. It
+     * is not a page size — there is no cursor here yet, because listPages() has no
+     * ORDER BY and cursor paging over an unordered set silently skips and repeats
+     * rows. A stable sort has to land first.
+     */
+    private const MAX_PAGES_IN_LISTING = 2000;
+
+    /** Ceiling on the media listing; the picker shows far fewer than this. */
+    private const MAX_MEDIA_IN_LISTING = 1000;
+
+    /** Page size when a caller asks to paginate without saying how big. */
+    private const DEFAULT_PAGE_SIZE = 100;
+
+    /** Ceiling on an explicit page size, so paging cannot be used to bypass the cap. */
+    private const MAX_PAGE_SIZE = 500;
     use ApiErrorTrait;
     use \OCA\IntraVox\Controller\Shared\SharePathTrait;
     use HasConditionalResponse;
@@ -201,7 +220,7 @@ class ApiController extends Controller {
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function listPages(): DataResponse {
+    public function listPages(?int $limit = null, ?string $cursor = null): DataResponse {
         try {
             $pages = $this->pageService->listPages();
 
@@ -222,20 +241,118 @@ class ApiController extends Controller {
                 $filteredPages[] = $page;
             }
 
-            return new DataResponse($filteredPages);
+            // The response was unbounded: every page in the language, however
+            // many that is. The shape stays a bare array — the frontend treats
+            // this as a complete index of page ids, so wrapping it in an envelope
+            // would be a breaking change for a MINOR release — but it is now
+            // bounded, and a truncated answer says so instead of pretending to be
+            // complete. The ceiling is deliberately far above any real instance
+            // (the paid tiers top out at 1000 pages per language), so this caps a
+            // worst case rather than shaping ordinary use.
+            // Explicit paging is opt-in, and only then does the shape change. A
+            // caller that sends neither limit nor cursor keeps the bare array it
+            // has always had (D4): App.vue reads this as a complete index of page
+            // ids in nine places, so an unconditional envelope would be a breaking
+            // change dressed up as a MINOR.
+            if ($limit !== null || $cursor !== null) {
+                return $this->pagedListing($filteredPages, $limit, $cursor);
+            }
+
+            $total = count($filteredPages);
+            $response = new DataResponse(array_slice($filteredPages, 0, self::MAX_PAGES_IN_LISTING));
+            $response->addHeader('X-IntraVox-Cap', (string)self::MAX_PAGES_IN_LISTING);
+            $response->addHeader('X-IntraVox-Truncated', $total > self::MAX_PAGES_IN_LISTING ? 'true' : 'false');
+
+            if ($total > self::MAX_PAGES_IN_LISTING) {
+                $this->logger->warning('IntraVox: page listing truncated', [
+                    'total' => $total,
+                    'cap' => self::MAX_PAGES_IN_LISTING,
+                ]);
+            }
+
+            return $response;
         } catch (\Exception $e) {
             // If IntraVox folder doesn't exist, return empty array
             // This allows the WelcomeScreen to be shown instead of an error
             if (strpos($e->getMessage(), 'IntraVox folder not found') !== false) {
                 return new DataResponse([]);
             }
-            return new DataResponse(
-                ['error' => $e->getMessage()],
-                Http::STATUS_INTERNAL_SERVER_ERROR
-            );
+            $this->logger->error('IntraVox: listing pages failed', ['error' => $e->getMessage()]);
+            return new DataResponse(['error' => 'Could not list pages'], Http::STATUS_INTERNAL_SERVER_ERROR);
         }
     }
 
+    /**
+     * One page of the listing, keyed on where the previous one stopped.
+     *
+     * Keyset, never OFFSET. An offset counts rows, so a page created or deleted
+     * between two requests shifts everything after it: the caller silently skips
+     * a row or sees one twice, and nothing in the response says so. A migration
+     * walking a large intranet is exactly the caller that would hit it and the
+     * least likely to notice. plan-multisite-uitvoering.md §4.15 settled this for
+     * the multi-site work; using the same shape here keeps one answer in the API
+     * rather than two.
+     *
+     * The cursor is the sort key of the last row served -- (title, uniqueId), the
+     * order listPages() now guarantees -- and the next page is everything strictly
+     * greater than it. Deleting the row a cursor points at is therefore harmless:
+     * the comparison is on values, not on a position that has moved.
+     *
+     * Opaque on purpose. It is base64 of a JSON pair, which is trivially readable,
+     * and that is fine: the point is not secrecy but that clients must not build
+     * or arithmetic on it, because the key can change.
+     *
+     * @param list<array<string,mixed>> $pages already filtered and in sort order
+     */
+    private function pagedListing(array $pages, ?int $limit, ?string $cursor): DataResponse {
+        $pageSize = max(1, min($limit ?? self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));
+
+        if ($cursor !== null && $cursor !== '') {
+            $after = $this->decodeCursor($cursor);
+            if ($after === null) {
+                return new DataResponse(['error' => 'Invalid cursor'], Http::STATUS_BAD_REQUEST);
+            }
+
+            $pages = array_values(array_filter(
+                $pages,
+                static fn (array $p): bool => [(string)($p['title'] ?? ''), (string)($p['uniqueId'] ?? '')] > $after
+            ));
+        }
+
+        $slice = array_slice($pages, 0, $pageSize);
+        $hasMore = count($pages) > $pageSize;
+        $last = $slice === [] ? null : $slice[count($slice) - 1];
+
+        return new DataResponse([
+            'items' => $slice,
+            'hasMore' => $hasMore,
+            // Absent rather than null when the walk is done, so a client looping
+            // 'while nextCursor' terminates without a special case.
+            'nextCursor' => $hasMore && $last !== null
+                ? $this->encodeCursor([(string)($last['title'] ?? ''), (string)($last['uniqueId'] ?? '')])
+                : null,
+        ]);
+    }
+
+    /** @param array{0:string,1:string} $key */
+    private function encodeCursor(array $key): string {
+        return rtrim(strtr(base64_encode(json_encode($key)), '+/', '-_'), '=');
+    }
+
+    /** @return array{0:string,1:string}|null null when the cursor is not one we made */
+    private function decodeCursor(string $cursor): ?array {
+        $raw = base64_decode(strtr($cursor, '-_', '+/'), true);
+        if ($raw === false) {
+            return null;
+        }
+
+        $key = json_decode($raw, true);
+        if (!is_array($key) || count($key) !== 2 || !is_string($key[0]) || !is_string($key[1])) {
+            return null;
+        }
+
+        return [$key[0], $key[1]];
+    }
     /**
      */
     #[NoAdminRequired]
@@ -708,7 +825,16 @@ class ApiController extends Controller {
 
             $mediaList = $this->pageService->getMediaList($pageId, $folder, $path);
 
-            return new DataResponse(['media' => $mediaList]);
+            // Naturally bounded by one folder's contents, which is not the same as
+            // bounded. The shared resources folder in particular grows with the
+            // instance rather than with the page. Same contract as the page
+            // listing: the shape does not change, and a truncated answer says so.
+            $total = count($mediaList);
+            $response = new DataResponse(['media' => array_slice($mediaList, 0, self::MAX_MEDIA_IN_LISTING)]);
+            $response->addHeader('X-IntraVox-Cap', (string)self::MAX_MEDIA_IN_LISTING);
+            $response->addHeader('X-IntraVox-Truncated', $total > self::MAX_MEDIA_IN_LISTING ? 'true' : 'false');
+
+            return $response;
         } catch (\Exception $e) {
             return new DataResponse(
                 ['error' => $e->getMessage()],
@@ -1082,10 +1208,8 @@ class ApiController extends Controller {
                 'groupfolderId' => $groupfolderId
             ]);
         } catch (\Exception $e) {
-            return new DataResponse(
-                ['fields' => [], 'error' => $e->getMessage()],
-                Http::STATUS_OK
-            );
+            $this->logger->warning('IntraVox: MetaVox fields unavailable', ['error' => $e->getMessage()]);
+            return new DataResponse(['fields' => [], 'error' => 'MetaVox fields are unavailable'], Http::STATUS_OK);
         }
     }
 
@@ -1166,6 +1290,21 @@ class ApiController extends Controller {
 
     /**
      */
+    // Every search reads and json_decodes every page file in the language --
+    // searchPages() calls listPagesWithContent() and scores the lot, then keeps
+    // the top 20. The RESULTS were capped; the WORK was not, and this was the one
+    // anonymous-adjacent amplifier left: any logged-in user could drive a full
+    // content scan as fast as they could send requests.
+    //
+    // A scan cap would be the wrong instrument. listPages() has no ORDER BY, so
+    // stopping halfway means the best match is missed at random rather than
+    // reported as partial -- worse than slow. Throttling bounds the abuse and
+    // leaves the answer correct.
+    //
+    // Safe to add: nothing in src/ calls this endpoint, and Nextcloud's own
+    // search bar reaches PageService directly through PageSearchProvider, which
+    // has its own indexed path and limit.
+    #[UserRateLimit(limit: 30, period: 60)]
     #[NoAdminRequired]
     #[NoCSRFRequired]
     public function searchPages(string $query): DataResponse {
@@ -1593,10 +1732,10 @@ class ApiController extends Controller {
 
     /**
      * Health check endpoint for monitoring and orchestration.
-     *
      */
     #[PublicPage]
     #[NoCSRFRequired]
+    #[AnonRateLimit(limit: 60, period: 60)]
     public function health(): DataResponse {
         return new DataResponse([
             'status' => 'ok',
@@ -2180,7 +2319,7 @@ class ApiController extends Controller {
             ]);
 
             // Create HTML importer
-            $htmlImporter = new ConfluenceHtmlImporter($this->logger);
+            $htmlImporter = new ConfluenceHtmlImporter($this->logger, new \OCA\IntraVox\Service\Import\SafeZipExtractor($this->logger));
             $confluenceImporter = new ConfluenceImporter($this->logger);
 
             // Import from ZIP

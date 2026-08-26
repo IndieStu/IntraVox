@@ -52,11 +52,11 @@ Per-feature documentatie voor widgets en mogelijkheden.
 
 Technische documentatie voor integratie, evaluatie en bijdrage.
 
-- [Architectuur-overzicht](architecture/overview.md) — Systeem-design en componenten
+- [Architectuur-overzicht](architecture/overview.nl.md) — Systeem-design en componenten
 - [API-referentie](architecture/api-reference.md) — REST API-endpoints
-- [API-development gids](architecture/api-development.md) — Bouwen op de IntraVox-API
-- [Template API quickstart](architecture/template-api-quickstart.md) — Template-API in 5 minuten
-- [OpenAPI-tooling](architecture/openapi-tooling.md) — OpenAPI-specs genereren en valideren
+- [API-development gids](architecture/api-development.nl.md) — Bouwen op de IntraVox-API
+- [Template API quickstart](architecture/template-api-quickstart.nl.md) — Template-API in 5 minuten
+- [OpenAPI-tooling](architecture/openapi-tooling.nl.md) — OpenAPI-specs genereren en valideren
 - [SharePoint-vergelijking](architecture/sharepoint-comparison.nl.md) — Mapping voor beslissers tussen SharePoint Online moderne pagina's en IntraVox, inclusief soevereiniteit en wetgeving
 
 ## Aan de slag

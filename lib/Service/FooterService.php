@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Service\Sanitize\HtmlSanitizer;
 use OCP\Files\IRootFolder;
 use OCP\Files\NotFoundException;
 use OCP\IUserSession;
@@ -16,6 +17,7 @@ class FooterService {
     private SystemFileService $systemFileService;
     private IConfig $config;
     private LanguageService $languageService;
+    private HtmlSanitizer $htmlSanitizer;
     private const DEFAULT_LANGUAGE = 'en';
 
     public function __construct(
@@ -25,6 +27,7 @@ class FooterService {
         SystemFileService $systemFileService,
         IConfig $config,
         LanguageService $languageService,
+        HtmlSanitizer $htmlSanitizer,
         ?string $userId
     ) {
         $this->rootFolder = $rootFolder;
@@ -33,6 +36,7 @@ class FooterService {
         $this->systemFileService = $systemFileService;
         $this->config = $config;
         $this->languageService = $languageService;
+        $this->htmlSanitizer = $htmlSanitizer;
         $this->userId = $userId ?? '';
     }
 
@@ -153,8 +157,18 @@ class FooterService {
             $groupFolder = $this->getIntraVoxFolder();
             $languageFolder = $groupFolder->get($language);
 
-            // Content is already sanitized by DOMPurify in the frontend
-            // Store as-is like text widgets do
+            // Sanitize server-side. The comment here used to say the frontend had
+            // already done it with DOMPurify -- which is true of the editor and
+            // irrelevant to security: POST /api/footer is a plain endpoint and a
+            // crafted request never runs that code. The footer is rendered with
+            // v-html on every page, so a stored script would run for every logged-in
+            // viewer.
+            //
+            // Text widgets have always been sanitized here (PageShapeSanitizer:306
+            // calls the same service); the footer was the one v-html surface that
+            // was not. Same renderer, same trust, so the same treatment.
+            $content = $this->htmlSanitizer->sanitize($content);
+
             $data = [
                 'content' => $content,
                 'modified' => time(),

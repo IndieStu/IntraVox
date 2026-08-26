@@ -75,6 +75,59 @@ Noteer bij een genegeerde hit kort *waarom* in de PR/commit.
 
 Referentie: <https://owasp.org/Top10/2025/> · Cheat Sheets: <https://cheatsheetseries.owasp.org/>
 
+### Uitslag van de 2.5-ronde (26-08-2026)
+
+Twee hits die echte fixes werden, en één bevinding die bewust blijft staan.
+
+- **A02 — footer werd opgeslagen zoals aangeleverd.** `saveFooter()` bewaarde de
+  inhoud ongefilterd onder de opmerking "already sanitized by DOMPurify in the
+  frontend". Dat klopt voor de editor en is irrelevant voor security: `POST
+  /api/footer` is een gewoon endpoint en een handmatig verzoek draait die
+  JavaScript niet. De footer rendert via `v-html` op elke pagina. Gefixt met de
+  sanitizer die tekstwidgets al jaren gebruikt — dezelfde renderer, dezelfde
+  auteurs, dezelfde behandeling. Niet anoniem bereikbaar (de footer gaat niet mee
+  in public shares), dus begrensd tot ingelogde gebruikers.
+- **A02 — tien lekken in CommentController** gaven `$e->getMessage()` terug aan de
+  client. Gefixt via `ApiErrorTrait::safeErrorResponse()`.
+
+**Bewust NIET gefixt in 2.5, wél opgeschreven:** er staan nog **42
+`catch (\Exception)`-blokken die `$e->getMessage()` in een response zetten**,
+waarvan 38 in `ApiController`. Geteld met:
+
+```bash
+python3 - <<'EOF'
+import re,glob,os
+tot=0
+for f in sorted(glob.glob('lib/Controller/*.php')):
+    src=open(f,newline='').read(); hits=0
+    for m in re.finditer(r'catch \(\\?Exception \$e\) \{(.*?)(?=\n        \}|\n    \}|catch \()', src, re.S):
+        body=re.sub(r'\$this->logger->\w+\([^;]*?\);','',m.group(1),flags=re.S)
+        if re.search(r"'error'\s*=>\s*\$e->getMessage\(\)", body): hits+=1
+    if hits: print(f"{os.path.basename(f):<34} {hits}")
+    tot+=hits
+print('TOTAAL:',tot)
+EOF
+```
+
+Waarom uitgesteld: dit is 42 losse beslissingen over wat een client *wel* mag
+weten, elk met een eigen publieke boodschap, in een release die al een groot
+gedragsoppervlak raakt. Ze in één sweep genericeren is precies hoe je de twee
+contract-sites in `CommentController` sloopt (zie `CommentErrorLeakTest`).
+Vervolgstap voor 2.6, per controller, met dezelfde aanpak als hier.
+
+Let op de meetfout die makkelijk is: een kale `grep getMessage()` telt er 122.
+Daar zitten `logger->error()`-aanroepen bij (geen lek) en `catch`-blokken op
+app-eigen types als `InvalidArgumentException` en `PageNotFoundException`, waarvan
+de boodschap door deze app zelf geschreven is (geen lek). Alleen generieke
+`\Exception`-vangsten tellen.
+
+- **A03** — `npm audit`: 0 vulnerabilities.
+- **A04** — geen `rand()`/`uniqid()` op security-paden; de vier hits zijn
+  bestandsnamen en nav-ids. Alle drie de signature-vergelijkingen gebruiken
+  `hash_equals()`.
+- **A05** — één `v-html` zonder zichtbare sanitizer (`Footer.vue:15`); dat was de
+  A02-bevinding hierboven en is nu server-side afgedekt.
+
 ### A01 — Broken Access Control
 
 - [ ] Elke nieuwe/gewijzigde controller-methode heeft een bewuste access-attribute.
@@ -472,7 +525,7 @@ or changes UI.
 
 - [ ] Determine new version number (semantic versioning: MAJOR.MINOR.PATCH)
 - [ ] Run `node scripts/sync-version.js X.Y.Z` to update both `package.json` and `appinfo/info.xml` in one go
-- [ ] Manually update `openapi.json` `"version": "X.Y.Z"` — `sync-version.js` does NOT touch it yet (current `openapi.json` is at 1.5.5 while app is at 1.6.0; fix on next release)
+- [x] ~~Manually update `openapi.json` version~~ — `sync-version.js` now writes all three files (package.json, appinfo/info.xml, openapi.json) and `--check` fails the prebuild when they disagree. Nothing to do by hand.
 - [ ] Verify all four locations match:
   ```bash
   grep '"version"' package.json | head -1
@@ -503,8 +556,21 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 - [ ] Update `openapi.json` with any new/changed API **endpoints** (paths + verbs). Cross-check `appinfo/routes.php` — every route a release touched should have a documented path (1.9.0 caught `/api/pages/{pageId}/metadata` GET+PUT missing entirely).
 - [ ] Update `openapi.json` **shared schemas** for any new config/response fields (notably `WidgetConfig` for new widget settings, `PageTreeNode`/`Permissions` for tree/permission changes).
 - [ ] Update descriptions when a field's meaning changed (e.g. `limit` going from "max rows" to "total cap in both pagination modes").
-- [ ] Validate JSON syntax: `python3 -c "import json; json.load(open('openapi.json')); print('Valid')"`
-- [ ] Bump `openapi.json` `"version"` to match (see §3 — `sync-version.js` does not touch it).
+- [ ] Validate the spec: `npx @redocly/cli lint openapi.json` (JSON syntax alone no longer says much)
+- [ ] `npm run lint:openapi` — coverage ratchet: every route documented, no phantom paths, no quality debt
+- [ ] `npm run test:contract` — Tier A contract test against a running dev instance. Needs
+      `INTRAVOX_CONTRACT_USER` and an **app password** in `INTRAVOX_CONTRACT_TOKEN`; revoke it afterwards.
+      This is the only check that compares a real response body against the published schema.
+
+      > ⚠️ **Draai dit niet terwijl iemand in dev aan het werk is.** De run doet duizenden
+      > requests en Nextclouds brute-force-teller staat op het NETWERK, niet op de gebruiker —
+      > dus iedereen op hetzelfde adres krijgt "Te veel aanvragen" te zien. Het script wist de
+      > teller zelf bij het afsluiten (ook bij ctrl-C of een fout), maar tijdens de run kan het
+      > alsnog raken. Blijft er iets hangen:
+      > ```bash
+      > ssh rik@178.63.205.103 "docker exec -u www-data nc-dev php occ security:bruteforce:reset <ip>"
+      > ```
+- [x] ~~Bump `openapi.json` `"version"` to match~~ — handled by `sync-version.js`; the prebuild gate catches drift.
 - [ ] Verify all public share endpoints are documented
 - [ ] Update response schemas if changed
 
@@ -513,7 +579,7 @@ For **every** feature/fix in this release, confirm both halves, because the two 
 ## 4b. Quality gate — run what CI runs
 
 Since the F0–F7 refactor the repository has an automated gate, and it is the
-same one `.gitea/workflows/ci.yml` runs on every push. **Run all of it locally
+same one `.github/workflows/ci.yml` runs on every push. **Run all of it locally
 before tagging**, not a subset — a guard you have not heard of still fails the
 pipeline.
 
@@ -532,6 +598,18 @@ pipeline.
   | `lint:security` | a rate-limit/brute-force marker that cannot fire |
   | `lint:routes` | `docs/route-table.md` out of date vs the controllers |
 
+- [ ] PHP syntax check across every source — CI runs this before anything else,
+      and it catches a parse error that unit tests never reach because the file
+      is not loaded:
+  ```bash
+  find lib templates -name '*.php' -print0 | xargs -0 -n1 php -l | grep -v 'No syntax errors'
+  ```
+- [ ] Self-test the packaging guard. CI builds three deliberately broken packages
+      (no vendor, dev vendor, and a good one) and asserts the guard rejects the
+      first two. Worth running whenever the guard itself changed:
+  ```bash
+  # the step is inline in .github/workflows/ci.yml under "Self-test the packaging guard"
+  ```
 - [ ] PHP unit tests:
   ```bash
   ./vendor/bin/phpunit --testsuite Unit --no-coverage
@@ -584,7 +662,8 @@ pipeline.
 
 - [ ] Check `appinfo/info.xml`: `<nextcloud min-version="32" max-version="34"/>` (update max as new NC versions release; current confirmed range as of June 2026)
 - [ ] PHP requirement: `<php min-version="8.2"/>` (matches composer.json; NC34 requires PHP `>=8.2 <8.6`)
-- [ ] Test on target Nextcloud version (3dev: NC33; hetzner nc-dev: NC33)
+- [ ] Test on target Nextcloud version — hetzner `nc-dev` runs **NC34** (34.0.2.1, checked 26-08-2026).
+      Verify with: `ssh rik@178.63.205.103 "docker exec -u www-data nc-dev php occ config:system:get version"`
 - [ ] **Bundled lib parity** with NC34: `@nextcloud/vue` ≥ 9.8 (NC34 ships 9.8.x); Vue ≥ 3.5 (NC34 ships 3.5.x). See §1b.
 - [ ] **Enterprise detection** (when relevant): since 2.4.1 IntraVox asks `IRegistry::delegateHasValidSubscription()` (public since NC 17) whether the instance has an Enterprise subscription, and reports `Util::hasExtendedSupport` separately as the narrower add-on signal. `hasExtendedSupport` alone answers a different question and falls back to the `extendedSupport` system setting, so an admin could set it by hand — do not reintroduce it as the subscription check. Verify behaviour on a non-Enterprise instance after each NC major bump — the API surface can shift.
 - [ ] **OC.* globals** (legacy front-end): IntraVox still references `OC.dialogs.filepicker`, `OC.MimeType.getIconUrl`, `OC.L10N.translate`, `OC.requestToken`, `OC.webroot`. All five remain functional in NC34 stable (deprecated, not removed). Migration to `@nextcloud/*` equivalents is a 1.7+ task — not blocking for NC34 support.
@@ -607,7 +686,12 @@ Required files in tarball:
 | `demo-data/` | Demo content for setup wizard     |
 | Root files   | CHANGELOG.md, LICENSE, README.md  |
 
-**Exclude from tarball:** `src/`, `node_modules/`, `screenshots/`, `docs/`, `.git/`, `*.key`, `deploy.sh`, `openapi.json`, `scripts/`, `.tx/`, `.l10nignore`, `translationfiles/`, `examples/`, `showcases/`, `testdata/`
+**Exclude from tarball:** `src/`, `node_modules/`, `screenshots/`, `docs/`, `.git/`, `*.key`, `deploy.sh`, `scripts/`, `.tx/`, `.l10nignore`, `translationfiles/`, `examples/`, `showcases/`, `testdata/`
+
+> ⚠️ **`openapi.json` IS shipped** (`create-release.sh:139`) — this line used to claim the
+> opposite. It means the spec lands on every installation, so a wrong or stale spec is
+> published rather than kept in-repo. That is why its version is now synced and why the
+> coverage ratchet runs in the prebuild.
 
 > ⚠️ **`cp -r l10n …` copies dev-only l10n files too.** `l10n/en.json`, `l10n/en.js` and
 > `l10n/.source-count.js` are gitignored build artefacts; `l10n/.source-strings.json` is

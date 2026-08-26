@@ -142,7 +142,7 @@ diff rather than staying buried in 14 controllers.
 | GET | `/api/calendar/calendars` | `calendar#getCalendars` | any logged-in user | exempt |
 | GET | `/api/calendar/events` | `calendar#getEvents` | any logged-in user | exempt |
 | GET | `/api/feed/external` | `feedReader#getFeed` | any logged-in user | exempt |
-| GET | `/api/feed/preview` | `feedReader#getPreview` | any logged-in user | exempt |
+| GET | `/api/feed/preview` | `feedReader#getPreview` | any logged-in user | required |
 | GET | `/api/feed/image` | `feedReader#proxyImage` | any logged-in user | exempt |
 | GET | `/api/feed/courses/{connectionId}` | `feedReader#getCourses` | any logged-in user | exempt |
 | GET | `/api/feed/sharepoint-lists/{connectionId}` | `feedReader#getSharePointLists` | any logged-in user | exempt |

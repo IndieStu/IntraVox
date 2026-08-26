@@ -11,6 +11,7 @@ use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\JSONResponse;
 use OCP\IRequest;
+use OCA\IntraVox\Controller\HasConditionalResponse;
 
 /**
  * Footer Controller
@@ -19,6 +20,8 @@ use OCP\IRequest;
  * respect GroupFolder ACL rules.
  */
 class FooterController extends Controller {
+    use HasConditionalResponse;
+
     private FooterService $footerService;
     private PageService $pageService;
 
@@ -56,8 +59,12 @@ class FooterController extends Controller {
             $footer['permissions'] = $permissions;
             $footer['canEdit'] = $permissions['canWrite'];
 
-            $response = new JSONResponse($footer);
+            // Same as navigation: the ETag was sent but never compared against
+            // If-None-Match, so the 304 branch could not happen.
             $etag = '"' . md5(json_encode($footer)) . '"';
+            $response = $this->clientHasCurrent($etag)
+                ? new JSONResponse([], Http::STATUS_NOT_MODIFIED)
+                : new JSONResponse($footer);
             $response->addHeader('Cache-Control', 'private, max-age=300, must-revalidate');
             $response->addHeader('ETag', $etag);
 

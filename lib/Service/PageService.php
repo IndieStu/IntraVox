@@ -1117,7 +1117,7 @@ class PageService {
         // must never be cached across users.
         $indexed = $this->listPagesFromIndex($folder);
         if ($indexed !== null) {
-            return $indexed;
+            return $this->inStableOrder($indexed);
         }
 
         $intraVoxFolder = $this->getIntraVoxFolder();
@@ -1150,6 +1150,46 @@ class PageService {
 
         // Recursively find all pages in subfolders
         $this->findPagesInFolder($folder, $pages, $basePath);
+
+        return $this->inStableOrder($pages);
+    }
+
+    /**
+     * One deterministic order for the page listing.
+     *
+     * There was none. The indexed branch returned whatever the database handed
+     * back (no ORDER BY) and the fallback branch whatever the filesystem walk
+     * produced, so the same instance could answer the same request in a different
+     * order — and which of the two branches ran depended on whether the index
+     * happened to cover the language.
+     *
+     * That is a problem beyond tidiness. Cursor pagination needs a total order to
+     * be correct: without one, the same cursor silently skips some rows and
+     * repeats others between two requests. plan-multisite-uitvoering.md §4.15 has
+     * already settled on keyset paging over (slug, id) and 'never OFFSET', so the
+     * order has to exist before that can be built.
+     *
+     * Sorted on title, then uniqueId as the tie-breaker. Title because it is the
+     * only human-meaningful field this listing actually carries — it returns
+     * uniqueId, title, status, modified and permissions, and no path, so sorting
+     * on a path would silently degrade to sorting on nothing. uniqueId last
+     * because titles are not unique and a sort whose final key repeats is not a
+     * total order.
+     *
+     * Byte comparison, not locale collation: two pages whose titles differ only in
+     * accents may not land where a Dutch reader would file them. That is a
+     * deliberate trade — this order exists to be STABLE, so that a cursor can
+     * rely on it, and locale-aware collation would make it depend on the server's
+     * locale, which is the opposite of what a cursor needs.
+     *
+     * @param list<array<string,mixed>> $pages
+     * @return list<array<string,mixed>>
+     */
+    private function inStableOrder(array $pages): array {
+        usort($pages, static function (array $a, array $b): int {
+            return [(string)($a['title'] ?? ''), (string)($a['uniqueId'] ?? '')]
+                <=> [(string)($b['title'] ?? ''), (string)($b['uniqueId'] ?? '')];
+        });
 
         return $pages;
     }
@@ -2747,40 +2787,22 @@ class PageService {
      */
     private function scanPageFolder($folder): void {
         try {
-            $folderPath = $folder->getPath();
-
-            // For groupfolders, run occ files:scan directly
-            // Match pattern: /__groupfolders/{id}/files/{anything}
-            if (preg_match('#/__groupfolders/(\d+)/files/(.+)$#', $folderPath, $matches)) {
-                $relativePath = $matches[2]; // e.g., "en/team-sales/sales-1"
-
-                $user = $this->userSession->getUser();
-                if (!$user) {
-                    return;
-                }
-
-                $username = $user->getUID();
-                $scanPath = "/{$username}/files/IntraVox/{$relativePath}";
-
-                // Execute occ files:scan (already running as www-data via web server)
-                $command = sprintf(
-                    'php /var/www/nextcloud/occ files:scan --path=%s 2>&1',
-                    escapeshellarg($scanPath)
-                );
-
-                exec($command, $output, $returnCode);
-
-                if ($returnCode !== 0) {
-                    $this->logger->warning('Failed to scan page folder', [
-                        'path' => $scanPath,
-                        'exit_code' => $returnCode,
-                        'output' => implode("\n", $output ?? [])
-                    ]);
-                }
-
-                return;
-            }
-
+            // There used to be a groupfolders branch here that shelled out to
+            // `php /var/www/nextcloud/occ files:scan` per page and returned
+            // unconditionally. It never ran. The regex tested getPath(), which is
+            // the user-facing view (/rik/files/IntraVox/nl/page) and never
+            // contains /__groupfolders/ — that only appears in getInternalPath(),
+            // which is exactly what the code below matches on.
+            //
+            // So the fork was unreachable and the in-process scanner has been
+            // doing the work all along. Verified on dev: four page creations, zero
+            // 'Failed to scan page folder' warnings, on a container where the
+            // hardcoded /var/www/nextcloud/occ does not even exist — had the
+            // branch been live, every one of them would have logged a failure.
+            //
+            // Removing it takes out a hardcoded occ path, a hardcoded 'IntraVox'
+            // mount name, and a synchronous process fork from the request path,
+            // none of which were earning anything.
             // Fallback for non-groupfolder paths (shouldn't happen in IntraVox)
             $storage = $folder->getStorage();
             $scanner = $storage->getScanner();

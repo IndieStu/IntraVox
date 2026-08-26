@@ -42,6 +42,22 @@ trait HasConditionalResponse {
     }
 
     /**
+     * Does the caller already hold this exact representation?
+     *
+     * Split out from respondNotModifiedIfMatches() because two controllers need
+     * the comparison but return JSONResponse, and the helper above is typed to
+     * DataResponse — sibling classes, not relatives, so `use`-ing the trait there
+     * compiles while leaving every helper uncallable. The header comparison is the
+     * part that is easy to get wrong (an empty If-None-Match must never match an
+     * empty ETag), so that is what gets shared.
+     */
+    protected function clientHasCurrent(string $etag): bool {
+        $ifNoneMatch = $this->request->getHeader('If-None-Match');
+
+        return $ifNoneMatch !== '' && $etag !== '' && $ifNoneMatch === $etag;
+    }
+
+    /**
      * Attach ETag + Cache-Control headers to a response that is about to be
      * returned with a 200. Returns the same response for chaining.
      */

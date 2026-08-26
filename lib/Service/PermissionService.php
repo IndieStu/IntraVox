@@ -55,6 +55,18 @@ class PermissionService {
     private array $nodePermissionsCache = [];
 
     /**
+     * The assembled permission array per node path.
+     *
+     * getNodePermissions() already memoises the bitmask, but permissionsFromNode()
+     * ANDs three capability calls on top of it — isUpdateable/isCreatable/
+     * isDeletable — and those ran on every call. The page tree resolves
+     * permissions per node on every request (ACLs differ WITHIN a group, so the
+     * cached tree cannot carry them), so any path asked for twice in a request
+     * paid for all three again.
+     */
+    private array $permissionArrayCache = [];
+
+    /**
      * Per-request memo of the groupfolder id, keyed by mount point name.
      * Uses array_key_exists, not isset: a resolved-to-null answer must be
      * cached too, otherwise a broken install re-walks every groupfolder on
@@ -590,8 +602,13 @@ class PermissionService {
      * un-AND-ed for API back-compat.
      */
     public function permissionsFromNode(Node $node): array {
+        $path = $node->getPath();
+        if (isset($this->permissionArrayCache[$path])) {
+            return $this->permissionArrayCache[$path];
+        }
+
         $perms = $this->getNodePermissions($node);
-        return [
+        return $this->permissionArrayCache[$path] = [
             'canRead' => ($perms & 1) !== 0,
             'canWrite' => ($perms & 2) !== 0 && $node->isUpdateable(),
             'canCreate' => ($perms & 4) !== 0 && $node->isCreatable(),
@@ -626,6 +643,7 @@ class PermissionService {
      */
     public function clearNodePermissionsCache(): void {
         $this->nodePermissionsCache = [];
+        $this->permissionArrayCache = [];
     }
 
     /**

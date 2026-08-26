@@ -559,7 +559,7 @@ create_page_from_template "department" "HR-afdeling" "/teams"
 
 - **Volledige API-referentie:** [api-reference.md](api-reference.md) — complete endpoint-documentatie met alle parameters en responses
 - **Template-features:** [TEMPLATES.md](../user/templates.md) — overzicht van het template-systeem en ingebouwde templates
-- **OpenAPI-tooling:** [openapi-tooling.md](openapi-tooling.md) — gebruik Swagger UI, Postman en code-generators met de IntraVox-API
+- **OpenAPI-tooling:** [openapi-tooling.md](openapi-tooling.nl.md) — gebruik Swagger UI, Postman en code-generators met de IntraVox-API
 - **Autorisatie:** [authorization.md](../admin/authorization.md) — GroupFolder-permissies en toegangscontrole
 
 **Geavanceerde onderwerpen:**
