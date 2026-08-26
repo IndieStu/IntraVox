@@ -2747,40 +2747,22 @@ class PageService {
      */
     private function scanPageFolder($folder): void {
         try {
-            $folderPath = $folder->getPath();
-
-            // For groupfolders, run occ files:scan directly
-            // Match pattern: /__groupfolders/{id}/files/{anything}
-            if (preg_match('#/__groupfolders/(\d+)/files/(.+)$#', $folderPath, $matches)) {
-                $relativePath = $matches[2]; // e.g., "en/team-sales/sales-1"
-
-                $user = $this->userSession->getUser();
-                if (!$user) {
-                    return;
-                }
-
-                $username = $user->getUID();
-                $scanPath = "/{$username}/files/IntraVox/{$relativePath}";
-
-                // Execute occ files:scan (already running as www-data via web server)
-                $command = sprintf(
-                    'php /var/www/nextcloud/occ files:scan --path=%s 2>&1',
-                    escapeshellarg($scanPath)
-                );
-
-                exec($command, $output, $returnCode);
-
-                if ($returnCode !== 0) {
-                    $this->logger->warning('Failed to scan page folder', [
-                        'path' => $scanPath,
-                        'exit_code' => $returnCode,
-                        'output' => implode("\n", $output ?? [])
-                    ]);
-                }
-
-                return;
-            }
-
+            // There used to be a groupfolders branch here that shelled out to
+            // `php /var/www/nextcloud/occ files:scan` per page and returned
+            // unconditionally. It never ran. The regex tested getPath(), which is
+            // the user-facing view (/rik/files/IntraVox/nl/page) and never
+            // contains /__groupfolders/ — that only appears in getInternalPath(),
+            // which is exactly what the code below matches on.
+            //
+            // So the fork was unreachable and the in-process scanner has been
+            // doing the work all along. Verified on dev: four page creations, zero
+            // 'Failed to scan page folder' warnings, on a container where the
+            // hardcoded /var/www/nextcloud/occ does not even exist — had the
+            // branch been live, every one of them would have logged a failure.
+            //
+            // Removing it takes out a hardcoded occ path, a hardcoded 'IntraVox'
+            // mount name, and a synchronous process fork from the request path,
+            // none of which were earning anything.
             // Fallback for non-groupfolder paths (shouldn't happen in IntraVox)
             $storage = $folder->getStorage();
             $scanner = $storage->getScanner();
