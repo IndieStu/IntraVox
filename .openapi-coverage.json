@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 146,
-    "undocumented": 25
+    "documented": 156,
+    "undocumented": 15
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -14,19 +14,11 @@
     "GET /api/lms/callback": "OAuth redirect target. Returns an HTML page that postMessages the opener; it is not callable by an API client and carries no JSON contract."
   },
   "undocumented": [
-    "GET /api/admin/shares",
-    "GET /api/health",
-    "GET /api/metavox/fields",
-    "GET /api/page/{pageId}/cache-status",
     "GET /api/pages/{pageId}/content",
     "GET /api/pages/{pageId}/versions/{timestamp}/content",
     "GET /api/photo-story/open-in-files",
     "GET /api/resources/media/{filename}",
     "GET /api/resources/media/{folder}/{filename}",
-    "GET /api/settings/upload-limit",
-    "GET /api/users/fields",
-    "GET /api/users/groups",
-    "GET /api/users/search",
     "POST /api/homepage",
     "POST /api/import/confluence/html",
     "POST /api/import/zip",
@@ -35,9 +27,7 @@
     "POST /api/pages/reorder",
     "POST /api/pages/{pageId}/media/check",
     "POST /api/pages/{pageId}/media/upload",
-    "POST /api/settings/telemetry",
     "POST /api/setup",
-    "POST /api/users",
     "PUT /api/pages/{pageId}/versions/{timestamp}/label"
   ],
   "quality_debt": {

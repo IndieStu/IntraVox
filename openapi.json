@@ -8000,6 +8000,611 @@
           }
         }
       }
+    },
+    "/api/users/search": {
+      "get": {
+        "operationId": "search-users",
+        "summary": "Find users by name or id",
+        "description": "Substring search over display names and user ids.\n\nA query shorter than two characters returns an empty list with an explanatory message and HTTP 200 — not a 400. Enumerating the whole directory one letter at a time is the thing this prevents.\n\nEVERY LOGGED-IN USER MAY CALL THIS. What comes back is filtered per property by the visibility scope each user set in Personal info, so a field marked private is omitted rather than returned. uid, displayName, avatarUrl, groups and status are always present; everything else depends on the subject's own settings.\n\nProperties synced from LDAP or OIDC are included too, and those are never enumerated in a fixed list — whatever the directory syncs can appear here, subject to the same scope check.",
+        "tags": [
+          "People"
+        ],
+        "parameters": [
+          {
+            "name": "query",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 2
+            },
+            "description": "Under two characters yields an empty result rather than an error."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 50
+            },
+            "description": "Clamped to 50 server-side; asking for more silently gets 50."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Matching users, or an empty list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserProfile"
+                      }
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Present only when the query was too short."
+                    }
+                  },
+                  "required": [
+                    "users"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "The search failed."
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "post": {
+        "operationId": "get-users-by-id",
+        "summary": "Resolve several users by id",
+        "description": "Bulk profile lookup. POST rather than GET because the id list can be long enough to run into URL limits — it reads nothing and writes nothing.\n\nAn empty list returns an empty result rather than every user.\n\nEVERY LOGGED-IN USER MAY CALL THIS. What comes back is filtered per property by the visibility scope each user set in Personal info, so a field marked private is omitted rather than returned. uid, displayName, avatarUrl, groups and status are always present; everything else depends on the subject's own settings.\n\nProperties synced from LDAP or OIDC are included too, and those are never enumerated in a fixed list — whatever the directory syncs can appear here, subject to the same scope check.",
+        "tags": [
+          "People"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "userIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "userIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Profiles for the ids that exist. Unknown ids are omitted rather than reported.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "users": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserProfile"
+                      }
+                    }
+                  },
+                  "required": [
+                    "users"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "The lookup failed."
+          }
+        }
+      }
+    },
+    "/api/users/groups": {
+      "get": {
+        "operationId": "get-groups",
+        "summary": "All groups on the instance",
+        "description": "Every group, sorted case-insensitively by display name. Used to populate filter dropdowns.\n\nAvailable to every logged-in user, and NOT scoped to the caller's own memberships — this is the full group list of the instance.",
+        "tags": [
+          "People"
+        ],
+        "responses": {
+          "200": {
+            "description": "All groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "groups": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "groups"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "Groups could not be read."
+          }
+        }
+      }
+    },
+    "/api/users/fields": {
+      "get": {
+        "operationId": "get-user-fields",
+        "summary": "Filterable and displayable user fields",
+        "description": "The account properties the People widget can filter and display, in editor order. This is the FIELD CATALOGUE, not anyone's data — it describes what fields exist, never their values.\n\n'group' is included as a pseudo-field of type select alongside the real account properties.",
+        "tags": [
+          "People"
+        ],
+        "responses": {
+          "200": {
+            "description": "Available fields",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "label": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": [
+                              "text",
+                              "date",
+                              "select"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "fields"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "Fields could not be read."
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Liveness probe",
+        "description": "Confirms the app is installed and responding, and reports its version. The only unauthenticated JSON endpoint in the API that is not gated by a share token.\n\nDeliberately minimal: it reports nothing about the database, the group folder or configuration, so it cannot be used to fingerprint an instance beyond the app version. Rate limited to 60 per minute per client.",
+        "tags": [
+          "External API"
+        ],
+        "security": [
+          {}
+        ],
+        "responses": {
+          "200": {
+            "description": "The app is responding.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "ok"
+                      ]
+                    },
+                    "app": {
+                      "type": "string",
+                      "enum": [
+                        "intravox"
+                      ]
+                    },
+                    "version": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "status",
+                    "app",
+                    "version"
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per minute per client)."
+          }
+        }
+      }
+    },
+    "/api/settings/upload-limit": {
+      "get": {
+        "operationId": "get-upload-limit",
+        "summary": "Effective maximum upload size",
+        "description": "The upload ceiling actually in force, derived from the server's PHP and Nextcloud settings rather than from anything IntraVox configures. Use it to size a client-side check; the server enforces it regardless.",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "The limit, in bytes and in MB.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "limit": {
+                      "type": "integer",
+                      "description": "Bytes."
+                    },
+                    "limitMB": {
+                      "type": "number",
+                      "description": "The same value in MB, rounded to one decimal. Convenience only."
+                    }
+                  },
+                  "required": [
+                    "limit",
+                    "limitMB"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "The limit could not be determined."
+          }
+        }
+      }
+    },
+    "/api/settings/telemetry": {
+      "post": {
+        "operationId": "set-telemetry",
+        "summary": "Turn anonymous usage telemetry on or off",
+        "description": "Administrators only. Takes effect immediately for subsequent background reporting runs.",
+        "tags": [
+          "Settings"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Absent is treated as false, so an empty body switches telemetry OFF rather than leaving it unchanged."
+                  }
+                },
+                "required": [
+                  "enabled"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "enabled": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "enabled"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "The setting could not be stored."
+          }
+        }
+      }
+    },
+    "/api/admin/shares": {
+      "get": {
+        "operationId": "get-active-shares",
+        "summary": "Every public link share on IntraVox content",
+        "description": "Lists all link shares pointing into the IntraVox group folder, newest first, with enough context to judge each one: what it exposes, who made it, whether it has expired and where to find it.\n\nAdministrators only, and the reason is the token: this response contains the actual share TOKENS, so anyone who can read it can open every shared page regardless of their own permissions.\n\nExpired shares are INCLUDED and flagged rather than filtered out — an expired link that still exists is exactly what an audit wants to see.",
+        "tags": [
+          "Public Share"
+        ],
+        "responses": {
+          "200": {
+            "description": "Active and expired link shares.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "token": {
+                        "type": "string",
+                        "description": "The live share token. Treat as a credential."
+                      },
+                      "scope": {
+                        "type": "string",
+                        "enum": [
+                          "page",
+                          "folder",
+                          "language"
+                        ],
+                        "description": "What the link exposes: a single page, a folder subtree, or a whole language."
+                      },
+                      "scopeLabel": {
+                        "type": "string",
+                        "description": "Human label — the page title where one could be read, otherwise a derived name."
+                      },
+                      "language": {
+                        "type": "string"
+                      },
+                      "path": {
+                        "type": "string",
+                        "description": "Path within the group folder."
+                      },
+                      "owner": {
+                        "type": "string"
+                      },
+                      "expired": {
+                        "type": "boolean"
+                      },
+                      "expirationDate": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "createdAt": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      },
+                      "filesUrl": {
+                        "type": "string",
+                        "description": "Relative link to the item in the Files app."
+                      },
+                      "publicUrl": {
+                        "type": "string",
+                        "description": "Relative public share link."
+                      }
+                    },
+                    "required": [
+                      "token",
+                      "scope",
+                      "language",
+                      "path",
+                      "owner",
+                      "expired"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Shares could not be listed."
+          }
+        }
+      }
+    },
+    "/api/metavox/fields": {
+      "get": {
+        "operationId": "get-metavox-fields",
+        "summary": "MetaVox field definitions for the IntraVox folder",
+        "description": "The custom metadata fields MetaVox defines for the IntraVox group folder.\n\nALWAYS 200, even when it cannot answer. MetaVox not installed, not enabled for this user, or no IntraVox group folder each yield an empty fields array plus an error string — the integration is optional, so a missing dependency must not break the page. Check whether fields is empty, not the status code.",
+        "tags": [
+          "Pages"
+        ],
+        "responses": {
+          "200": {
+            "description": "Field definitions, or an empty list with an explanation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "fields": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field_name": {
+                            "type": "string"
+                          },
+                          "field_label": {
+                            "type": "string"
+                          },
+                          "field_type": {
+                            "type": "string"
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "groupfolderId": {
+                      "type": "integer",
+                      "description": "Present only on success."
+                    },
+                    "error": {
+                      "type": "string",
+                      "description": "Present when MetaVox is unavailable or the folder was not found."
+                    }
+                  },
+                  "required": [
+                    "fields"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/page/{pageId}/cache-status": {
+      "get": {
+        "operationId": "get-page-cache-status",
+        "summary": "Whether a page is indexed in the Files cache yet",
+        "description": "Reports whether a page's file has been picked up by the Nextcloud file cache.\n\nThis exists for one situation: immediately after creating a page, the file is on disk but may not yet be indexed, so it does not appear in the Files app. Poll this rather than concluding the create failed.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Index status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "visible": {
+                      "type": "boolean",
+                      "description": "Whether the page is visible in the Files app."
+                    },
+                    "inCache": {
+                      "type": "boolean",
+                      "description": "Same signal; both reflect the presence of a filecache entry."
+                    },
+                    "fileId": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ]
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string",
+                      "description": "Human explanation, e.g. 'Page created but waiting for indexing'."
+                    }
+                  },
+                  "required": [
+                    "visible",
+                    "inCache"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "Status could not be determined."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10480,6 +11085,73 @@
           "language",
           "pages"
         ]
+      },
+      "UserProfile": {
+        "type": "object",
+        "description": "A user as this API exposes them. Only the always-present keys are listed; the rest depend on the subject's visibility scopes and on what the directory syncs.",
+        "properties": {
+          "uid": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "avatarUrl": {
+            "type": "string",
+            "format": "uri"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": true
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "null when the user's scope hides it. Never read around the scope."
+          },
+          "phone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organisation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "birthdate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Normalised to ISO 8601 regardless of how Nextcloud stored it."
+          }
+        },
+        "required": [
+          "uid",
+          "displayName"
+        ],
+        "additionalProperties": true
       }
     },
     "parameters": {
