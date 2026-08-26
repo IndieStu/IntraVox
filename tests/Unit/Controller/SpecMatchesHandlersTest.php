@@ -33,6 +33,8 @@ class SpecMatchesHandlersTest extends TestCase {
     private array $spec;
     /** @var array<string,string> */
     private array $controllers = [];
+    /** @var array<string,string> */
+    private array $traits = [];
 
     protected function setUp(): void {
         parent::setUp();
@@ -41,6 +43,15 @@ class SpecMatchesHandlersTest extends TestCase {
 
         foreach (glob($root . 'lib/Controller/*.php') as $file) {
             $this->controllers[basename($file, '.php')] = file_get_contents($file);
+        }
+
+        // Shared traits count as handler source. A controller method that is a
+        // one-line delegation to a trait (proxyImage() -> handleProxyImage())
+        // reads its parameters THERE, and a check that only looks at the
+        // controller body sees none of them — reporting a correctly documented
+        // parameter as phantom.
+        foreach (glob($root . 'lib/Controller/Shared/*.php') as $file) {
+            $this->traits[basename($file, '.php')] = file_get_contents($file);
         }
     }
 
@@ -117,8 +128,13 @@ class SpecMatchesHandlersTest extends TestCase {
                         continue;
                     }
                     // Read imperatively, or declared as a typed method argument.
-                    if (str_contains($body, "getParam('{$name}'")
-                        || preg_match('/\$' . preg_quote($name, '/') . '\b/', explode('{', $body, 2)[0] ?? '')) {
+                    if ($this->readsParam($body, $name)) {
+                        $found = true;
+                        break;
+                    }
+
+                    // Delegated to a shared trait? Follow it.
+                    if ($this->traitDelegateReadsParam($body, $name)) {
                         $found = true;
                         break;
                     }
@@ -131,6 +147,44 @@ class SpecMatchesHandlersTest extends TestCase {
         }
 
         $this->assertSame([], $phantom, "Documented query parameters no handler reads:\n  " . implode("\n  ", $phantom));
+    }
+
+    /** Does this body read the parameter, imperatively or as a typed argument? */
+    private function readsParam(string $body, string $name): bool {
+        return str_contains($body, "getParam('{$name}'")
+            || preg_match('/\$' . preg_quote($name, '/') . '\b/', explode('{', $body, 2)[0] ?? '') === 1;
+    }
+
+    /**
+     * Follow a one-line delegation into a shared trait.
+     *
+     * Scans every trait for the method the controller hands off to, rather than
+     * resolving `use` statements: a parameter read anywhere in the shared code
+     * reachable from this handler is a real read, and being approximate here
+     * only ever makes the test more permissive — it cannot invent a read that
+     * no source contains.
+     */
+    private function traitDelegateReadsParam(string $body, string $name): bool {
+        if (!preg_match_all('/\$this->([a-zA-Z_][a-zA-Z0-9_]*)\s*\(/', $body, $m)) {
+            return false;
+        }
+
+        foreach ($m[1] as $callee) {
+            foreach ($this->traits as $source) {
+                $start = strpos($source, 'function ' . $callee . '(');
+                if ($start === false) {
+                    continue;
+                }
+                $next = strpos($source, "\n    private function ", $start + 10);
+                $traitBody = substr($source, $start, $next === false ? 6000 : $next - $start);
+
+                if ($this->readsParam($traitBody, $name)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /** @return list<array{0:string,1:string}> controller class + method for a documented path */

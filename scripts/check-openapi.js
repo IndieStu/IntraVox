@@ -162,22 +162,24 @@ function main() {
 	// denominator rather than quietly inflating the numerator. Counting a route we
 	// decided NOT to describe as "documented" would let the percentage rise by
 	// giving up, which is the one number this guard must never be able to fake.
-	const total = state.routes.length
+	// Deliberately no `total` binding in scope: every message here must divide by
+	// inScope. A denominator that includes excluded routes lets the percentage rise
+	// by giving up, and this guard reports its own progress.
 	const excludedCount = state.excludedSeen.length
-	const inScope = total - excludedCount
+	const inScope = state.routes.length - excludedCount
 	const documented = inScope - state.undocumented.length
 	const pct = ((documented / inScope) * 100).toFixed(0)
 
 	if (!ledger) {
 		writeLedger(state)
-		console.log(`✓ Wrote initial OpenAPI coverage baseline: ${documented}/${total} routes documented (${pct}%)`)
+		console.log(`✓ Wrote initial OpenAPI coverage baseline: ${documented}/${inScope} in-scope routes documented (${pct}%), ${excludedCount} excluded`)
 		console.log(`  ${state.undocumented.length} routes and ${Object.values(state.debt).flat().length} quality items recorded as debt.`)
 		return
 	}
 
 	if (update) {
 		writeLedger(state)
-		console.log(`✓ OpenAPI ledger updated — ${documented}/${total} routes documented (${pct}%), ${state.undocumented.length} to go`)
+		console.log(`✓ OpenAPI ledger updated — ${documented}/${inScope} in-scope routes documented (${pct}%), ${state.undocumented.length} to go`)
 		return
 	}
 
