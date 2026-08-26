@@ -183,11 +183,11 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         },
         "parameters": [
@@ -461,6 +461,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -493,6 +496,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -544,6 +550,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Permission denied"
           }
@@ -586,6 +595,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -626,6 +638,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -695,6 +710,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "413": {
             "description": "File too large"
@@ -782,6 +800,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -829,6 +850,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -880,6 +904,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "429": {
             "description": "Rate limit exceeded (30 per minute per user)."
@@ -1010,6 +1037,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1032,6 +1062,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -1071,6 +1104,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "$ref": "#/components/responses/Forbidden"
           }
@@ -1095,6 +1131,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -1125,6 +1164,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1165,6 +1207,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
@@ -1229,6 +1274,12 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "description": "Rate limit exceeded (20 per minute per user)."
+          },
           "500": {
             "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
             "content": {
@@ -1238,9 +1289,6 @@
                 }
               }
             }
-          },
-          "429": {
-            "description": "Rate limit exceeded (20 per minute per user)."
           }
         }
       }
@@ -1291,6 +1339,15 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. Message is specific and safe to display."
+          },
           "500": {
             "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
             "content": {
@@ -1300,12 +1357,6 @@
                 }
               }
             }
-          },
-          "403": {
-            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
-          },
-          "404": {
-            "description": "No such comment, or no access to its page. Message is specific and safe to display."
           }
         },
         "description": "\n\nOne deliberate exception to the generic-error rule: 404 and 403 here carry a specific message ('Comment not found', 'Not authorized to edit this comment'). Those are strings this app throws itself, never an underlying error, and clients route on them — so they stay verbatim while everything else is generic."
@@ -1337,6 +1388,15 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
+          },
+          "404": {
+            "description": "No such comment, or no access to its page. Message is specific and safe to display."
+          },
           "500": {
             "description": "Something went wrong. The body carries a generic message plus an errorId that correlates with the server log.",
             "content": {
@@ -1346,12 +1406,6 @@
                 }
               }
             }
-          },
-          "403": {
-            "description": "Not the comment's author, and not an administrator. Message is specific and safe to display."
-          },
-          "404": {
-            "description": "No such comment, or no access to its page. Message is specific and safe to display."
           }
         },
         "description": "\n\nOne deliberate exception to the generic-error rule: 404 and 403 here carry a specific message ('Comment not found', 'Not authorized to edit this comment'). Those are strings this app throws itself, never an underlying error, and clients route on them — so they stay verbatim while everything else is generic."
@@ -1545,6 +1599,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -1584,6 +1641,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "$ref": "#/components/responses/Forbidden"
           }
@@ -1607,6 +1667,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -1637,6 +1700,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1658,6 +1724,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -1688,6 +1757,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1717,6 +1789,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1749,6 +1824,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1779,6 +1857,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -1918,11 +1999,11 @@
               }
             }
           },
-          "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           }
         }
       },
@@ -2089,6 +2170,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -2135,29 +2219,14 @@
               }
             }
           },
-          "401": {
-            "description": "Password required or invalid session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "error": {
-                      "type": "string"
-                    },
-                    "passwordRequired": {
-                      "type": "boolean"
-                    }
-                  }
-                }
-              }
-            }
-          },
           "403": {
             "description": "Page is outside the share scope"
           },
           "404": {
             "description": "Share token invalid or page not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2200,11 +2269,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2250,11 +2319,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2357,11 +2426,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2418,11 +2487,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid or media not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2470,11 +2539,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid or resource not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2531,11 +2600,11 @@
               }
             }
           },
-          "401": {
-            "description": "Password required"
-          },
           "404": {
             "description": "Share token invalid or resource not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2683,6 +2752,9 @@
           },
           "404": {
             "description": "Invalid token or feed not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -2743,6 +2815,9 @@
           },
           "404": {
             "description": "Invalid token or media not found"
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         }
       }
@@ -3226,8 +3301,14 @@
           "400": {
             "description": "Invalid date format"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Invalid or expired share token"
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           },
           "500": {
             "description": "Failed to get calendar events"
@@ -3328,6 +3409,9 @@
           "400": {
             "description": "Invalid mode / filter payload too large"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "description": "Folder not found for this user"
           },
@@ -3368,6 +3452,9 @@
           "400": {
             "description": "Missing folder parameter"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "description": "Unable to load location clusters"
           }
@@ -3392,6 +3479,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "description": "Unable to load capabilities"
           }
@@ -3415,6 +3505,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         },
         "operationId": "photo-story-metavox-fields",
@@ -3449,6 +3542,9 @@
           },
           "400": {
             "description": "Missing or invalid file_id"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "description": "File not found or no EXIF data"
@@ -3620,6 +3716,9 @@
           "400": {
             "description": "Invalid mode / filter payload too large / folder required"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "description": "Folder not found for this user"
           },
@@ -3657,6 +3756,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "description": "Unable to load capabilities"
           }
@@ -3680,6 +3782,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         },
         "operationId": "file-story-metavox-fields",
@@ -4025,6 +4130,9 @@
           },
           "400": {
             "description": "Invalid or oversized filters/refine JSON"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -4059,6 +4167,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -4085,6 +4196,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           }
         }
       },
@@ -4131,6 +4245,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Not an administrator"
@@ -4204,6 +4321,9 @@
           "400": {
             "description": "Invalid input"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "No edit permission"
           },
@@ -4251,6 +4371,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "No edit permission"
@@ -4332,6 +4455,9 @@
           "400": {
             "description": "Invalid input"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "No edit permission"
           },
@@ -4386,6 +4512,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "description": "Page not found"
           }
@@ -4438,6 +4567,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "description": "Page not found"
@@ -5576,11 +5708,11 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -5783,17 +5915,20 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Conflict: the submitted baseVersion predates the stored file, so someone else saved while this copy was being edited. Re-read the page and re-apply the change; retrying the same body will keep failing."
           },
           "412": {
             "description": "The OCS-APIRequest header was missing."
@@ -5808,9 +5943,6 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "Conflict: the submitted baseVersion predates the stored file, so someone else saved while this copy was being edited. Re-read the page and re-apply the change; retrying the same body will keep failing."
           }
         },
         "parameters": [
@@ -6081,11 +6213,11 @@
               }
             }
           },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
@@ -6272,6 +6404,9 @@
           },
           "404": {
             "description": "No such share, or the token does not point into IntraVox."
+          },
+          "429": {
+            "description": "Rate limit exceeded (60 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           }
         },
         "parameters": [
@@ -6332,9 +6467,6 @@
           }
         ],
         "responses": {
-          "303": {
-            "description": "Password accepted; redirect to the share."
-          },
           "200": {
             "description": "Password rejected; the form is served again.",
             "content": {
@@ -6344,6 +6476,9 @@
                 }
               }
             }
+          },
+          "303": {
+            "description": "Password accepted; redirect to the share."
           },
           "429": {
             "description": "Too many attempts; brute-force protection has kicked in.",
@@ -6561,14 +6696,14 @@
           "400": {
             "description": "url or sig missing."
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Signature absent or invalid — the URL was not signed by this backend."
           },
           "502": {
             "description": "The upstream host could not be reached or returned something unusable."
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
           }
         }
       }
@@ -6973,6 +7108,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -7059,6 +7197,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -7144,6 +7285,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
@@ -7233,6 +7377,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -7263,6 +7410,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "No IntraVox access."
@@ -7302,6 +7452,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "No IntraVox access."
@@ -7356,6 +7509,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -7406,6 +7562,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
@@ -7464,6 +7623,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -7520,6 +7682,9 @@
           },
           "400": {
             "description": "id must be a positive integer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
@@ -7587,6 +7752,9 @@
           },
           "400": {
             "description": "id must be a positive integer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
@@ -7698,6 +7866,9 @@
           },
           "400": {
             "description": "Invalid id, a language this site does not recognise, or invalid mode."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
@@ -8414,6 +8585,9 @@
               }
             }
           },
+          "429": {
+            "description": "Rate limit exceeded (30 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
+          },
           "500": {
             "description": "Fetch failed. Empty items array with a generic error string.",
             "content": {
@@ -8486,6 +8660,9 @@
           },
           "403": {
             "description": "Invalid share token, or a signature that is absent or does not match."
+          },
+          "429": {
+            "description": "Rate limit exceeded (30 per 60 seconds per client). Anonymous endpoints are limited per address rather than per user, so several visitors behind one NAT share the budget."
           },
           "502": {
             "description": "The upstream host could not be reached."
@@ -9207,6 +9384,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "403": {
             "description": "Administrator access required."
           },
@@ -9327,6 +9507,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "description": "Administrator access required."
