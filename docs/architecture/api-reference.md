@@ -64,6 +64,21 @@ https://your-nextcloud.com/ocs/v2.php/apps/intravox/api/v1/
 
 The OCS API properly handles HTTP methods (GET, POST, PUT, DELETE) and is the recommended interface for programmatic access.
 
+Two things to know before building on it — both measured against a running server,
+not inferred from the `/ocs/` path:
+
+- **There is no OCS envelope.** You get the same bare JSON as on the app mount, not
+  `{ocs: {meta, data}}`. No IntraVox controller extends `OCSController`. A client
+  written against the envelope will fail to parse every response. `?format=xml` does
+  not work here either.
+- **Only the eight `/api/v1/*` routes are mounted here.** Every other path returns 404
+  with an OCS error envelope — including `/api/health`. For a liveness probe use
+  `https://your-nextcloud.com/apps/intravox/api/health` on the app mount.
+
+The `OCS-APIRequest: true` header is required on writes: without it Nextcloud refuses
+a POST/PUT/DELETE with 412 (`CSRF check failed`). It is harmless on reads, so send it
+on every request.
+
 ### Standard API (Internal use)
 
 The standard API is used internally by the IntraVox frontend with session authentication:

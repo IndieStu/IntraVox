@@ -34,10 +34,20 @@ The OpenAPI spec is available at:
 
 - **File path:** `IntraVox/openapi.json` (in repository root)
 - **GitHub URL:** https://raw.githubusercontent.com/nextcloud/IntraVox/main/openapi.json
-- **Local server:** `https://your-nextcloud.com/apps/intravox/openapi.json` (requires authentication)
+- **Installed app:** `<nextcloud>/custom_apps/intravox/openapi.json` on the server itself —
+  the file ships in the release package but is **not served over HTTP**. There is no route
+  for it; `https://your-nextcloud.com/apps/intravox/openapi.json` returns 404. To get the
+  spec from a running installation, read it from disk or fetch it from GitHub.
 
-**Current version:** 0.9.17
+**Version:** always the app version. `scripts/sync-version.js` writes `package.json`,
+`appinfo/info.xml` and `openapi.json` together, and the prebuild gate fails when they
+disagree — so the spec never announces a version other than the app shipping it.
 **Format:** OpenAPI 3.1.0 (JSON)
+
+**Coverage:** all 171 in-scope routes are documented. Four browser routes are explicitly
+out of scope with a reason recorded in `.openapi-coverage.json` (the app shell and the OAuth
+callback: they return HTML and carry no JSON contract). `npm run lint:openapi` enforces it —
+a new route without documentation fails the build.
 
 **Quick view:**
 ```bash

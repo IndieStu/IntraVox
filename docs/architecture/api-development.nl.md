@@ -941,8 +941,8 @@ Zie CHANGELOG v0.9.17:
 
 **IntraVox-docs:**
 
-- Quickstart: [template-api-quickstart.md](template-api-quickstart.md)
-- OpenAPI-tooling: [openapi-tooling.md](openapi-tooling.md)
+- Quickstart: [template-api-quickstart.md](template-api-quickstart.nl.md)
+- OpenAPI-tooling: [openapi-tooling.md](openapi-tooling.nl.md)
 - API-referentie: [api-reference.md](api-reference.md)
 
 **Leer-resources:**

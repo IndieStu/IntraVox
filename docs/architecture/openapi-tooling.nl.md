@@ -610,7 +610,7 @@ http --pretty=all GET https://your-nc.com/apps/intravox/api/templates \
 
 **Quickstart:**
 
-- [template-api-quickstart.md](template-api-quickstart.md) — begin in 5 minuten met de template-API
+- [template-api-quickstart.md](template-api-quickstart.nl.md) — begin in 5 minuten met de template-API
 
 **API-referentie:**
 
@@ -618,7 +618,7 @@ http --pretty=all GET https://your-nc.com/apps/intravox/api/templates \
 
 **Developer-gids:**
 
-- [api-development.md](api-development.md) — bijdragen aan de IntraVox-API en onderhoud van de OpenAPI-spec
+- [api-development.md](api-development.nl.md) — bijdragen aan de IntraVox-API en onderhoud van de OpenAPI-spec
 
 **Geavanceerde onderwerpen:**
 
