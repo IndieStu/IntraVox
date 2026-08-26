@@ -68,6 +68,12 @@ class ApiController extends Controller {
 
     /** Ceiling on the media listing; the picker shows far fewer than this. */
     private const MAX_MEDIA_IN_LISTING = 1000;
+
+    /** Page size when a caller asks to paginate without saying how big. */
+    private const DEFAULT_PAGE_SIZE = 100;
+
+    /** Ceiling on an explicit page size, so paging cannot be used to bypass the cap. */
+    private const MAX_PAGE_SIZE = 500;
     use ApiErrorTrait;
     use \OCA\IntraVox\Controller\Shared\SharePathTrait;
     use HasConditionalResponse;
@@ -214,7 +220,7 @@ class ApiController extends Controller {
      */
     #[NoAdminRequired]
     #[NoCSRFRequired]
-    public function listPages(): DataResponse {
+    public function listPages(?int $limit = null, ?string $cursor = null): DataResponse {
         try {
             $pages = $this->pageService->listPages();
 
@@ -243,6 +249,15 @@ class ApiController extends Controller {
             // complete. The ceiling is deliberately far above any real instance
             // (the paid tiers top out at 1000 pages per language), so this caps a
             // worst case rather than shaping ordinary use.
+            // Explicit paging is opt-in, and only then does the shape change. A
+            // caller that sends neither limit nor cursor keeps the bare array it
+            // has always had (D4): App.vue reads this as a complete index of page
+            // ids in nine places, so an unconditional envelope would be a breaking
+            // change dressed up as a MINOR.
+            if ($limit !== null || $cursor !== null) {
+                return $this->pagedListing($filteredPages, $limit, $cursor);
+            }
+
             $total = count($filteredPages);
             $response = new DataResponse(array_slice($filteredPages, 0, self::MAX_PAGES_IN_LISTING));
             $response->addHeader('X-IntraVox-Cap', (string)self::MAX_PAGES_IN_LISTING);
@@ -267,6 +282,77 @@ class ApiController extends Controller {
         }
     }
 
+    /**
+     * One page of the listing, keyed on where the previous one stopped.
+     *
+     * Keyset, never OFFSET. An offset counts rows, so a page created or deleted
+     * between two requests shifts everything after it: the caller silently skips
+     * a row or sees one twice, and nothing in the response says so. A migration
+     * walking a large intranet is exactly the caller that would hit it and the
+     * least likely to notice. plan-multisite-uitvoering.md §4.15 settled this for
+     * the multi-site work; using the same shape here keeps one answer in the API
+     * rather than two.
+     *
+     * The cursor is the sort key of the last row served -- (title, uniqueId), the
+     * order listPages() now guarantees -- and the next page is everything strictly
+     * greater than it. Deleting the row a cursor points at is therefore harmless:
+     * the comparison is on values, not on a position that has moved.
+     *
+     * Opaque on purpose. It is base64 of a JSON pair, which is trivially readable,
+     * and that is fine: the point is not secrecy but that clients must not build
+     * or arithmetic on it, because the key can change.
+     *
+     * @param list<array<string,mixed>> $pages already filtered and in sort order
+     */
+    private function pagedListing(array $pages, ?int $limit, ?string $cursor): DataResponse {
+        $pageSize = max(1, min($limit ?? self::DEFAULT_PAGE_SIZE, self::MAX_PAGE_SIZE));
+
+        if ($cursor !== null && $cursor !== '') {
+            $after = $this->decodeCursor($cursor);
+            if ($after === null) {
+                return new DataResponse(['error' => 'Invalid cursor'], Http::STATUS_BAD_REQUEST);
+            }
+
+            $pages = array_values(array_filter(
+                $pages,
+                static fn (array $p): bool => [(string)($p['title'] ?? ''), (string)($p['uniqueId'] ?? '')] > $after
+            ));
+        }
+
+        $slice = array_slice($pages, 0, $pageSize);
+        $hasMore = count($pages) > $pageSize;
+        $last = $slice === [] ? null : $slice[count($slice) - 1];
+
+        return new DataResponse([
+            'items' => $slice,
+            'hasMore' => $hasMore,
+            // Absent rather than null when the walk is done, so a client looping
+            // 'while nextCursor' terminates without a special case.
+            'nextCursor' => $hasMore && $last !== null
+                ? $this->encodeCursor([(string)($last['title'] ?? ''), (string)($last['uniqueId'] ?? '')])
+                : null,
+        ]);
+    }
+
+    /** @param array{0:string,1:string} $key */
+    private function encodeCursor(array $key): string {
+        return rtrim(strtr(base64_encode(json_encode($key)), '+/', '-_'), '=');
+    }
+
+    /** @return array{0:string,1:string}|null null when the cursor is not one we made */
+    private function decodeCursor(string $cursor): ?array {
+        $raw = base64_decode(strtr($cursor, '-_', '+/'), true);
+        if ($raw === false) {
+            return null;
+        }
+
+        $key = json_decode($raw, true);
+        if (!is_array($key) || count($key) !== 2 || !is_string($key[0]) || !is_string($key[1])) {
+            return null;
+        }
+
+        return [$key[0], $key[1]];
+    }
     /**
      */
     #[NoAdminRequired]

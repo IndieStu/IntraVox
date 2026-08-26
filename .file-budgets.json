@@ -7,7 +7,7 @@
   },
   "files": {
     "lib/Controller/AnalyticsController.php": 267,
-    "lib/Controller/ApiController.php": 2689,
+    "lib/Controller/ApiController.php": 2775,
     "lib/Controller/ApiErrorTrait.php": 112,
     "lib/Controller/BulkController.php": 301,
     "lib/Controller/CalendarController.php": 129,
