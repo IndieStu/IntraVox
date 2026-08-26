@@ -727,6 +727,14 @@ The `.tx/`, `.l10nignore`, and `translationfiles/` are dev-only artefacts for Tr
 
 ## 9. Release Package
 
+**Volgorde die werkt — twee stappen worden vaak omgedraaid:**
+
+1. Merge eerst de bot-vertalingen van GitHub (§9.1 hieronder), dán pas de tarball
+   bouwen. Andersom bouw je een pakket met verouderde vertalingen.
+2. Maak de **GitHub release vóór de App Store-upload** (§9.6). De App Store haalt
+   de tarball zelf op; bestaat de release nog niet, dan krijgt hij een 404-pagina
+   en meldt dat het archief ongeldig is — terwijl er niets mis is met het archief.
+
 ### 9.1 Create Tarball
 
 > ⚠️ **STOP** — before running this: (1) is `npm run lint:l10n` green (source strings pushed)? (2) did you merge the bot's latest translations (§2 "At release time — just merge the bot")? A tarball cut before the merge ships the wrong set of languages and must be regenerated. Run `git fetch github && git log --oneline HEAD..github/main` — if it's empty, you're already up to date.
@@ -832,6 +840,23 @@ openssl dgst -sha512 -sign intravox.key intravox-X.Y.Z.tar.gz | openssl base64 -
 **Note:** The signing key is `intravox.key` in the project root (NOT on USB drive).
 
 ### 9.6 GitHub Release
+
+> ⚠️ **Doe dit VÓÓR de App Store-upload, niet erna.** De App Store haalt de
+> tarball zelf op bij de download-URL. Bestaat de release nog niet, dan
+> downloadt hij GitHubs 404-pagina — negen bytes tekst — en meldt:
+>
+> > `intravox-X.Y.Z.tar.gz is not a valid tar.gz archive`
+>
+> Die melding wijst naar het archief of de signature, en allebei zijn dan in
+> orde. Er staat simpelweg niets achter de link. Controleer eerst:
+>
+> ```bash
+> gh release view vX.Y.Z --repo nextcloud/IntraVox --json assets,isDraft
+> ```
+>
+> `state` moet `uploaded` zijn en `isDraft` moet `false` zijn. Een `curl -I` op
+> de download-URL is géén betrouwbare check: die kan minuten na de upload nog
+> 404 geven door CDN-vertraging terwijl de echte download allang werkt.
 
 ```bash
 gh release create vX.Y.Z intravox-X.Y.Z.tar.gz \
