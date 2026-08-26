@@ -220,7 +220,7 @@ API-tokens en OAuth2-client-secrets zijn at-rest versleuteld via Nextcloud's `IC
 
 ## Rate limiting
 
-Alle muterende API-endpoints zijn rate-limited via Nextcloud's ingebouwde throttle-attributen. Zie [Schaalbaarheid & enterprise-readiness](scalability.md#rate-limiting) voor de volledige rate-limit-tabel.
+Een deel van de endpoints draagt een expliciete rate limit via Nextclouds throttle-attributen — 14 van de 73 muterende operaties. De rest leunt op brute-force-bescherming, die aanslaat op herhaald mislukte authenticatie in plaats van op aantallen verzoeken. Zie [Schaalbaarheid & enterprise-readiness](scalability.md#rate-limiting) voor de volledige rate-limit-tabel.
 
 ## AVG-gebruikers-verwijdering
 

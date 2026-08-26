@@ -16,7 +16,10 @@ IntraVox biedt een uitgebreide REST-API voor het beheren van pagina's, media, na
 
 ## Authenticatie
 
-Alle endpoints vereisen HTTP-Basic-authenticatie met een Nextcloud-app-wachtwoord:
+De meeste endpoints vereisen authenticatie — met een app-wachtwoord via HTTP Basic, of
+met de sessiecookie van een ingelogde browser. Uitzondering zijn de share- en
+feed-routes: daar is het token IN HET PAD de credential en is er geen inlog. Die geven
+dan ook nooit 401; een ongeldig token levert 403 of 404 op.
 
 ```bash
 curl -u "username:app-password-token" \
