@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace OCA\IntraVox\Service;
 
+use OCA\IntraVox\Exception\PageNotFoundException;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -123,6 +124,22 @@ class BulkOperationService {
                     ]);
 
                 } catch (\Exception $e) {
+                    // Already gone is the state the caller asked for. Reporting it as a
+                    // failure makes a plain retry -- after a timeout, a dropped connection,
+                    // a resumed migration -- come back full of errors for work that
+                    // succeeded, and nothing lets the client tell those from real ones.
+                    //
+                    // Matched on the message because getPage() throws a bare
+                    // \Exception('Page not found') rather than PageNotFoundException.
+                    // Narrow on purpose: any other message is a genuine failure.
+                    if ($e->getMessage() === 'Page not found' || $e instanceof PageNotFoundException) {
+                        $result->addSucceeded($pageId, 'Already deleted');
+                        $this->logger->info('IntraVox Bulk: page already gone, counting as done', [
+                            'pageId' => $pageId,
+                        ]);
+                        continue;
+                    }
+                
                     $result->addFailed($pageId, $e->getMessage());
                     $this->logger->warning('IntraVox Bulk: Failed to delete page', [
                         'pageId' => $pageId,
