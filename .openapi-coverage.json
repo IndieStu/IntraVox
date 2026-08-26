@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 134,
-    "undocumented": 37
+    "documented": 138,
+    "undocumented": 33
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -15,13 +15,11 @@
   },
   "undocumented": [
     "DELETE /api/comments/{commentId}/reactions/{emoji}",
-    "DELETE /api/lms/token/{connectionId}",
     "GET /api/admin/shares",
     "GET /api/comments/{commentId}/reactions",
     "GET /api/export/language/{language}",
     "GET /api/export/page/{uniqueId}",
     "GET /api/health",
-    "GET /api/lms/connections",
     "GET /api/metavox/fields",
     "GET /api/page/{pageId}/cache-status",
     "GET /api/pages/{pageId}/content",
@@ -40,8 +38,6 @@
     "POST /api/homepage",
     "POST /api/import/confluence/html",
     "POST /api/import/zip",
-    "POST /api/lms/connect/{connectionId}",
-    "POST /api/lms/token/{connectionId}",
     "POST /api/pages/copy",
     "POST /api/pages/move",
     "POST /api/pages/reorder",

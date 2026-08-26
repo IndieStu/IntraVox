@@ -77,6 +77,10 @@
       "description": "Paginated document browsing with grouping."
     },
     {
+      "name": "LMS",
+      "description": "Per-user account linking to learning platforms, by OAuth2 or by a manually issued API token. Tokens are stored per user and never returned."
+    },
+    {
       "name": "Languages",
       "description": "Which languages the instance offers, and their homepages."
     },
@@ -7200,6 +7204,198 @@
           }
         }
       }
+    },
+    "/api/lms/connections": {
+      "get": {
+        "operationId": "get-lms-user-connections",
+        "summary": "LMS connections and this user's link status",
+        "description": "Lists the configured LMS connections together with whether the CALLING USER has linked their own account to each one. Per-user, not global.\n\nNo credentials are returned — only the 'connected' flag, the token type and when it was linked.",
+        "tags": [
+          "LMS"
+        ],
+        "responses": {
+          "200": {
+            "description": "Connections with per-user status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "connections": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LmsUserConnection"
+                      }
+                    }
+                  },
+                  "required": [
+                    "connections"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "Connections could not be read."
+          }
+        }
+      }
+    },
+    "/api/lms/connect/{connectionId}": {
+      "post": {
+        "operationId": "start-lms-oauth",
+        "summary": "Begin an OAuth2 link for a connection",
+        "description": "Returns the authorisation URL the browser must be sent to. This endpoint does NOT redirect — it hands back a URL and the caller navigates or opens a popup.\n\nThe URL carries a signed state parameter: an HMAC over the connection id, the user id, a timestamp and a 16-character nonce, valid for 10 minutes and accepted once. That binding is what stops an authorisation code from being replayed or attached to a different user, so the URL must be used as given — altering the state invalidates it.\n\nThe flow completes at GET /api/lms/callback, which is a browser redirect target rather than an API endpoint: it returns an HTML page that postMessages the opener and is therefore not documented here.\n\nOnly for connections whose authMode is not 'token'; a token-mode connection returns 400 and should use POST /api/lms/token/{connectionId} instead.",
+        "tags": [
+          "LMS"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Authorisation URL to send the browser to.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "authUrl": {
+                      "type": "string",
+                      "format": "uri",
+                      "description": "Use verbatim; the state parameter is signed."
+                    }
+                  },
+                  "required": [
+                    "authUrl"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The connection uses authMode 'token' and has no OAuth2 flow, or its client id and secret are not configured."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such connection."
+          },
+          "500": {
+            "description": "The flow could not be started."
+          }
+        }
+      }
+    },
+    "/api/lms/token/{connectionId}": {
+      "post": {
+        "operationId": "save-lms-manual-token",
+        "summary": "Store a manually issued API token",
+        "description": "Stores an API token the user obtained from the LMS themselves — a Moodle web-service token, for example. The alternative to the OAuth2 flow, for connections whose authMode is 'token'.\n\nThe token is VALIDATED BEFORE IT IS STORED by making a live test call against the LMS. A token that does not work, or lacks the required permissions, is rejected with 400 and nothing is saved — so a success here means the token actually functioned at least once.\n\nThe token is stored per user and is never returned by any endpoint afterwards; GET /api/lms/connections only reports that one exists.",
+        "tags": [
+          "LMS"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string",
+                    "description": "The API token. Write-only; never echoed back."
+                  }
+                },
+                "required": [
+                  "token"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Token validated and stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOk"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Token missing, or the live validation call failed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such connection."
+          },
+          "500": {
+            "description": "The token could not be stored."
+          }
+        }
+      },
+      "delete": {
+        "operationId": "disconnect-lms",
+        "summary": "Remove this user's token for a connection",
+        "description": "Deletes the calling user's stored token. Affects only that user — the connection itself stays configured and other users keep their links.\n\nConvergent: disconnecting a connection the user was never linked to succeeds rather than erroring, so a retry is safe.",
+        "tags": [
+          "LMS"
+        ],
+        "parameters": [
+          {
+            "name": "connectionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Disconnected, or was already not connected.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatusOk"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "500": {
+            "description": "The token could not be removed."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -9533,6 +9729,53 @@
           "hasIntraVoxContent",
           "languages",
           "pageCount"
+        ]
+      },
+      "LmsUserConnection": {
+        "type": "object",
+        "description": "An LMS connection as seen by ONE user. Distinct from FeedConnection: that describes the admin-level configuration, this describes whether the calling user has personally linked their account to it. Two users see different 'connected' values for the same connection.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "authMode": {
+            "type": "string",
+            "description": "'token' for a manually pasted API token, otherwise an OAuth2 mode. Determines which of the two connect endpoints applies."
+          },
+          "oidcAutoConnect": {
+            "type": "boolean",
+            "description": "Whether the connection reuses the user's existing Nextcloud OIDC session instead of a separate authorisation."
+          },
+          "connected": {
+            "type": "boolean",
+            "description": "Whether this user has a stored token. The token itself is never returned."
+          },
+          "tokenType": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connectedAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When this user linked the connection."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "type",
+          "authMode",
+          "connected"
         ]
       }
     },
