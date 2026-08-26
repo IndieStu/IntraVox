@@ -4,8 +4,8 @@
     "routes": 175,
     "excluded": 4,
     "in_scope": 171,
-    "documented": 156,
-    "undocumented": 15
+    "documented": 160,
+    "undocumented": 11
   },
   "excluded": {
     "GET /": "Browser entry point. Returns a TemplateResponse — the app shell, not an API resource.",
@@ -19,15 +19,11 @@
     "GET /api/photo-story/open-in-files",
     "GET /api/resources/media/{filename}",
     "GET /api/resources/media/{folder}/{filename}",
-    "POST /api/homepage",
-    "POST /api/import/confluence/html",
-    "POST /api/import/zip",
     "POST /api/pages/copy",
     "POST /api/pages/move",
     "POST /api/pages/reorder",
     "POST /api/pages/{pageId}/media/check",
     "POST /api/pages/{pageId}/media/upload",
-    "POST /api/setup",
     "PUT /api/pages/{pageId}/versions/{timestamp}/label"
   ],
   "quality_debt": {

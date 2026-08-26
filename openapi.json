@@ -8605,6 +8605,376 @@
           }
         }
       }
+    },
+    "/api/import/zip": {
+      "post": {
+        "operationId": "import-zip",
+        "summary": "Import an IntraVox export archive",
+        "description": "Restores pages, media, comments, navigation and footer from an archive produced by the export endpoints. Administrators only.\n\nThis is the ingest path a migration uses. Note what it does NOT have: no dryRun, no idempotency key, and no resume. Re-running it is governed entirely by the overwrite flag — off, existing pages are skipped and counted; on, they are replaced. A partial import leaves what it managed to write.\n\nThe upload is checked three ways before anything is read: the MIME type must be a ZIP type, the first two bytes must be PK, and the archive is expanded through a guarded extractor rather than a plain unzip. A file that merely ends in .zip does not get through.\n\nTHREE DISTINCT FAILURE SHAPES, and a migration tool should treat them differently:\n- 400 with errorCode and params: the archive was rejected during validation. These messages are safe to show a user verbatim — they describe the upload, never internal paths. errorCode is stable and translatable; error is an English fallback for scripts.\n- 500 with errorId: something went wrong inside. The message is deliberately generic; the errorId correlates with the server log, so quote it in a bug report rather than the message.\n- 403: not an administrator.",
+        "tags": [
+          "Export"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The ZIP archive. Field name must be 'file'."
+                  },
+                  "importComments": {
+                    "type": "string",
+                    "default": "1",
+                    "enum": [
+                      "0",
+                      "1"
+                    ],
+                    "description": "Compared as the STRING '1'. A JSON boolean will not work — this is a multipart form."
+                  },
+                  "overwrite": {
+                    "type": "string",
+                    "default": "0",
+                    "enum": [
+                      "0",
+                      "1"
+                    ],
+                    "description": "Off by default: existing pages are SKIPPED, not replaced. Turn on only when replacing is intended."
+                  },
+                  "autoCreateMetaVoxFields": {
+                    "type": "string",
+                    "default": "0",
+                    "enum": [
+                      "0",
+                      "1"
+                    ],
+                    "description": "Create MetaVox field definitions the archive references but the instance lacks."
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imported. Read stats to see what actually happened — a run that skipped everything also lands here.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "stats": {
+                      "$ref": "#/components/schemas/ImportStats"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "stats"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The archive was rejected during validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "English fallback, safe to display."
+                    },
+                    "errorCode": {
+                      "type": "string",
+                      "description": "Stable code for translation."
+                    },
+                    "params": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "Substitution values for the translated message."
+                    }
+                  },
+                  "required": [
+                    "error"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Import failed internally.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string",
+                      "description": "Generic by design."
+                    },
+                    "errorId": {
+                      "type": "string",
+                      "description": "Correlates with the server log. Quote this, not the message."
+                    }
+                  },
+                  "required": [
+                    "error",
+                    "errorId"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/import/confluence/html": {
+      "post": {
+        "operationId": "import-confluence-html",
+        "summary": "Import a Confluence HTML export",
+        "description": "Converts a Confluence HTML space export into IntraVox pages, preserving the page hierarchy. Administrators only.\n\nUnlike the ZIP import this one always imports comments and NEVER overwrites — there are no flags for either. Re-running it on the same export therefore skips what already exists.\n\nparentPageId grafts the whole imported tree under an existing page, which is how you import several spaces without them colliding at the root.\n\nThe upload is checked three ways before anything is read: the MIME type must be a ZIP type, the first two bytes must be PK, and the archive is expanded through a guarded extractor rather than a plain unzip. A file that merely ends in .zip does not get through.\n\nTHREE DISTINCT FAILURE SHAPES, and a migration tool should treat them differently:\n- 400 with errorCode and params: the archive was rejected during validation. These messages are safe to show a user verbatim — they describe the upload, never internal paths. errorCode is stable and translatable; error is an English fallback for scripts.\n- 500 with errorId: something went wrong inside. The message is deliberately generic; the errorId correlates with the server log, so quote it in a bug report rather than the message.\n- 403: not an administrator.",
+        "tags": [
+          "Export"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The Confluence HTML export ZIP. Field name must be 'file'."
+                  },
+                  "language": {
+                    "type": "string",
+                    "default": "nl",
+                    "description": "Target content language."
+                  },
+                  "parentPageId": {
+                    "type": "string",
+                    "description": "Optional. Import the tree under this page instead of at the language root."
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "stats": {
+                      "$ref": "#/components/schemas/ImportStats"
+                    },
+                    "pages": {
+                      "type": "integer",
+                      "description": "Pages found in the export — not necessarily the number imported. Compare with stats.pagesImported."
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "stats"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Rejected during validation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    },
+                    "errorCode": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Import failed internally."
+          }
+        }
+      }
+    },
+    "/api/setup": {
+      "post": {
+        "operationId": "run-setup",
+        "summary": "Create the IntraVox group folder",
+        "description": "Provisions the group folder IntraVox stores everything in, and runs any pending content migration. Administrators only.\n\nSafe to call when setup is already complete — it converges rather than recreating, so it doubles as a repair step when the folder was removed by hand.\n\nThis is the first call on a fresh install: until it succeeds, endpoints that need the group folder report setup_required or return empty.",
+        "tags": [
+          "Settings"
+        ],
+        "responses": {
+          "200": {
+            "description": "Setup completed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "result": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "What provisioning did."
+                    },
+                    "migration": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "What the content migration did, if any was pending."
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "Administrator access required."
+          },
+          "500": {
+            "description": "Setup failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        false
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/homepage": {
+      "post": {
+        "operationId": "set-homepage",
+        "summary": "Promote a page to homepage",
+        "description": "Makes an existing page the homepage of its language. Requires write permission on the page, not administrator rights.\n\nScoped to one language: each language has its own homepage and this never touches the others.",
+        "tags": [
+          "Pages"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageUniqueId": {
+                    "type": "string",
+                    "description": "Unique id of the page to promote. Required and non-empty."
+                  }
+                },
+                "required": [
+                  "pageUniqueId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Promoted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "pageUniqueId missing, or the page cannot be a homepage."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No write permission on that page."
+          },
+          "500": {
+            "description": "The homepage could not be set."
+          }
+        }
+      }
     }
   },
   "components": {
@@ -11152,6 +11522,58 @@
           "displayName"
         ],
         "additionalProperties": true
+      },
+      "ImportStats": {
+        "type": "object",
+        "description": "What an import actually did. Every counter is an integer — including navigationImported and footerImported, which are 0 or 1 rather than booleans, deliberately so the whole object has one type.\n\nThere is no per-page list: a page that was skipped is counted, not named. To know WHICH pages already existed you compare before and after yourself.",
+        "properties": {
+          "pagesImported": {
+            "type": "integer"
+          },
+          "pagesSkipped": {
+            "type": "integer",
+            "description": "Pages left alone because they already existed and overwrite was off."
+          },
+          "mediaFilesImported": {
+            "type": "integer"
+          },
+          "commentsImported": {
+            "type": "integer"
+          },
+          "navigationImported": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "footerImported": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ]
+          },
+          "metavoxEnabled": {
+            "type": "boolean",
+            "description": "Whether the archive carried MetaVox data at all."
+          },
+          "metavoxFieldsImported": {
+            "type": "integer"
+          },
+          "metavoxFieldsSkipped": {
+            "type": "integer"
+          },
+          "metavoxFieldsFailed": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pagesImported",
+          "pagesSkipped",
+          "mediaFilesImported",
+          "commentsImported"
+        ]
       }
     },
     "parameters": {
