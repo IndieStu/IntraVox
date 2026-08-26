@@ -8975,6 +8975,668 @@
           }
         }
       }
+    },
+    "/api/pages/{pageId}/content": {
+      "get": {
+        "operationId": "get-current-page-content",
+        "summary": "Raw stored document for a page",
+        "description": "The page document exactly as stored, without the permissions and metadata wrapper that GET /api/pages/{id} adds. Intended for diffing against a version: this and the version-content endpoint return the same shape, so the two can be compared directly.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The stored document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No read permission on this page."
+          },
+          "500": {
+            "description": "The content could not be read."
+          }
+        }
+      }
+    },
+    "/api/pages/{pageId}/versions/{timestamp}/content": {
+      "get": {
+        "operationId": "get-version-content",
+        "summary": "Raw stored document for one version",
+        "description": "The page document as it was at that version, in the same shape as GET /api/pages/{pageId}/content — which is what makes a client-side diff between the two possible.\n\nReading a version needs only READ permission on the page. Restoring one needs write.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The version's timestamp, as returned by the versions listing."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The document at that version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No read permission on this page."
+          },
+          "500": {
+            "description": "No such version, or it could not be read."
+          }
+        }
+      }
+    },
+    "/api/pages/{pageId}/versions/{timestamp}/label": {
+      "put": {
+        "operationId": "update-version-label",
+        "summary": "Name a version",
+        "description": "Attaches a human label to a stored version, so it can be recognised later without opening it. Requires WRITE permission on the page, unlike reading versions.\n\nThe label replaces any previous one; sending an empty label clears it.",
+        "tags": [
+          "Pages"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timestamp",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The version's timestamp, as returned by the versions listing."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "description": "The label. Empty clears it."
+                  }
+                },
+                "required": [
+                  "label"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Labelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessAck"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No write permission on this page."
+          },
+          "500": {
+            "description": "No such version, or the label could not be stored."
+          }
+        }
+      }
+    },
+    "/api/pages/copy": {
+      "post": {
+        "operationId": "copy-page",
+        "summary": "Duplicate a page",
+        "description": "Copies a page to a new location. TWO permissions are checked, not one: read on the source and create on the destination folder — so copying out of a page you may read into a folder you may not write is refused.\n\nReturns 201 with the new page, not 200.",
+        "tags": [
+          "Pages"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sourceId": {
+                    "type": "string",
+                    "description": "Page to copy. Required and non-empty."
+                  },
+                  "targetParentId": {
+                    "type": "string",
+                    "description": "New parent. Omit or leave empty for the language root."
+                  },
+                  "title": {
+                    "type": "string",
+                    "description": "Title for the copy. Omit to derive one from the source."
+                  }
+                },
+                "required": [
+                  "sourceId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "enum": [
+                        true
+                      ]
+                    },
+                    "page": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "The newly created page."
+                    }
+                  },
+                  "required": [
+                    "success",
+                    "page"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "sourceId missing."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No read permission on the source, or no create permission at the destination."
+          },
+          "500": {
+            "description": "The copy failed."
+          }
+        }
+      }
+    },
+    "/api/pages/move": {
+      "post": {
+        "operationId": "move-page",
+        "summary": "Move a page to a new parent",
+        "description": "Re-parents one page. The single-page counterpart of POST /api/bulk/move, and it enforces the same refusals: not into itself or a descendant, not across languages (language folders are independent content trees), and not the homepage.\n\nTwo permissions are checked: write on the page and create on the destination folder.\n\nIdempotent — a page already directly under the target is a no-op that reports success. Rate limited to 20 per minute per user.",
+        "tags": [
+          "Pages"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "pageId": {
+                    "type": "string",
+                    "description": "Page to move. Required and non-empty."
+                  },
+                  "targetParentId": {
+                    "type": "string",
+                    "description": "New parent. Omit or leave empty to move to the root of the page's OWN language — never the caller's."
+                  }
+                },
+                "required": [
+                  "pageId"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Moved, or already there.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "pageId missing, or the move is into the page itself or a descendant."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No write permission on the page, or no create permission at the destination."
+          },
+          "429": {
+            "description": "Rate limit exceeded (20 per minute per user)."
+          },
+          "500": {
+            "description": "The move failed."
+          }
+        }
+      }
+    },
+    "/api/pages/reorder": {
+      "post": {
+        "operationId": "reorder-pages",
+        "summary": "Set the sibling order under a parent",
+        "description": "Rewrites the order of children under one parent. The list is a COMPLETE ordering, not a delta: send every child in the order you want them.\n\nPermission is checked on the PARENT folder, not on each child — reordering rearranges the container.\n\nRate limited to 20 per minute per user.",
+        "tags": [
+          "Pages"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "parentId": {
+                    "type": "string",
+                    "description": "The parent whose children are being ordered. Omit or leave empty for the language root."
+                  },
+                  "orderedIds": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "description": "Every child, in the desired order. Must be non-empty and contain only non-empty strings."
+                  }
+                },
+                "required": [
+                  "orderedIds"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Reordered",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SuccessAck"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "orderedIds empty, or an entry is not a non-empty string."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No write permission on the parent folder."
+          },
+          "429": {
+            "description": "Rate limit exceeded (20 per minute per user)."
+          },
+          "500": {
+            "description": "The reorder failed."
+          }
+        }
+      }
+    },
+    "/api/pages/{pageId}/media/check": {
+      "post": {
+        "operationId": "check-media-duplicate",
+        "summary": "Would this upload overwrite something?",
+        "description": "Asks whether a file of that name already exists, so a client can warn before uploading rather than after.\n\nSEND THE RAW FILENAME, exactly as the user picked it. The check sanitises it the same way the upload will before comparing — asking about an already-sanitised name answers a question nobody asked. This matters because two different names can sanitise to the same one: checking them raw is what catches that collision, and checking them pre-sanitised reported 'no duplicate' and then collided on write.",
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filename": {
+                    "type": "string",
+                    "description": "The raw filename as chosen. Do not sanitise it first."
+                  },
+                  "target": {
+                    "type": "string",
+                    "default": "page",
+                    "enum": [
+                      "page",
+                      "resources"
+                    ]
+                  }
+                },
+                "required": [
+                  "filename"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Whether the sanitised name is taken.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "exists": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "exists"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "filename missing, or its extension is not allowed."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/pages/{pageId}/media/upload": {
+      "post": {
+        "operationId": "upload-media-with-name",
+        "summary": "Upload a media file, keeping its name",
+        "description": "Uploads a file and stores it under its own (sanitised) name rather than a generated one, which is what makes the duplicate check meaningful.\n\nThe file may be sent as 'media' or as 'file' — both field names are accepted.\n\nWithout overwrite an existing name is refused; the response's 'exists' flag tells you which happened. Requires write permission on the page. Returns 201.",
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "pageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "media": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "The file. May also be sent as 'file'."
+                  },
+                  "target": {
+                    "type": "string",
+                    "default": "page",
+                    "enum": [
+                      "page",
+                      "resources"
+                    ]
+                  },
+                  "overwrite": {
+                    "type": "string",
+                    "enum": [
+                      "0",
+                      "1"
+                    ],
+                    "description": "Replace an existing file of the same name."
+                  }
+                },
+                "required": [
+                  "media"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "filename": {
+                      "type": "string",
+                      "description": "The name actually written, after sanitising. May differ from what you sent."
+                    },
+                    "exists": {
+                      "type": "boolean",
+                      "description": "Whether a file of that name was already there."
+                    }
+                  },
+                  "required": [
+                    "filename"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "No file, or a disallowed type."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "No write permission on this page."
+          },
+          "404": {
+            "description": "No such page."
+          }
+        }
+      }
+    },
+    "/api/resources/media/{filename}": {
+      "get": {
+        "operationId": "get-resources-media",
+        "summary": "Serve a shared resource file",
+        "description": "Serves a file from the shared resources folder — media reused across pages, as opposed to media belonging to one page.\n\nServed inline with a ONE-YEAR immutable cache, so a replaced file keeps serving the old bytes to anyone who cached it. Upload under a new name rather than replacing in place.\n\nThe Content-Type is sniffed from the file's own bytes, not from its extension.",
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file, inline.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path was rejected as invalid."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such file."
+          }
+        }
+      }
+    },
+    "/api/resources/media/{folder}/{filename}": {
+      "get": {
+        "operationId": "get-resources-media-in-folder",
+        "summary": "Serve a shared resource file from a subfolder",
+        "description": "Serves a file from the shared resources folder — media reused across pages, as opposed to media belonging to one page.\n\nServed inline with a ONE-YEAR immutable cache, so a replaced file keeps serving the old bytes to anyone who cached it. Upload under a new name rather than replacing in place.\n\nThe Content-Type is sniffed from the file's own bytes, not from its extension.\n\nThe subfolder variant. Exactly one level deep — deeper paths are not addressable here.",
+        "tags": [
+          "Media"
+        ],
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "One subfolder level."
+          },
+          {
+            "name": "filename",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file, inline.",
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The path was rejected as invalid."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such file."
+          }
+        }
+      }
+    },
+    "/api/photo-story/open-in-files": {
+      "get": {
+        "operationId": "open-photo-in-files",
+        "summary": "Redirect to a photo in the Files app",
+        "description": "REDIRECTS (302) to the Files app, scrolled to the file and with it opened. It does NOT return JSON on success — a client following redirects lands on an HTML page, so this belongs in a browser, not in an API call.\n\nAccess is resolved through the caller's own file view, so a file id they cannot see yields 404 rather than a redirect they cannot follow.",
+        "tags": [
+          "Photo Story"
+        ],
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Nextcloud file id. Note the snake_case name."
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Redirect to the Files app."
+          },
+          "400": {
+            "description": "file_id missing or not a positive integer."
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "description": "No such file, or the caller cannot see it."
+          },
+          "500": {
+            "description": "The file could not be resolved."
+          }
+        }
+      }
     }
   },
   "components": {
