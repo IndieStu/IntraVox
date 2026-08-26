@@ -51,6 +51,14 @@
             "description": "Paginated document browsing with grouping."
         },
         {
+            "name": "Languages",
+            "description": "Which languages the instance offers, and their homepages."
+        },
+        {
+            "name": "Licensing",
+            "description": "Subscription key, usage reporting and telemetry."
+        },
+        {
             "name": "Link Previews",
             "description": "Server-side fetching of link preview metadata."
         },
@@ -4738,6 +4746,506 @@
                     }
                 }
             }
+        },
+        "/api/languages": {
+            "get": {
+                "operationId": "list-languages",
+                "summary": "Enabled and available languages",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body.",
+                "responses": {
+                    "200": {
+                        "description": "The language sets.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LanguageList"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/languages/content-status": {
+            "get": {
+                "operationId": "get-language-content-status",
+                "summary": "Which languages have content",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "The one endpoint here that any logged-in user may call: the editor needs it to decide whether to offer a language switch.",
+                "responses": {
+                    "200": {
+                        "description": "Per language, whether content exists.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LanguageContentStatus"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    }
+                }
+            }
+        },
+        "/api/languages/primary": {
+            "post": {
+                "operationId": "set-primary-language",
+                "summary": "Set the primary language",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "code"
+                                ],
+                                "properties": {
+                                    "code": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The primary language as stored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "primaryLanguage": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/languages/enabled": {
+            "post": {
+                "operationId": "set-enabled-languages",
+                "summary": "Replace the enabled set",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body. Enabling a language also creates its homepage; a failure there is reported per language rather than failing the whole call.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "codes"
+                                ],
+                                "properties": {
+                                    "codes": {
+                                        "type": "array",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The enabled set, plus per-language homepage results.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LanguageEnableResult"
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/languages/{code}/add": {
+            "post": {
+                "operationId": "add-language",
+                "summary": "Enable one language",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body.",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "description": "Language code, e.g. \"nl\".",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Enabled.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/languages/{code}": {
+            "delete": {
+                "operationId": "remove-language",
+                "summary": "Disable one language",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body. Disabling does not delete the pages in that language.",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "description": "Language code, e.g. \"nl\".",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Disabled.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/languages/{code}/empty-homepage": {
+            "post": {
+                "operationId": "create-language-homepage",
+                "summary": "Create an empty homepage for a language",
+                "tags": [
+                    "Languages"
+                ],
+                "description": "Admin only. Nextcloud enforces this by default for any controller method without #[NoAdminRequired], which this controller deliberately relies on rather than checking in the body. Idempotent: a language that already has a homepage is left alone.",
+                "parameters": [
+                    {
+                        "name": "code",
+                        "in": "path",
+                        "required": true,
+                        "description": "Language code, e.g. \"nl\".",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Created, or already present.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "400": {
+                        "$ref": "#/components/responses/BadRequest"
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/license/stats": {
+            "get": {
+                "operationId": "get-license-stats",
+                "summary": "Subscription state and page usage",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. Reads the cached verdict; it never blocks on the licence server.",
+                "responses": {
+                    "200": {
+                        "description": "Subscription state and usage.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LicenseStats"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/license/instance": {
+            "get": {
+                "operationId": "get-instance-info",
+                "summary": "How this instance identifies itself",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. The instance is identified to the licence server by a hash, never by its URL in the clear.",
+                "responses": {
+                    "200": {
+                        "description": "Instance identification.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true,
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/settings/license": {
+            "post": {
+                "operationId": "save-license-key",
+                "summary": "Store a subscription key",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. Storing a key does not validate it; call the validate endpoint afterwards.",
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "required": [
+                                    "licenseKey"
+                                ],
+                                "properties": {
+                                    "licenseKey": {
+                                        "type": "string"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "Stored.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/license/validate": {
+            "post": {
+                "operationId": "validate-license",
+                "summary": "Check the key against the licence server",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. Contacts the licence server and caches the verdict, which is what the stats endpoint then reads.",
+                "responses": {
+                    "200": {
+                        "description": "The verdict, valid or refused with a reason.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/LicenseValidation"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/license/update-usage": {
+            "post": {
+                "operationId": "update-license-usage",
+                "summary": "Report usage to the licence server",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. Normally driven by a daily background job; this endpoint exists so an admin can force a report.",
+                "responses": {
+                    "200": {
+                        "description": "The report result.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
+        },
+        "/api/license/telemetry": {
+            "post": {
+                "operationId": "send-telemetry",
+                "summary": "Send telemetry now",
+                "tags": [
+                    "Licensing"
+                ],
+                "description": "Admin only. Answers success:false with a reason when telemetry is switched off, rather than failing.",
+                "responses": {
+                    "200": {
+                        "description": "Sent, or declined with a reason.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "success": {
+                                            "type": "boolean"
+                                        },
+                                        "message": {
+                                            "type": "string"
+                                        },
+                                        "reason": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthorized"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -6357,6 +6865,148 @@
                     "error": {
                         "type": "string",
                         "description": "Present on a refusal, naming the reason."
+                    }
+                }
+            },
+            "LanguageList": {
+                "type": "object",
+                "description": "Which languages exist on the instance and which of them are enabled.",
+                "properties": {
+                    "languages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Enabled language codes."
+                    },
+                    "availableLanguages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Everything that could be enabled."
+                    },
+                    "defaultLanguage": {
+                        "type": "string"
+                    }
+                }
+            },
+            "LanguageEnableResult": {
+                "type": "object",
+                "description": "Result of changing the enabled set. Enabling a language creates its homepage, and that can partly fail without the whole call failing — hence the per-language results.",
+                "properties": {
+                    "enabled": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The enabled set after the change."
+                    },
+                    "newlyEnabled": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "homepageResults": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "description": "Per newly enabled language, whether its homepage could be created."
+                    }
+                }
+            },
+            "LanguageContentStatus": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Per language, whether it has content yet. The only endpoint here a non-admin may call, because the editor needs it to offer a language switch."
+            },
+            "LicenseStats": {
+                "type": "object",
+                "required": [
+                    "success"
+                ],
+                "description": "Subscription state and page usage. The verdict comes from the cached result of the last check, not from a live call to the licence server: this is read on every render of the admin settings, and a slow server would otherwise stall the page.",
+                "properties": {
+                    "success": {
+                        "type": "boolean"
+                    },
+                    "hasLicense": {
+                        "type": "boolean",
+                        "description": "Whether a key is configured at all."
+                    },
+                    "licenseValid": {
+                        "type": "boolean"
+                    },
+                    "licenseReason": {
+                        "type": "string",
+                        "description": "Why a key was refused — expired, unknown, already registered elsewhere, deactivated. Empty when the licence is valid."
+                    },
+                    "licenseValidUntil": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Expiry date, also present on a refusal so an expired key can name the date it lapsed."
+                    },
+                    "licenseKeyMasked": {
+                        "type": "string",
+                        "description": "The key with its middle replaced; the full key is never returned."
+                    },
+                    "licenseInfo": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "additionalProperties": true
+                    },
+                    "pageCounts": {
+                        "type": "object",
+                        "additionalProperties": {
+                            "type": "integer"
+                        },
+                        "description": "Pages per language."
+                    },
+                    "totalPages": {
+                        "type": "integer"
+                    },
+                    "freeLimit": {
+                        "type": "integer",
+                        "description": "Pages per language allowed without a subscription."
+                    },
+                    "maxPagesPerLanguage": {
+                        "type": "integer"
+                    },
+                    "exceededLanguages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "pagesExceeded": {
+                        "type": "boolean"
+                    },
+                    "perLanguage": {
+                        "type": "boolean"
+                    },
+                    "supportedLanguages": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                }
+            },
+            "LicenseValidation": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The licence server's verdict. Contacts the server, so unlike the stats endpoint it can be slow or fail.",
+                "properties": {
+                    "valid": {
+                        "type": "boolean"
+                    },
+                    "reason": {
+                        "type": "string",
+                        "description": "Present when refused."
                     }
                 }
             }
