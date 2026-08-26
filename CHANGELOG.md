@@ -82,6 +82,13 @@ Planned for later releases, listed so the scope of this one is clear.
   temporarily. The script clears the counter afterwards, including when
   interrupted.
 
+> **2.4.0 and 2.4.1 were never published.** Both were built and ran on the
+> development instance, but the release stopped short of a tag and an App Store
+> upload. Their fixes are in `main` and shipped with 2.5.0, so an installation
+> upgrading from 2.3.2 gets them. The tags `v2.4.0` and `v2.4.1` were added
+> afterwards, on 2026-08-26, so the version history is continuous and
+> `git describe` resolves correctly — they mark code, not published releases.
+
 ## [2.4.1] - 2026-08-25 — A refused subscription key says why
 
 ### Fixed

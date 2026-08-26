@@ -884,6 +884,27 @@ https://github.com/nextcloud/IntraVox/releases/download/vX.Y.Z/intravox-X.Y.Z.ta
 
 ---
 
+### 9.8 Is de release echt af?
+
+Een release kan halverwege blijven steken zonder dat iets faalt: 2.4.0 en 2.4.1
+zijn gebouwd, getest en gedeployed, maar nooit getagd en nooit gepubliceerd. Dat
+viel pas twee versies later op. Deze drie regels sluiten dat af:
+
+```bash
+V=X.Y.Z
+git rev-list -n1 "v$V" >/dev/null 2>&1 && echo "tag ok"     || echo "GEEN TAG"
+gh release view "v$V" --repo nextcloud/IntraVox --json assets \
+  -q '.assets[0].state' 2>/dev/null                          || echo "GEEN GITHUB RELEASE"
+curl -s -H "Accept: application/json" \
+  "https://apps.nextcloud.com/api/v1/platform/32.0.0/apps.json?t=$(date +%s)" \
+  | python3 -c "import json,sys;a=[x for x in json.load(sys.stdin) if x['id']=='intravox'][0];print('app store:',a['releases'][0]['version'])"
+```
+
+> De cache-buster (`?t=`) is nodig: zonder die parameter geeft de App Store-API
+> minutenlang de vorige versie terug, wat leest als een mislukte upload.
+
+---
+
 ## 10. Post-Release Verification
 
 - [ ] Install from App Store on clean test server
