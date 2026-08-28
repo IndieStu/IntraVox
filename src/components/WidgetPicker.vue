@@ -32,6 +32,7 @@ import Video from 'vue-material-design-icons/Video.vue';
 import Newspaper from 'vue-material-design-icons/Newspaper.vue';
 import AccountGroup from 'vue-material-design-icons/AccountGroup.vue';
 import Calendar from 'vue-material-design-icons/Calendar.vue';
+import TicketConfirmation from 'vue-material-design-icons/TicketConfirmation.vue';
 import RssBox from 'vue-material-design-icons/RssBox.vue';
 import ImageMultiple from 'vue-material-design-icons/ImageMultiple.vue';
 import FileDocumentMultiple from 'vue-material-design-icons/FileDocumentMultiple.vue';
@@ -49,6 +50,7 @@ export default {
     Newspaper,
     AccountGroup,
     Calendar,
+    TicketConfirmation,
     RssBox,
     ImageMultiple,
     FileDocumentMultiple,
@@ -115,6 +117,12 @@ export default {
           description: this.t('intravox', 'Show events from shared calendars')
         },
         {
+          type: 'pretix',
+          name: this.t('intravox', 'Pretix event'),
+          icon: 'ticket-confirmation',
+          description: this.t('intravox', 'Show the next Pretix event and registration status')
+        },
+        {
           type: 'feed',
           name: this.t('intravox', 'Feed'),
           icon: 'rss-box',
@@ -150,6 +158,7 @@ export default {
         'newspaper': 'Newspaper',
         'account-group': 'AccountGroup',
         'calendar': 'Calendar',
+        'ticket-confirmation': 'TicketConfirmation',
         'rss-box': 'RssBox',
         'image-multiple': 'ImageMultiple',
         'file-document-multiple': 'FileDocumentMultiple',

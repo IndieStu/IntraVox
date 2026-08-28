@@ -236,6 +236,12 @@
           @update="handleCalendarWidgetUpdate"
         />
 
+        <PretixWidgetEditor
+          v-else-if="localWidget.type === 'pretix'"
+          :widget="localWidget"
+          @update="handlePretixWidgetUpdate"
+        />
+
         <!-- Feed Widget -->
         <FeedWidgetEditor
           v-else-if="localWidget.type === 'feed'"
@@ -439,6 +445,7 @@ import MediaPicker from './MediaPicker.vue';
 import NewsWidgetEditor from './NewsWidgetEditor.vue';
 import PeopleWidgetEditor from './PeopleWidgetEditor.vue';
 import CalendarWidgetEditor from './CalendarWidgetEditor.vue';
+import PretixWidgetEditor from './PretixWidgetEditor.vue';
 import FeedWidgetEditor from './FeedWidgetEditor.vue';
 import PhotoStoryWidgetEditor from './PhotoStoryWidgetEditor.vue';
 import FileStoryWidgetEditor from './FileStoryWidgetEditor.vue';
@@ -465,6 +472,7 @@ export default {
     NewsWidgetEditor,
     PeopleWidgetEditor,
     CalendarWidgetEditor,
+    PretixWidgetEditor,
     FeedWidgetEditor,
     PhotoStoryWidgetEditor,
     FileStoryWidgetEditor,
@@ -640,6 +648,9 @@ export default {
     },
     handleCalendarWidgetUpdate(updatedWidget) {
       // Merge the updated calendar widget properties into localWidget
+      Object.assign(this.localWidget, updatedWidget);
+    },
+    handlePretixWidgetUpdate(updatedWidget) {
       Object.assign(this.localWidget, updatedWidget);
     },
     handleFeedWidgetUpdate(updatedWidget) {

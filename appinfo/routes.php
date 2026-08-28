@@ -179,6 +179,12 @@ return [
         ['name' => 'calendar#getCalendars', 'url' => '/api/calendar/calendars', 'verb' => 'GET'],
         ['name' => 'calendar#getEvents', 'url' => '/api/calendar/events', 'verb' => 'GET'],
 
+        // Pretix widget API routes
+        ['name' => 'pretix#getWidgetData', 'url' => '/api/pretix/widget-data', 'verb' => 'GET'],
+        ['name' => 'pretix#getOptions', 'url' => '/api/pretix/options', 'verb' => 'GET'],
+        ['name' => 'pretix#getSettings', 'url' => '/api/settings/pretix', 'verb' => 'GET'],
+        ['name' => 'pretix#setSettings', 'url' => '/api/settings/pretix', 'verb' => 'POST'],
+
         // Feed widget API routes
         ['name' => 'feedReader#getFeed', 'url' => '/api/feed/external', 'verb' => 'GET'],
         ['name' => 'feedReader#getPreview', 'url' => '/api/feed/preview', 'verb' => 'GET'],

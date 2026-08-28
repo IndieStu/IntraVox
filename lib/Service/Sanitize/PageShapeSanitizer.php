@@ -27,7 +27,7 @@ use Psr\Log\LoggerInterface;
  *   auditable place instead of spread across the write path.
  */
 final class PageShapeSanitizer {
-    private const ALLOWED_WIDGET_TYPES = ['text', 'heading', 'image', 'links', 'divider', 'video', 'news', 'people', 'calendar', 'feed', 'photo-story', 'file-story'];
+    private const ALLOWED_WIDGET_TYPES = ['text', 'heading', 'image', 'links', 'divider', 'video', 'news', 'people', 'calendar', 'pretix', 'feed', 'photo-story', 'file-story'];
     private const MAX_COLUMNS = 5;
 
     /**
@@ -711,6 +711,23 @@ final class PageShapeSanitizer {
                 $sanitized['showLocation'] = (bool) ($widget['showLocation'] ?? false);
 
                 // Background color
+                if (isset($widget['backgroundColor'])) {
+                    $sanitized['backgroundColor'] = $this->colorSanitizer->sanitize($widget['backgroundColor']);
+                }
+                break;
+
+            case 'pretix':
+                $sanitized['title'] = $this->sanitizeText($widget['title'] ?? '');
+                $sanitized['organizer'] = preg_match('/^[a-z0-9][a-z0-9_-]{0,99}$/i', (string)($widget['organizer'] ?? ''))
+                    ? (string)$widget['organizer'] : '';
+                $sanitized['event'] = preg_match('/^[a-z0-9][a-z0-9_-]{0,99}$/i', (string)($widget['event'] ?? ''))
+                    ? (string)$widget['event'] : '';
+                $sanitized['quotaId'] = max(0, (int)($widget['quotaId'] ?? 0));
+                $sanitized['newOrdersHours'] = max(1, min((int)($widget['newOrdersHours'] ?? 24), 168));
+                $sanitized['showLocation'] = (bool)($widget['showLocation'] ?? true);
+                $sanitized['showCapacity'] = (bool)($widget['showCapacity'] ?? true);
+                $sanitized['showNewOrders'] = (bool)($widget['showNewOrders'] ?? true);
+                $sanitized['showBackendLink'] = (bool)($widget['showBackendLink'] ?? false);
                 if (isset($widget['backgroundColor'])) {
                     $sanitized['backgroundColor'] = $this->colorSanitizer->sanitize($widget['backgroundColor']);
                 }

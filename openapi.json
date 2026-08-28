@@ -111,6 +111,10 @@
       "description": "User directory queries behind the people widget."
     },
     {
+      "name": "Pretix",
+      "description": "Server-side Pretix event and registration summaries."
+    },
+    {
       "name": "Photo Story",
       "description": "Paginated photo browsing, clustering and EXIF."
     },
@@ -3187,6 +3191,35 @@
             "description": "Failed to get calendar events"
           }
         }
+      }
+    },
+    "/api/pretix/widget-data": {
+      "get": {
+        "operationId": "get-pretix-widget-data",
+        "summary": "Get aggregated Pretix event data",
+        "description": "Returns the next active occurrence, quota availability and a registration count. Pretix credentials stay on the server.",
+        "tags": ["Pretix"],
+        "parameters": [
+          {"name": "organizer", "in": "query", "required": true, "schema": {"type": "string"}},
+          {"name": "event", "in": "query", "required": true, "schema": {"type": "string"}},
+          {"name": "quotaId", "in": "query", "schema": {"type": "integer", "minimum": 0}},
+          {"name": "newOrdersHours", "in": "query", "schema": {"type": "integer", "minimum": 1, "maximum": 168, "default": 24}},
+          {"name": "showBackendLink", "in": "query", "schema": {"type": "boolean", "default": false}}
+        ],
+        "responses": {
+          "200": {"description": "Aggregated event data", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "401": {"$ref": "#/components/responses/Unauthorized"},
+          "502": {"description": "Pretix is unavailable or rejected the request"}
+        }
+      }
+    },
+    "/api/pretix/options": {
+      "get": {
+        "operationId": "get-pretix-options",
+        "summary": "List Pretix organizers or events",
+        "tags": ["Pretix"],
+        "parameters": [{"name": "organizer", "in": "query", "schema": {"type": "string"}}],
+        "responses": {"200": {"description": "Organizer or event choices", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "502": {"description": "Pretix is unavailable"}}
       }
     },
     "/api/share/{token}/calendar/events": {
@@ -7047,6 +7080,36 @@
             "description": "Save failed."
           }
         }
+      }
+    },
+    "/api/settings/pretix": {
+      "get": {
+        "operationId": "get-pretix-settings",
+        "summary": "Read non-secret Pretix settings (admin)",
+        "tags": ["Pretix", "Settings"],
+        "responses": {"200": {"description": "Base URL and token-presence flag", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "403": {"description": "Administrator privileges required"}}
+      },
+      "post": {
+        "operationId": "set-pretix-settings",
+        "summary": "Save Pretix connection settings (admin)",
+        "description": "Stores an encrypted API token. An empty token preserves the current token.",
+        "tags": ["Pretix", "Settings"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["baseUrl"],
+                "properties": {
+                  "baseUrl": {"type": "string", "format": "uri"},
+                  "token": {"type": "string", "writeOnly": true}
+                }
+              }
+            }
+          }
+        },
+        "responses": {"200": {"description": "Saved non-secret settings", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "400": {"description": "Invalid HTTPS origin or token"}, "403": {"description": "Administrator privileges required"}}
       }
     },
     "/api/bulk/validate": {
