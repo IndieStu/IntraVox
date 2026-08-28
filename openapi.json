@@ -3197,9 +3197,10 @@
       "get": {
         "operationId": "get-pretix-widget-data",
         "summary": "Get aggregated Pretix event data",
-        "description": "Returns the next active occurrence, quota availability and a registration count. Pretix credentials stay on the server.",
+        "description": "Returns the next active occurrence, quota availability and a registration count. Pretix credentials stay on the server. Rate limited to 30 requests per minute per user.",
         "tags": ["Pretix"],
         "parameters": [
+          {"name": "pageId", "in": "query", "required": true, "schema": {"type": "string"}, "description": "Containing IntraVox page used for the read-permission check"},
           {"name": "organizer", "in": "query", "required": true, "schema": {"type": "string"}},
           {"name": "event", "in": "query", "required": true, "schema": {"type": "string"}},
           {"name": "quotaId", "in": "query", "schema": {"type": "integer", "minimum": 0}},
@@ -3208,7 +3209,10 @@
         ],
         "responses": {
           "200": {"description": "Aggregated event data", "content": {"application/json": {"schema": {"type": "object", "additionalProperties": true}}}},
+          "400": {"description": "Containing page is missing"},
           "401": {"$ref": "#/components/responses/Unauthorized"},
+          "403": {"$ref": "#/components/responses/Forbidden"},
+          "429": {"description": "Rate limit exceeded (30 per minute per user)."},
           "502": {"description": "Pretix is unavailable or rejected the request"}
         }
       }
@@ -7087,7 +7091,7 @@
         "operationId": "get-pretix-settings",
         "summary": "Read non-secret Pretix settings (admin)",
         "tags": ["Pretix", "Settings"],
-        "responses": {"200": {"description": "Base URL and token-presence flag", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "403": {"description": "Administrator privileges required"}}
+        "responses": {"200": {"description": "Base URL and token-presence flag", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"description": "Administrator privileges required"}}
       },
       "post": {
         "operationId": "set-pretix-settings",
@@ -7109,7 +7113,7 @@
             }
           }
         },
-        "responses": {"200": {"description": "Saved non-secret settings", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "400": {"description": "Invalid HTTPS origin or token"}, "403": {"description": "Administrator privileges required"}}
+        "responses": {"200": {"description": "Saved non-secret settings", "content": {"application/json": {"schema": {"type": "object", "properties": {"baseUrl": {"type": "string"}, "configured": {"type": "boolean"}, "hasToken": {"type": "boolean"}}}}}}, "400": {"description": "Invalid HTTPS origin or token"}, "401": {"$ref": "#/components/responses/Unauthorized"}, "403": {"description": "Administrator privileges required"}}
       }
     },
     "/api/bulk/validate": {
