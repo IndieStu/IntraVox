@@ -50,11 +50,11 @@ class WidgetSanitizerSpecTest extends TestCase {
 		);
 	}
 
-	/** The twelve types the allowlist admits. */
+	/** The thirteen types the allowlist admits. */
 	public static function widgetTypes(): array {
 		return [
 			['text'], ['heading'], ['image'], ['links'], ['divider'], ['video'],
-			['news'], ['people'], ['calendar'], ['feed'], ['photo-story'], ['file-story'],
+			['news'], ['people'], ['calendar'], ['pretix'], ['feed'], ['photo-story'], ['file-story'],
 		];
 	}
 
@@ -296,6 +296,25 @@ class WidgetSanitizerSpecTest extends TestCase {
 		foreach ($result['calendarIds'] as $id) {
 			$this->assertIsString($id);
 		}
+	}
+
+	public function testPretixWidgetKeepsOnlyNonSecretIdentifiersAndBoundsWindow(): void {
+		$result = $this->sanitizer->sanitizeWidget([
+			'type' => 'pretix',
+			'organizer' => 'zircula',
+			'event' => 'workshops',
+			'quotaId' => 42,
+			'newOrdersHours' => 999,
+			'apiToken' => 'must-not-survive',
+			'baseUrl' => 'https://pretix.example.org',
+		]);
+
+		$this->assertSame('zircula', $result['organizer']);
+		$this->assertSame('workshops', $result['event']);
+		$this->assertSame(42, $result['quotaId']);
+		$this->assertSame(168, $result['newOrdersHours']);
+		$this->assertArrayNotHasKey('apiToken', $result);
+		$this->assertArrayNotHasKey('baseUrl', $result);
 	}
 
 	public function testFeedConstrainsSourceTypeAndTrimsKeyword(): void {

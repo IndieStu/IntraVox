@@ -1185,6 +1185,17 @@ export default {
           widget.showTime = true;
           widget.showLocation = false;
           break;
+        case 'pretix':
+          widget.title = '';
+          widget.organizer = '';
+          widget.event = '';
+          widget.quotaId = 0;
+          widget.newOrdersHours = 24;
+          widget.showLocation = true;
+          widget.showCapacity = true;
+          widget.showNewOrders = true;
+          widget.showBackendLink = false;
+          break;
         case 'feed':
           widget.title = '';
           widget.sourceType = 'rss';

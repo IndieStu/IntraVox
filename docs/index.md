@@ -45,6 +45,7 @@ Per-feature documentation for widgets and capabilities.
 - [News Widget](features/news-widget.md) — Folder-as-feed news rendering
 - [People Widget](features/people-widget.md) — Show people from groups
 - [Photo Story Widget](features/photo-story-widget.md) — Folder-as-photo-story with EXIF, maps, timeline, and federation
+- [Pretix Widget](features/pretix-widget.md) — Show the next event, availability, and recent registrations
 - [Engagement Architecture](features/engagement-architecture.md) — How reactions and comments work technically
 - [Confluence Import](features/confluence-import.md) — Import content from Confluence Cloud, Server, or Data Center
 

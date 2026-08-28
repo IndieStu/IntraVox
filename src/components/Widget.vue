@@ -110,6 +110,8 @@
       :row-background-color="rowBackgroundColor"
     />
 
+    <PretixWidget v-else-if="widget.type === 'pretix'" :widget="widget" :page-id="pageId" />
+
     <!-- Feed Widget -->
     <FeedWidget
       v-else-if="widget.type === 'feed'"
@@ -225,6 +227,7 @@ export default {
     NewsWidget: defineAsyncComponent(() => import('./NewsWidget.vue')),
     PeopleWidget: defineAsyncComponent(() => import('./PeopleWidget.vue')),
     CalendarWidget: defineAsyncComponent(() => import('./CalendarWidget.vue')),
+    PretixWidget: defineAsyncComponent(() => import('./PretixWidget.vue')),
     FeedWidget: defineAsyncComponent(() => import('./FeedWidget.vue')),
     PhotoStoryWidget: defineAsyncComponent(() => import('./PhotoStoryWidget.vue')),
     FileStoryWidget: defineAsyncComponent(() => import('./FileStoryWidget.vue')),

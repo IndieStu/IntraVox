@@ -9,3 +9,8 @@ docs/internal/ export-ignore
 
 # Screenshots are only for GitHub README documentation, not needed in app
 screenshots/ export-ignore
+
+# These legacy sources are intentionally CRLF. Treat CR at end of line as part
+# of the line ending so `git diff --check` can still inspect added lines.
+appinfo/routes.php whitespace=cr-at-eol
+src/components/*.vue whitespace=cr-at-eol

@@ -73,6 +73,12 @@
 				{{ t('intravox', 'External feeds') }}
 			</button>
 			<button
+				:class="['tab-button', { active: activeTab === 'pretix' }]"
+				@click="activeTab = 'pretix'">
+				<TicketConfirmation :size="16" />
+				{{ t('intravox', 'Pretix') }}
+			</button>
+			<button
 				:class="['tab-button', { active: activeTab === 'support' }]"
 				@click="activeTab = 'support'">
 				<HeartOutline :size="16" />
@@ -1071,6 +1077,23 @@
 			</div>
 		</div>
 
+		<!-- Pretix Tab -->
+		<div v-if="activeTab === 'pretix'" class="tab-content">
+			<div class="settings-section">
+				<h2>{{ t('intravox', 'Pretix connection') }}</h2>
+				<p class="settings-section-desc">{{ t('intravox', 'Configure the server-side connection used by Pretix widgets. The API token is never sent to page visitors.') }}</p>
+				<div class="form-group">
+					<label for="pretix-base-url">{{ t('intravox', 'Pretix base URL') }}</label>
+					<input id="pretix-base-url" v-model="pretixBaseUrl" type="url" placeholder="https://pretix.example.org" />
+				</div>
+				<div class="form-group">
+					<label for="pretix-token">{{ t('intravox', 'API token') }}</label>
+					<input id="pretix-token" v-model="pretixToken" type="password" :placeholder="pretixHasToken ? t('intravox', '(unchanged)') : t('intravox', 'Enter API token')" autocomplete="new-password" />
+				</div>
+				<NcButton type="primary" :disabled="pretixSaving" @click="savePretixSettings">{{ pretixSaving ? t('intravox', 'Saving …') : t('intravox', 'Save Pretix settings') }}</NcButton>
+			</div>
+		</div>
+
 		<!-- External Feeds Tab -->
 		<div v-if="activeTab === 'feeds'" class="tab-content">
 			<div class="settings-section">
@@ -1416,6 +1439,7 @@ import LinkVariant from 'vue-material-design-icons/LinkVariant.vue'
 import FolderOutline from 'vue-material-design-icons/FolderOutline.vue'
 import FileDocumentOutline from 'vue-material-design-icons/FileDocumentOutline.vue'
 import RssBox from 'vue-material-design-icons/RssBox.vue'
+import TicketConfirmation from 'vue-material-design-icons/TicketConfirmation.vue'
 import DatabaseAlert from 'vue-material-design-icons/DatabaseAlert.vue'
 import DatabaseSearch from 'vue-material-design-icons/DatabaseSearch.vue'
 import HeartOutline from 'vue-material-design-icons/HeartOutline.vue'
@@ -1450,6 +1474,7 @@ export default {
 		FolderOutline,
 		FileDocumentOutline,
 		RssBox,
+		TicketConfirmation,
 		DatabaseAlert,
 		DatabaseSearch,
 		ConfluenceImport,
@@ -1583,6 +1608,10 @@ export default {
 			// External feed connections
 			feedConnections: [],
 			feedConnectionsSaving: false,
+			pretixBaseUrl: '',
+			pretixToken: '',
+			pretixHasToken: false,
+			pretixSaving: false,
 			testingConnection: null,
 			testResults: {},
 			// Orphaned data management
@@ -1777,7 +1806,7 @@ export default {
 				this.supportSubTab = 'maintenance'
 				return
 			}
-			const validTabs = ['video', 'engagement', 'publication', 'languages', 'demo', 'export', 'sharing', 'support', 'feeds']
+			const validTabs = ['video', 'engagement', 'publication', 'languages', 'demo', 'export', 'sharing', 'support', 'feeds', 'pretix']
 			if (validTabs.includes(hash) && hash !== this.activeTab) {
 				this.activeTab = hash
 			}
@@ -1919,6 +1948,28 @@ export default {
 				}))
 			} catch (e) {
 				this.feedConnections = []
+			}
+		},
+		async loadPretixSettings() {
+			try {
+				const { data } = await axios.get(generateUrl('/apps/intravox/api/settings/pretix'))
+				this.pretixBaseUrl = data.baseUrl || ''
+				this.pretixHasToken = data.hasToken === true
+			} catch (e) {
+				showError(this.t('intravox', 'Failed to load Pretix settings'))
+			}
+		},
+		async savePretixSettings() {
+			this.pretixSaving = true
+			try {
+				const { data } = await axios.post(generateUrl('/apps/intravox/api/settings/pretix'), { baseUrl: this.pretixBaseUrl, token: this.pretixToken })
+				this.pretixToken = ''
+				this.pretixHasToken = data.hasToken === true
+				showSuccess(this.t('intravox', 'Pretix settings saved'))
+			} catch (e) {
+				showError(this.t('intravox', 'Failed to save Pretix settings'))
+			} finally {
+				this.pretixSaving = false
 			}
 		},
 		addFeedConnection() {
@@ -2915,6 +2966,7 @@ export default {
 		this.loadExportLanguages()
 		this.loadLicenseStats()
 		this.loadFeedConnections()
+		this.loadPretixSettings()
 		this.checkOrphanedData()
 		// Prevent accidental navigation during export (use bound handler for proper cleanup)
 		this.boundBeforeUnloadHandler = this.handleBeforeUnload.bind(this)

@@ -6,12 +6,12 @@ What each endpoint demands of its caller. Regenerate with `npm run route-table`;
 CI fails when this file is stale, so a change in authorization shows up here as a
 diff rather than staying buried in 14 controllers.
 
-175 routes.
+179 routes.
 
 - **admin (checked in body)**: 23
-- **admin**: 13
+- **admin**: 15
 - **anonymous**: 17
-- **any logged-in user**: 122
+- **any logged-in user**: 124
 
 | Verb | URL | Handler | Requires | CSRF |
 |---|---|---|---|---|
@@ -141,6 +141,10 @@ diff rather than staying buried in 14 controllers.
 | GET | `/api/people/facet-preflight` | `people#facetPreflight` | any logged-in user | exempt |
 | GET | `/api/calendar/calendars` | `calendar#getCalendars` | any logged-in user | exempt |
 | GET | `/api/calendar/events` | `calendar#getEvents` | any logged-in user | exempt |
+| GET | `/api/pretix/widget-data` | `pretix#getWidgetData` | any logged-in user | exempt |
+| GET | `/api/pretix/options` | `pretix#getOptions` | any logged-in user | exempt |
+| GET | `/api/settings/pretix` | `pretix#getSettings` | admin | exempt |
+| POST | `/api/settings/pretix` | `pretix#setSettings` | admin | required |
 | GET | `/api/feed/external` | `feedReader#getFeed` | any logged-in user | exempt |
 | GET | `/api/feed/preview` | `feedReader#getPreview` | any logged-in user | required |
 | GET | `/api/feed/image` | `feedReader#proxyImage` | any logged-in user | exempt |
