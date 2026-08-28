@@ -109,9 +109,10 @@ if (pkgVersion !== xmlVersion || pkgVersion !== specVersion) {
 if (arg && arg !== '--check') {
     const newVersion = arg;
 
-    // Validate semver format
-    if (!/^\d+\.\d+\.\d+$/.test(newVersion)) {
-        console.error('\n❌ Invalid version format. Use semantic versioning (e.g., 0.6.0)');
+    // Match the SemVer subset accepted by Nextcloud's app-info.xsd,
+    // including an optional pre-release suffix for downstream builds.
+    if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(newVersion)) {
+        console.error('\n❌ Invalid version format. Use semantic versioning (e.g., 0.6.0 or 0.6.1-vendor.1)');
         process.exit(1);
     }
 
